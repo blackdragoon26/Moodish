@@ -1,6 +1,7 @@
 const agentBase = "http://127.0.0.1:8786";
 let currentRecommendation = null;
 let selectedOptionId = null;
+let activeMode = "solo";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -22,7 +23,7 @@ function formJson(form) {
 function renderRecommendation(run) {
   currentRecommendation = run;
   selectedOptionId = run.options[0]?.optionId || null;
-  $("#summary").textContent = `${run.summary}\nRecommendation id: ${run.recommendationId}`;
+  $("#summary").textContent = run.summary;
   $("#confirmCart").disabled = !selectedOptionId;
   $("#options").innerHTML = run.options
     .map(
@@ -36,7 +37,7 @@ function renderRecommendation(run) {
           <span>${option.distanceKm} km</span>
         </div>
         <p>${option.items.map((item) => `${item.quantity}x ${item.name}`).join(", ")}</p>
-        <p>${option.reasons.join(" · ")}</p>
+        <p>${option.reasons.slice(0, 3).join(" · ")}</p>
         ${
           option.addOns
             ? `<p><strong>Instamart add-ons:</strong> ${option.addOns.map((item) => item.name).join(", ")}</p>`
@@ -56,12 +57,23 @@ function renderRecommendation(run) {
 async function refreshHealth() {
   try {
     const health = await api("/health");
-    $("#healthText").textContent = `${health.service} is healthy in ${health.mode} mode`;
+    $("#healthText").textContent = `${health.mode} mode`;
     const audit = await api("/api/audit");
     $("#auditOutput").textContent = JSON.stringify(audit, null, 2);
   } catch (error) {
     $("#healthText").textContent = `Agent unavailable: ${error.message}`;
   }
+}
+
+function setMode(mode) {
+  activeMode = mode;
+  document.querySelectorAll(".mode-tab").forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.mode === mode);
+  });
+  $("#solo").classList.toggle("hidden", mode !== "solo");
+  $("#office").classList.toggle("hidden", mode !== "office");
+  $("#summary").textContent =
+    mode === "solo" ? "Tell Moodish your mood and budget." : "Set the team constraints and get a shared lunch shortlist.";
 }
 
 async function refreshMemory() {
@@ -111,5 +123,10 @@ $("#clearMemory").addEventListener("click", async () => {
   await refreshMemory();
 });
 
+document.querySelectorAll(".mode-tab").forEach((tab) => {
+  tab.addEventListener("click", () => setMode(tab.dataset.mode));
+});
+
+setMode(activeMode);
 refreshHealth();
 refreshMemory();

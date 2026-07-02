@@ -8,118 +8,125 @@
   </head>
   <body>
     <header class="topbar">
-      <div>
-        <p class="eyebrow">Powered by Swiggy MCP</p>
-        <h1>Moodish</h1>
+      <a class="brand" href="/">
+        <span class="mark">M</span>
+        <span>Moodish</span>
+      </a>
+      <div class="status-chip">
+        <span class="status-dot"></span>
+        <span id="healthText">Checking agent</span>
       </div>
-      <nav>
-        <a href="#solo">Solo</a>
-        <a href="#office">Office</a>
-        <a href="#memory">Taste Memory</a>
-        <a href="#health">Health</a>
-      </nav>
     </header>
 
     <main>
       <section class="hero">
-        <div>
-          <h2>Surprising meals, sane constraints.</h2>
-          <p>
-            Moodish turns Swiggy Food and Instamart into a personal and office lunch planner. Demo mode works locally;
-            live mode can connect to Swiggy MCP with per-user authorization.
-          </p>
-        </div>
-        <div class="status-panel">
-          <span class="status-dot"></span>
-          <span id="healthText">Checking agent...</span>
-        </div>
+        <p class="eyebrow">Powered by Swiggy MCP</p>
+        <h1>Food planning for the mood you are actually in.</h1>
+        <p class="hero-copy">
+          Moodish curates personal surprises and small-team lunches with taste memory, budget awareness, and safe cart
+          confirmation.
+        </p>
       </section>
 
-      <section class="planner-grid">
-        <form id="solo" class="panel">
-          <div class="panel-head">
-            <span class="icon">☆</span>
-            <div>
-              <h3>Solo Surprise</h3>
-              <p>Personal meal discovery by mood, budget, and taste memory.</p>
-            </div>
+      <section class="workspace">
+        <div class="planner">
+          <div class="mode-tabs" role="tablist" aria-label="Planner mode">
+            <button class="mode-tab active" type="button" data-mode="solo">Solo</button>
+            <button class="mode-tab" type="button" data-mode="office">Office</button>
           </div>
-          <label>
-            Mood
-            <input name="mood" value="curious but protein-heavy" />
-          </label>
-          <label>
-            Budget
-            <input name="budget" type="number" min="120" max="1000" value="350" />
-          </label>
-          <label>
-            Dietary rules
-            <input name="dietaryRules" value="high-protein" />
-          </label>
-          <label>
-            Novelty
-            <input name="novelty" type="range" min="1" max="5" value="4" />
-          </label>
-          <button type="submit">Plan Solo Meal</button>
-        </form>
 
-        <form id="office" class="panel">
-          <div class="panel-head">
-            <span class="icon">▦</span>
-            <div>
-              <h3>Office Dabba</h3>
-              <p>Small-team lunch planning with budget, rotation, and add-ons.</p>
+          <form id="solo" class="planner-form">
+            <div class="form-head">
+              <h2>Surprise me</h2>
+              <p>Tell Moodish the vibe; it handles the filtering.</p>
             </div>
-          </div>
-          <label>
-            Headcount
-            <input name="headcount" type="number" min="2" max="15" value="6" />
-          </label>
-          <label>
-            Budget per person
-            <input name="budgetPerPerson" type="number" min="120" max="1000" value="250" />
-          </label>
-          <label>
-            Dietary rules
-            <input name="dietaryRules" value="veg, high-protein" />
-          </label>
-          <label>
-            Avoid cuisines
-            <input name="cuisineAvoidList" value="North Indian" />
-          </label>
-          <button type="submit">Plan Office Lunch</button>
-        </form>
-      </section>
+            <label>
+              Mood
+              <input name="mood" value="curious but protein-heavy" />
+            </label>
+            <div class="two-col">
+              <label>
+                Budget
+                <input name="budget" type="number" min="120" max="1000" value="350" />
+              </label>
+              <label>
+                Novelty
+                <input name="novelty" type="number" min="1" max="5" value="4" />
+              </label>
+            </div>
+            <label>
+              Dietary rules
+              <input name="dietaryRules" value="high-protein" />
+            </label>
+            <button type="submit">Find my mood meal</button>
+          </form>
 
-      <section class="result-layout">
-        <div class="results">
+          <form id="office" class="planner-form hidden">
+            <div class="form-head">
+              <h2>Office lunch</h2>
+              <p>Plan a sane shared order without repeating the same cuisine.</p>
+            </div>
+            <div class="two-col">
+              <label>
+                People
+                <input name="headcount" type="number" min="2" max="15" value="6" />
+              </label>
+              <label>
+                Budget each
+                <input name="budgetPerPerson" type="number" min="120" max="1000" value="250" />
+              </label>
+            </div>
+            <label>
+              Dietary rules
+              <input name="dietaryRules" value="veg, high-protein" />
+            </label>
+            <label>
+              Avoid cuisines
+              <input name="cuisineAvoidList" value="North Indian" />
+            </label>
+            <button type="submit">Plan team lunch</button>
+          </form>
+        </div>
+
+        <section class="results" aria-live="polite">
           <div class="section-title">
-            <h3>Recommendations</h3>
-            <button id="confirmCart" class="secondary" disabled>Build Confirmed Cart</button>
+            <div>
+              <p class="eyebrow">Recommendation</p>
+              <h2>Your shortlist</h2>
+            </div>
+            <button id="confirmCart" class="secondary" disabled>Build cart</button>
           </div>
-          <div id="summary" class="summary">No recommendation yet.</div>
+          <div id="summary" class="summary">Choose a mode and plan a meal.</div>
           <div id="options" class="options"></div>
+        </section>
+      </section>
+
+      <section class="cart-strip">
+        <div>
+          <p class="eyebrow">Cart review</p>
+          <pre id="cartOutput">No cart yet. Moodish will ask before building one.</pre>
         </div>
-
-        <aside id="memory" class="panel compact">
-          <h3>Taste Memory</h3>
-          <pre id="memoryOutput">Loading...</pre>
-          <div class="button-row">
-            <button id="exportMemory" type="button" class="secondary">Refresh</button>
-            <button id="clearMemory" type="button" class="danger">Delete</button>
-          </div>
-        </aside>
       </section>
 
-      <section id="cart-review" class="panel">
-        <h3>Cart Review</h3>
-        <pre id="cartOutput">Cart builds only after explicit confirmation.</pre>
-      </section>
-
-      <section id="health" class="panel">
-        <h3>Operational Health</h3>
-        <pre id="auditOutput">Audit logs will appear here.</pre>
-      </section>
+      <details class="developer-panel">
+        <summary>Developer view</summary>
+        <div class="developer-grid">
+          <section>
+            <div class="section-title tight">
+              <h3>Taste memory</h3>
+              <div class="button-row">
+                <button id="exportMemory" type="button" class="secondary">Refresh</button>
+                <button id="clearMemory" type="button" class="danger">Delete</button>
+              </div>
+            </div>
+            <pre id="memoryOutput">Open developer view to inspect memory.</pre>
+          </section>
+          <section>
+            <h3>Audit</h3>
+            <pre id="auditOutput">Audit logs will appear here.</pre>
+          </section>
+        </div>
+      </details>
     </main>
 
     <script src="/app.js"></script>
