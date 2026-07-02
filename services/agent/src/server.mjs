@@ -1,8 +1,10 @@
 import http from "node:http";
 import { URL } from "node:url";
+import { loadLocalEnv } from "./env.mjs";
 import { createTools } from "./tools.mjs";
 import { clearTeamHistory, deleteTasteMemory, getAuditLogs, getTasteProfile, updateTasteProfile } from "./memory.mjs";
 
+loadLocalEnv();
 const tools = createTools();
 
 export function createServer() {

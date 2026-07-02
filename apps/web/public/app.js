@@ -52,6 +52,7 @@ function renderRecommendation(run) {
       renderRecommendation(currentRecommendation);
     });
   });
+  document.querySelector(".results").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function setBusy(isBusy, message = "Working on it...") {

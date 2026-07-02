@@ -38,6 +38,7 @@ Copy `.env.example` to `.env.local` when you are ready to wire live providers.
 - `SWIGGY_ACCESS_TOKEN` for live Swiggy MCP bearer-header mode
 - `AI_PROVIDER_ENDPOINT` for a custom or local model gateway
 - `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` when `AI_PROVIDER=openrouter`
+- `AI_PROVIDER_TIMEOUT_MS` to keep recommendation responses from waiting too long on a model provider
 
 OpenRouter example:
 
