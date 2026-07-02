@@ -5,7 +5,8 @@
   "description": "Provider-agnostic Moodish concierge: Swiggy MCP-powered meal discovery and office lunch planning.",
   "type": "module",
   "scripts": {
-    "dev": "node services/agent/src/server.mjs",
+    "dev": "node apps/web/server.mjs",
+    "agent": "node services/agent/src/server.mjs",
     "web": "node apps/web/server.mjs",
     "test": "node --test tests/*.test.mjs",
     "smoke": "node scripts/smoke.mjs"

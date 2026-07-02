@@ -6,51 +6,53 @@ import { clearTeamHistory, deleteTasteMemory, getAuditLogs, getTasteProfile, upd
 const tools = createTools();
 
 export function createServer() {
-  return http.createServer(async (req, res) => {
-    try {
-      const url = new URL(req.url, "http://127.0.0.1");
-      if (req.method === "OPTIONS") return send(res, 204, {});
-      if (req.method === "GET" && url.pathname === "/health") {
-        return send(res, 200, { ok: true, service: "moodish-agent", mode: process.env.SWIGGY_MODE || "demo" });
-      }
-      if (req.method === "GET" && url.pathname === "/api/profile") {
-        return send(res, 200, getTasteProfile(url.searchParams.get("userIdHash") || undefined));
-      }
-      if (req.method === "POST" && url.pathname === "/api/profile") {
-        const body = await readJson(req);
-        return send(res, 200, updateTasteProfile(body.userIdHash, body.patch || body));
-      }
-      if (req.method === "POST" && url.pathname === "/api/recommendations/personal") {
-        return send(res, 200, await tools.plan_personal_meal(await readJson(req)));
-      }
-      if (req.method === "POST" && url.pathname === "/api/recommendations/office") {
-        return send(res, 200, await tools.plan_office_lunch(await readJson(req)));
-      }
-      if (req.method === "POST" && url.pathname === "/api/cart/confirm") {
-        return send(res, 200, await tools.build_confirmed_cart(await readJson(req)));
-      }
-      if (req.method === "POST" && url.pathname === "/api/feedback") {
-        return send(res, 200, await tools.record_meal_feedback(await readJson(req)));
-      }
-      if (req.method === "GET" && url.pathname === "/api/audit") {
-        return send(res, 200, { logs: getAuditLogs() });
-      }
-      if (req.method === "POST" && url.pathname === "/api/privacy/delete-taste-memory") {
-        const body = await readJson(req);
-        return send(res, 200, deleteTasteMemory(body.userIdHash));
-      }
-      if (req.method === "POST" && url.pathname === "/api/privacy/clear-team-history") {
-        const body = await readJson(req);
-        return send(res, 200, clearTeamHistory(body.teamId));
-      }
-      if (req.method === "POST" && url.pathname === "/mcp") {
-        return send(res, 200, await handleJsonRpc(await readJson(req)));
-      }
-      return send(res, 404, { error: "Not found" });
-    } catch (error) {
-      return send(res, error.status || 500, { error: error.message });
+  return http.createServer(handleAgentRequest);
+}
+
+export async function handleAgentRequest(req, res) {
+  try {
+    const url = new URL(req.url, "http://127.0.0.1");
+    if (req.method === "OPTIONS") return send(res, 204, {});
+    if (req.method === "GET" && url.pathname === "/health") {
+      return send(res, 200, { ok: true, service: "moodish-agent", mode: process.env.SWIGGY_MODE || "demo" });
     }
-  });
+    if (req.method === "GET" && url.pathname === "/api/profile") {
+      return send(res, 200, getTasteProfile(url.searchParams.get("userIdHash") || undefined));
+    }
+    if (req.method === "POST" && url.pathname === "/api/profile") {
+      const body = await readJson(req);
+      return send(res, 200, updateTasteProfile(body.userIdHash, body.patch || body));
+    }
+    if (req.method === "POST" && url.pathname === "/api/recommendations/personal") {
+      return send(res, 200, await tools.plan_personal_meal(await readJson(req)));
+    }
+    if (req.method === "POST" && url.pathname === "/api/recommendations/office") {
+      return send(res, 200, await tools.plan_office_lunch(await readJson(req)));
+    }
+    if (req.method === "POST" && url.pathname === "/api/cart/confirm") {
+      return send(res, 200, await tools.build_confirmed_cart(await readJson(req)));
+    }
+    if (req.method === "POST" && url.pathname === "/api/feedback") {
+      return send(res, 200, await tools.record_meal_feedback(await readJson(req)));
+    }
+    if (req.method === "GET" && url.pathname === "/api/audit") {
+      return send(res, 200, { logs: getAuditLogs() });
+    }
+    if (req.method === "POST" && url.pathname === "/api/privacy/delete-taste-memory") {
+      const body = await readJson(req);
+      return send(res, 200, deleteTasteMemory(body.userIdHash));
+    }
+    if (req.method === "POST" && url.pathname === "/api/privacy/clear-team-history") {
+      const body = await readJson(req);
+      return send(res, 200, clearTeamHistory(body.teamId));
+    }
+    if (req.method === "POST" && url.pathname === "/mcp") {
+      return send(res, 200, await handleJsonRpc(await readJson(req)));
+    }
+    return send(res, 404, { error: "Not found" });
+  } catch (error) {
+    return send(res, error.status || 500, { error: error.message });
+  }
 }
 
 async function handleJsonRpc(message) {

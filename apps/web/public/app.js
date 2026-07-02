@@ -1,4 +1,4 @@
-const agentBase = "http://127.0.0.1:8786";
+const agentBase = window.location.origin;
 let currentRecommendation = null;
 let selectedOptionId = null;
 let activeMode = "solo";
@@ -10,7 +10,7 @@ async function api(path, options = {}) {
     ...options,
     headers: { "content-type": "application/json", ...(options.headers || {}) }
   });
-  const body = await response.json();
+  const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || "Request failed");
   return body;
 }
@@ -54,6 +54,23 @@ function renderRecommendation(run) {
   });
 }
 
+function setBusy(isBusy, message = "Working on it...") {
+  const activeSubmit = document.querySelector(`#${activeMode} button[type="submit"]`);
+  document.querySelectorAll("button").forEach((button) => {
+    if (button.id !== "confirmCart") button.disabled = isBusy;
+  });
+  if (activeSubmit) activeSubmit.textContent = isBusy ? message : activeMode === "solo" ? "Find my mood meal" : "Plan team lunch";
+}
+
+function showError(error, context = "Something went wrong") {
+  $("#summary").classList.add("error");
+  $("#summary").textContent = `${context}: ${error.message}. Make sure you are running npm run web from the Moodish folder.`;
+}
+
+function clearError() {
+  $("#summary").classList.remove("error");
+}
+
 async function refreshHealth() {
   try {
     const health = await api("/health");
@@ -61,7 +78,7 @@ async function refreshHealth() {
     const audit = await api("/api/audit");
     $("#auditOutput").textContent = JSON.stringify(audit, null, 2);
   } catch (error) {
-    $("#healthText").textContent = `Agent unavailable: ${error.message}`;
+    $("#healthText").textContent = "API offline";
   }
 }
 
@@ -74,53 +91,87 @@ function setMode(mode) {
   $("#office").classList.toggle("hidden", mode !== "office");
   $("#summary").textContent =
     mode === "solo" ? "Tell Moodish your mood and budget." : "Set the team constraints and get a shared lunch shortlist.";
+  clearError();
 }
 
 async function refreshMemory() {
-  const memory = await api("/mcp", {
-    method: "POST",
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: "memory",
-      method: "tools/call",
-      params: { name: "get_taste_memory", arguments: {} }
-    })
-  });
-  $("#memoryOutput").textContent = JSON.stringify(memory.result?.data || memory, null, 2);
+  try {
+    const memory = await api("/mcp", {
+      method: "POST",
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "memory",
+        method: "tools/call",
+        params: { name: "get_taste_memory", arguments: {} }
+      })
+    });
+    $("#memoryOutput").textContent = JSON.stringify(memory.result?.data || memory, null, 2);
+  } catch (error) {
+    $("#memoryOutput").textContent = `Taste memory unavailable: ${error.message}`;
+  }
 }
 
 $("#solo").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const run = await api("/api/recommendations/personal", { method: "POST", body: JSON.stringify(formJson(event.currentTarget)) });
-  renderRecommendation(run);
-  refreshHealth();
+  clearError();
+  setBusy(true, "Finding...");
+  try {
+    const run = await api("/api/recommendations/personal", { method: "POST", body: JSON.stringify(formJson(event.currentTarget)) });
+    renderRecommendation(run);
+    refreshHealth();
+  } catch (error) {
+    showError(error, "Could not plan a solo meal");
+  } finally {
+    setBusy(false);
+  }
 });
 
 $("#office").addEventListener("submit", async (event) => {
   event.preventDefault();
-  const run = await api("/api/recommendations/office", { method: "POST", body: JSON.stringify(formJson(event.currentTarget)) });
-  renderRecommendation(run);
-  refreshHealth();
+  clearError();
+  setBusy(true, "Planning...");
+  try {
+    const run = await api("/api/recommendations/office", { method: "POST", body: JSON.stringify(formJson(event.currentTarget)) });
+    renderRecommendation(run);
+    refreshHealth();
+  } catch (error) {
+    showError(error, "Could not plan office lunch");
+  } finally {
+    setBusy(false);
+  }
 });
 
 $("#confirmCart").addEventListener("click", async () => {
   if (!currentRecommendation || !selectedOptionId) return;
-  const cart = await api("/api/cart/confirm", {
-    method: "POST",
-    body: JSON.stringify({
-      recommendationId: currentRecommendation.recommendationId,
-      optionId: selectedOptionId,
-      confirmed: true
-    })
-  });
-  $("#cartOutput").textContent = JSON.stringify(cart, null, 2);
-  refreshHealth();
+  $("#confirmCart").disabled = true;
+  $("#confirmCart").textContent = "Building...";
+  try {
+    const cart = await api("/api/cart/confirm", {
+      method: "POST",
+      body: JSON.stringify({
+        recommendationId: currentRecommendation.recommendationId,
+        optionId: selectedOptionId,
+        confirmed: true
+      })
+    });
+    $("#cartOutput").textContent = JSON.stringify(cart, null, 2);
+    refreshHealth();
+  } catch (error) {
+    $("#cartOutput").textContent = `Could not build cart: ${error.message}`;
+  } finally {
+    $("#confirmCart").textContent = "Build cart";
+    $("#confirmCart").disabled = !selectedOptionId;
+  }
 });
 
 $("#exportMemory").addEventListener("click", refreshMemory);
 $("#clearMemory").addEventListener("click", async () => {
-  await api("/api/privacy/delete-taste-memory", { method: "POST", body: JSON.stringify({}) });
-  await refreshMemory();
+  try {
+    await api("/api/privacy/delete-taste-memory", { method: "POST", body: JSON.stringify({}) });
+    await refreshMemory();
+  } catch (error) {
+    $("#memoryOutput").textContent = `Could not delete memory: ${error.message}`;
+  }
 });
 
 document.querySelectorAll(".mode-tab").forEach((tab) => {

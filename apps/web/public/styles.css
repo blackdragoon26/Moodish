@@ -274,6 +274,12 @@ button:disabled {
   line-height: 1.5;
 }
 
+.summary.error {
+  color: #8c2d1d;
+  background: #fff1ed;
+  border: 1px solid rgba(238, 91, 53, 0.28);
+}
+
 .options {
   display: grid;
   gap: 10px;

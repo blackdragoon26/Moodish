@@ -21,13 +21,13 @@ npm run smoke
 npm run dev
 ```
 
-Open the web app:
+Open the web app after `npm run dev`:
 
 ```bash
-npm run web
+http://127.0.0.1:8787
 ```
 
-Then visit `http://127.0.0.1:8787`.
+`npm run dev` serves both the UI and API from the same local server, so the buttons work without opening a second terminal. `npm run agent` is available only if you want the API service by itself.
 
 ## Configuration
 
