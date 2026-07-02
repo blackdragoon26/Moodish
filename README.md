@@ -34,9 +34,18 @@ Then visit `http://127.0.0.1:8787`.
 Copy `.env.example` to `.env.local` when you are ready to wire live providers.
 
 - `SWIGGY_MODE=demo|live`
-- `AI_PROVIDER=mock|openai|anthropic|local|custom`
+- `AI_PROVIDER=mock|openrouter|openai|anthropic|local|custom`
 - `SWIGGY_ACCESS_TOKEN` for live Swiggy MCP bearer-header mode
 - `AI_PROVIDER_ENDPOINT` for a custom or local model gateway
+- `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` when `AI_PROVIDER=openrouter`
+
+OpenRouter example:
+
+```bash
+AI_PROVIDER=openrouter OPENROUTER_API_KEY=... npm run dev
+```
+
+Never commit `.env.local` or pasted provider keys. Rotate a key if it was shared in chat or logs.
 
 ## Production Notes
 
