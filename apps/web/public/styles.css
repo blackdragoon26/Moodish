@@ -291,6 +291,21 @@ button:disabled {
   padding: 15px;
   background: #fff;
   cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.option-card:hover,
+.option-card:focus-visible {
+  border-color: rgba(238, 91, 53, 0.42);
+  box-shadow: 0 0 0 3px rgba(238, 91, 53, 0.08);
+  outline: none;
+}
+
+.option-card:active {
+  transform: translateY(1px);
 }
 
 .option-card.selected {
@@ -298,9 +313,37 @@ button:disabled {
   box-shadow: 0 0 0 3px rgba(238, 91, 53, 0.12);
 }
 
+.option-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .option-card h4 {
   margin: 0 0 8px;
   font-size: 17px;
+}
+
+.select-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--soft);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.option-card.selected .select-pill {
+  border-color: rgba(238, 91, 53, 0.72);
+  color: #fff;
+  background: var(--accent);
 }
 
 .option-card p {

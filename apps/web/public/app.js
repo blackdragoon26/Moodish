@@ -26,15 +26,25 @@ function formJson(form) {
 
 function renderRecommendation(run) {
   currentRecommendation = run;
-  selectedOptionId = run.options[0]?.optionId || null;
+  const optionStillExists = run.options.some((option) => option.optionId === selectedOptionId);
+  selectedOptionId = optionStillExists ? selectedOptionId : run.options[0]?.optionId || null;
   $("#summary").textContent = run.summary;
   $("#traceOutput").textContent = JSON.stringify(run.transparency || {}, null, 2);
   $("#confirmCart").disabled = !selectedOptionId;
   $("#options").innerHTML = run.options
     .map(
       (option, index) => `
-      <article class="option-card ${option.optionId === selectedOptionId ? "selected" : ""}" data-option="${option.optionId}">
-        <h4>${index + 1}. ${option.restaurantName}</h4>
+      <article
+        class="option-card ${option.optionId === selectedOptionId ? "selected" : ""}"
+        data-option="${option.optionId}"
+        role="radio"
+        aria-checked="${option.optionId === selectedOptionId}"
+        tabindex="0"
+      >
+        <div class="option-head">
+          <h4>${index + 1}. ${option.restaurantName}</h4>
+          <span class="select-pill">${option.optionId === selectedOptionId ? "Selected" : "Select"}</span>
+        </div>
         <div class="meta">
           <span>${option.cuisine}</span>
           <span>₹${option.estimatedTotal}</span>
@@ -52,9 +62,16 @@ function renderRecommendation(run) {
     )
     .join("");
   document.querySelectorAll(".option-card").forEach((card) => {
-    card.addEventListener("click", () => {
+    const selectOption = () => {
       selectedOptionId = card.dataset.option;
       renderRecommendation(currentRecommendation);
+    };
+    card.addEventListener("click", selectOption);
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        selectOption();
+      }
     });
   });
   document.querySelector(".results").scrollIntoView({ behavior: "smooth", block: "start" });
