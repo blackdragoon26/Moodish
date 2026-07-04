@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Moodish</title>
+    <link rel="icon" type="image/png" href="/assets/moodish-logo.png" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -29,16 +30,13 @@
           <p class="eyebrow">AI meal planning for Swiggy MCP</p>
           <h1>Food planning for the mood you are actually in.</h1>
           <p class="hero-copy">
-            Moodish turns fuzzy cravings, budget, dietary rules, and team constraints into transparent Swiggy-ready meal
-            shortlists. It is built for solo surprises, office lunches, and safe cart confirmation.
+            Moodish turns cravings, budgets, dietary rules, and team lunch constraints into ranked meal shortlists with
+            transparent AI reasoning and safe cart confirmation.
           </p>
           <div class="hero-actions">
             <a class="primary-link" href="#planner">Try the planner</a>
             <a class="secondary-link" href="#docs">Read the docs</a>
           </div>
-        </div>
-        <div class="hero-brand" aria-hidden="true">
-          <img src="/assets/moodish-logo.png" alt="" />
         </div>
       </section>
 
@@ -56,6 +54,27 @@
           <span>Fixture data today, live MCP gateway when access is granted.</span>
         </div>
       </section>
+
+      <details class="ai-settings">
+        <summary>
+          <span>AI provider</span>
+          <strong>Uses deployed OpenRouter by default. Paste your own key to test without using mine.</strong>
+        </summary>
+        <div class="ai-settings-grid">
+          <label>
+            OpenRouter key
+            <input id="clientAiKey" type="password" autocomplete="off" placeholder="sk-or-..." />
+          </label>
+          <label>
+            Model
+            <input id="clientAiModel" value="openai/gpt-4o-mini" />
+          </label>
+          <p>
+            Leave this blank to use the deployed OpenRouter configuration. Paste a key to override it for this browser
+            session; Moodish does not store the key or print it in the recommendation trace.
+          </p>
+        </div>
+      </details>
 
       <section id="planner" class="workspace">
         <div class="planner">
@@ -177,20 +196,6 @@
       <details class="developer-panel">
         <summary>Developer view</summary>
         <div class="developer-grid">
-          <section>
-            <h3>AI test key</h3>
-            <p class="panel-copy">
-              Use your own OpenRouter key for this browser session. The key is sent only with recommendation requests.
-            </p>
-            <label>
-              OpenRouter key
-              <input id="clientAiKey" type="password" autocomplete="off" placeholder="sk-or-..." />
-            </label>
-            <label>
-              Model
-              <input id="clientAiModel" value="openai/gpt-4o-mini" />
-            </label>
-          </section>
           <section>
             <div class="section-title tight">
               <h3>Taste memory</h3>
