@@ -34,8 +34,10 @@ export function createWebServer() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const port = Number(process.env.MOODISH_WEB_PORT || 8787);
-  createWebServer().listen(port, "127.0.0.1", () => {
-    console.log(`Moodish web + API listening on http://127.0.0.1:${port}`);
+  const port = Number(process.env.PORT || process.env.MOODISH_WEB_PORT || 8787);
+  const host = process.env.HOST || "0.0.0.0";
+  createWebServer().listen(port, host, () => {
+    const displayHost = host === "0.0.0.0" ? "127.0.0.1" : host;
+    console.log(`Moodish web + API listening on http://${displayHost}:${port}`);
   });
 }

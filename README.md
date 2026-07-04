@@ -50,6 +50,17 @@ AI_PROVIDER=openrouter OPENROUTER_API_KEY=... npm run dev
 
 Never commit `.env.local` or pasted provider keys. Rotate a key if it was shared in chat or logs.
 
+## Deploy
+
+Moodish is a Node web service, not a static GitHub Pages app. The repo includes `render.yaml` for Render Blueprint deployment.
+
+1. Push this repo to GitHub.
+2. In Render, create a new Blueprint from the repository.
+3. Keep `SWIGGY_MODE=fixture` until Swiggy grants live MCP access.
+4. Set `AI_PROVIDER=openrouter` and add `OPENROUTER_API_KEY` as a secret env var when testing real inference.
+
+The production entrypoint is `npm start`, and `/health` is the health check.
+
 ## Production Notes
 
 Moodish should remain honest about Swiggy attribution, user consent, and order safety. The app is designed to compose Swiggy Food and Instamart MCP tools, not hide or resell access.

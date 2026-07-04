@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: moodish
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: SWIGGY_MODE
+        value: fixture
+      - key: AI_PROVIDER
+        value: mock
+      - key: OPENROUTER_MODEL
+        value: openai/gpt-4o-mini
+      - key: AI_PROVIDER_TIMEOUT_MS
+        value: 4500
