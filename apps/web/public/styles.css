@@ -396,6 +396,30 @@ pre {
   margin-top: 18px;
 }
 
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto 32px;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.site-footer a {
+  color: var(--accent-dark);
+  text-decoration: none;
+}
+
+.site-footer a:hover,
+.site-footer a:focus-visible {
+  text-decoration: underline;
+}
+
 @media (max-width: 860px) {
   .topbar,
   .section-title {
@@ -404,7 +428,8 @@ pre {
 
   .topbar,
   .section-title,
-  .button-row {
+  .button-row,
+  .site-footer {
     flex-wrap: wrap;
   }
 
