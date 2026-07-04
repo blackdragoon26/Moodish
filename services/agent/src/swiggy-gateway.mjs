@@ -11,7 +11,7 @@ const fixtureRestaurants = [
     priceBand: 280,
     tags: ["veg", "high-protein", "light", "office-friendly"],
     items: [
-      { itemId: "i1", name: "Podi Millet Bowl", price: 249, tags: ["veg", "high-protein"] },
+      { itemId: "i1", name: "Podi Millet Bowl", price: 249, tags: ["vegan", "veg", "high-protein"] },
       { itemId: "i2", name: "Curd Millet Cup", price: 89, tags: ["veg", "cooling"] }
     ]
   },
@@ -26,7 +26,7 @@ const fixtureRestaurants = [
     tags: ["non-veg", "spicy", "novel"],
     items: [
       { itemId: "i3", name: "Basil Chicken Rice Box", price: 339, tags: ["non-veg", "high-protein"] },
-      { itemId: "i4", name: "Som Tam Salad", price: 179, tags: ["veg", "fresh"] }
+      { itemId: "i4", name: "Som Tam Salad", price: 179, tags: ["vegan", "veg", "fresh"] }
     ]
   },
   {

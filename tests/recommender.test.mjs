@@ -72,6 +72,37 @@ test("personal planner does not let AI summary contradict top ranked option", as
   assert.match(run.summary, /Slice Room/);
 });
 
+test("personal planner overrides AI summary when it mentions a runner-up first", async () => {
+  const run = await planPersonalMeal({
+    request: { budget: 500, mood: "office pizza party", dietaryRules: "", novelty: 4 },
+    tasteProfile: getTasteProfile(),
+    swiggy: createSwiggyGateway(),
+    ai: {
+      summarizeRecommendation: async () => ({
+        text: "Start with Millet Monk, then try Slice Room for pizza.",
+        trace: { provider: "test", status: "ok", request: {}, responseText: "Start with Millet Monk, then try Slice Room for pizza." }
+      })
+    }
+  });
+
+  assert.equal(run.options[0].restaurantName, "Slice Room");
+  assert.match(run.summary, /^Slice Room/);
+  assert.equal(run.transparency.ai.status, "overridden");
+});
+
+test("personal planner treats vegan as a hard menu constraint", async () => {
+  const tools = createTools();
+  const run = await tools.plan_personal_meal({
+    budget: 300,
+    mood: "light vegan healthy salad",
+    dietaryRules: "vegan",
+    novelty: 3
+  });
+
+  assert.ok(run.options.length > 0);
+  assert.ok(run.options.every((option) => option.items.every((item) => item.tags.includes("vegan"))));
+});
+
 test("office planner handles team constraints and Instamart add-ons", async () => {
   const tools = createTools();
   const run = await tools.plan_office_lunch({

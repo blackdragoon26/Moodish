@@ -141,16 +141,28 @@ async function summarizeShortlist(ai, payload) {
   const result = await ai.summarizeRecommendation(payload);
   const top = payload.options[0];
   if (!top) return result;
-  if (result.text?.toLowerCase().includes(top.restaurantName.toLowerCase())) return result;
+  if (mentionsTopBeforeAlternatives(result.text, payload.options)) return result;
   return {
     text: deterministicSummary(payload.mode, payload.options),
     trace: {
       ...result.trace,
       status: "overridden",
-      note: "AI response did not mention the top-ranked restaurant, so Moodish used a deterministic summary to avoid contradicting the shortlist.",
+      note: "AI response did not lead with the top-ranked restaurant, so Moodish used a deterministic summary to avoid contradicting the shortlist.",
       responseText: result.text
     }
   };
+}
+
+function mentionsTopBeforeAlternatives(text = "", options = []) {
+  const topName = options[0]?.restaurantName?.toLowerCase();
+  if (!topName) return true;
+  const normalized = text.toLowerCase();
+  const topIndex = normalized.indexOf(topName);
+  if (topIndex === -1) return false;
+  return options.slice(1).every((option) => {
+    const index = normalized.indexOf(option.restaurantName.toLowerCase());
+    return index === -1 || index > topIndex;
+  });
 }
 
 function deterministicSummary(mode, options) {
@@ -175,6 +187,7 @@ async function candidatePool({ swiggy, addressId, matches, minOptions }) {
 function rankRestaurants(restaurants, context) {
   return restaurants
     .filter((restaurant) => restaurant.availabilityStatus === "OPEN")
+    .filter((restaurant) => hasCompatibleItem(restaurant.items || [], context.dietaryRules))
     .map((restaurant) => ({ ...restaurant, score: scoreRestaurant(restaurant, context) }))
     .sort((a, b) => b.score - a.score);
 }
@@ -203,7 +216,8 @@ function scoreRestaurant(restaurant, context) {
 
 async function optionFromRestaurant(restaurant, swiggy, budget, headcount, context = {}) {
   const menu = await swiggy.getRestaurantMenu({ restaurantId: restaurant.id });
-  const chosen = pickItems(menu.items, budget, headcount, context);
+  const compatibleItems = filterCompatibleItems(menu.items, context.dietaryRules);
+  const chosen = pickItems(compatibleItems, budget, headcount, context);
   const total = chosen.reduce((sum, item) => sum + item.price * item.quantity, 0);
   return {
     optionId: `${restaurant.id}_${chosen.map((item) => item.itemId).join("_")}`,
@@ -221,10 +235,30 @@ async function optionFromRestaurant(restaurant, swiggy, budget, headcount, conte
 }
 
 function pickItems(items, budget, headcount, context = {}) {
+  if (!items.length) {
+    const error = new Error("No menu items match the requested dietary rules");
+    error.status = 422;
+    throw error;
+  }
   const sorted = [...items].sort((a, b) => scoreItem(b, context) - scoreItem(a, context) || b.price - a.price);
   const main = sorted.find((item) => item.price <= Math.max(budget, budget / headcount)) || sorted[sorted.length - 1];
   const quantity = Math.max(1, Math.min(headcount, Math.floor(budget / Math.max(main.price, 1))));
   return [{ ...main, quantity }];
+}
+
+function hasCompatibleItem(items, dietaryRules = []) {
+  return filterCompatibleItems(items, dietaryRules).length > 0;
+}
+
+function filterCompatibleItems(items, dietaryRules = []) {
+  const rules = new Set(dietaryRules);
+  return items.filter((item) => {
+    if (rules.has("vegan") && !item.tags.includes("vegan")) return false;
+    if (rules.has("veg") && (item.tags.includes("non-veg") || item.tags.includes("egg"))) return false;
+    if (rules.has("jain") && !item.tags.includes("jain")) return false;
+    if (rules.has("no-onion-garlic") && !item.tags.includes("no-onion-garlic")) return false;
+    return true;
+  });
 }
 
 function scoreItem(item, context) {
