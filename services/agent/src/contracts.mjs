@@ -1,4 +1,4 @@
-export const DEFAULT_USER_HASH = "sha256:demo-user";
+export const DEFAULT_USER_HASH = "sha256:fixture-user";
 
 export const dietaryTags = [
   "veg",

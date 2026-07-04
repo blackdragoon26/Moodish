@@ -72,7 +72,7 @@ export function createTools(runtime = createToolRuntime()) {
     async record_meal_feedback(args = {}) {
       return recordFeedback({
         userIdHash: args.userIdHash || DEFAULT_USER_HASH,
-        orderId: args.orderId || args.recommendationId || "demo-order",
+        orderId: args.orderId || args.recommendationId || "fixture-order",
         rating: args.rating,
         tags: args.tags || [],
         notes: args.notes || ""

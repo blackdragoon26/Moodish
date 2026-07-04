@@ -23,7 +23,7 @@ flowchart LR
 
 The app does not require OpenAI. `AI_PROVIDER` selects the model adapter:
 
-- `mock`: deterministic local summaries for demo and tests.
+- `mock`: deterministic local summaries for fixture-mode development and tests. This is explicitly marked as no external AI inference.
 - `local`: call a local model gateway via `AI_PROVIDER_ENDPOINT`.
 - `openai`, `anthropic`, `custom`: optional remote providers behind the same interface.
 
@@ -31,6 +31,6 @@ The core ranking path is deterministic, so the product is functional even withou
 
 ## Swiggy MCP Boundary
 
-`SWIGGY_MODE=demo` uses safe fixtures. `SWIGGY_MODE=live` is intentionally isolated in the gateway so OAuth/session handling, retries, and observability are implemented in one place.
+`SWIGGY_MODE=fixture` uses a safe local catalog. `SWIGGY_MODE=live` is intentionally isolated in the gateway so OAuth/session handling, retries, and observability are implemented in one place.
 
 No order placement or checkout path should be added unless it requires explicit user confirmation and uses check-then-retry for non-idempotent calls.

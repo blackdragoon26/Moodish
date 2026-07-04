@@ -16,7 +16,12 @@ export async function handleAgentRequest(req, res) {
     const url = new URL(req.url, "http://127.0.0.1");
     if (req.method === "OPTIONS") return send(res, 204, {});
     if (req.method === "GET" && url.pathname === "/health") {
-      return send(res, 200, { ok: true, service: "moodish-agent", mode: process.env.SWIGGY_MODE || "demo" });
+      return send(res, 200, {
+        ok: true,
+        service: "moodish-agent",
+        swiggyMode: process.env.SWIGGY_MODE || "fixture",
+        aiProvider: process.env.AI_PROVIDER || "mock"
+      });
     }
     if (req.method === "GET" && url.pathname === "/api/profile") {
       return send(res, 200, getTasteProfile(url.searchParams.get("userIdHash") || undefined));
@@ -53,7 +58,7 @@ export async function handleAgentRequest(req, res) {
     }
     return send(res, 404, { error: "Not found" });
   } catch (error) {
-    return send(res, error.status || 500, { error: error.message });
+    return send(res, error.status || 500, { error: error.message, details: error.details });
   }
 }
 

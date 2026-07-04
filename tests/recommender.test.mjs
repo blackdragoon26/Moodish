@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createTools } from "../services/agent/src/tools.mjs";
+import { getTasteProfile } from "../services/agent/src/memory.mjs";
+import { planPersonalMeal } from "../services/agent/src/recommender.mjs";
+import { createSwiggyGateway } from "../services/agent/src/swiggy-gateway.mjs";
 
 test("personal planner returns ranked budget-aware options", async () => {
   const tools = createTools();
@@ -16,6 +19,57 @@ test("personal planner returns ranked budget-aware options", async () => {
   assert.ok(run.options.length >= 2);
   assert.ok(run.options[0].estimatedTotal <= 400);
   assert.equal(run.safety.requiresCartConfirmation, true);
+});
+
+test("personal planner changes shortlist for distinct moods", async () => {
+  const tools = createTools();
+  const scenarios = [
+    {
+      request: { budget: 500, mood: "rainy spicy biryani craving", dietaryRules: "", novelty: 4 },
+      expectedTop: "Nizam Rain Biryani"
+    },
+    {
+      request: { budget: 450, mood: "light vegan healthy salad", dietaryRules: "vegan", novelty: 3 },
+      expectedTop: "Green Fork Deli"
+    },
+    {
+      request: { budget: 350, mood: "sweet dessert chocolate", dietaryRules: "", novelty: 5 },
+      expectedTop: "Cocoa Afterhours"
+    },
+    {
+      request: { budget: 450, mood: "high protein post workout chicken", dietaryRules: "high-protein", novelty: 2 },
+      expectedTop: "Post Gym Grill"
+    },
+    {
+      request: { budget: 500, mood: "office pizza party", dietaryRules: "", novelty: 4 },
+      expectedTop: "Slice Room"
+    }
+  ];
+
+  const runs = await Promise.all(scenarios.map((scenario) => tools.plan_personal_meal(scenario.request)));
+  assert.deepEqual(
+    runs.map((run) => run.options[0].restaurantName),
+    scenarios.map((scenario) => scenario.expectedTop)
+  );
+  assert.ok(new Set(runs.map((run) => run.options.map((option) => option.restaurantName).join("|"))).size > 1);
+  assert.ok(runs.every((run) => run.options.length >= 3));
+});
+
+test("personal planner does not let AI summary contradict top ranked option", async () => {
+  const run = await planPersonalMeal({
+    request: { budget: 500, mood: "office pizza party", dietaryRules: "", novelty: 4 },
+    tasteProfile: getTasteProfile(),
+    swiggy: createSwiggyGateway(),
+    ai: {
+      summarizeRecommendation: async () => ({
+        text: "Millet Monk is the best pick today.",
+        trace: { provider: "test", status: "ok", request: {}, responseText: "Millet Monk is the best pick today." }
+      })
+    }
+  });
+
+  assert.equal(run.options[0].restaurantName, "Slice Room");
+  assert.match(run.summary, /Slice Room/);
 });
 
 test("office planner handles team constraints and Instamart add-ons", async () => {

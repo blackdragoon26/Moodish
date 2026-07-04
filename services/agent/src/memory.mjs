@@ -19,8 +19,8 @@ const defaultTasteProfile = {
 };
 
 const defaultTeamProfile = {
-  teamId: "team-demo",
-  name: "Demo Product Pod",
+  teamId: "team-fixture",
+  name: "Fixture Product Pod",
   headcount: 6,
   budgetPerPerson: 250,
   dietaryRules: ["veg", "high-protein"],
@@ -44,11 +44,11 @@ export function updateTasteProfile(userIdHash = DEFAULT_USER_HASH, patch = {}) {
   return updated;
 }
 
-export function getTeamProfile(teamId = "team-demo") {
+export function getTeamProfile(teamId = "team-fixture") {
   return teamProfiles.get(teamId) ?? { ...defaultTeamProfile, teamId };
 }
 
-export function updateTeamProfile(teamId = "team-demo", patch = {}) {
+export function updateTeamProfile(teamId = "team-fixture", patch = {}) {
   const current = getTeamProfile(teamId);
   const updated = { ...current, ...patch, teamId, updatedAt: nowIso() };
   teamProfiles.set(teamId, updated);
@@ -93,7 +93,7 @@ export function deleteTasteMemory(userIdHash = DEFAULT_USER_HASH) {
   return { deleted: true, userIdHash };
 }
 
-export function clearTeamHistory(teamId = "team-demo") {
+export function clearTeamHistory(teamId = "team-fixture") {
   const current = getTeamProfile(teamId);
   const updated = { ...current, cuisineAvoidList: [], updatedAt: nowIso() };
   teamProfiles.set(teamId, updated);

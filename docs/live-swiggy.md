@@ -1,6 +1,6 @@
 # Moodish Live Swiggy MCP Integration Notes
 
-The local product runs with `SWIGGY_MODE=demo`. To wire live Swiggy access:
+The local product runs with `SWIGGY_MODE=fixture`, which is not live Swiggy data. To wire live Swiggy access:
 
 1. Complete Swiggy Builders onboarding and OAuth setup.
 2. Configure OAuth 2.1 with PKCE in the web app login flow.

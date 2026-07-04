@@ -23,7 +23,7 @@ test("openrouter provider summarizes via chat completions without exposing key",
     }
   });
 
-  const summary = await provider.summarizeRecommendation({
+  const result = await provider.summarizeRecommendation({
     mode: "solo",
     options: [
       {
@@ -36,7 +36,10 @@ test("openrouter provider summarizes via chat completions without exposing key",
     ]
   });
 
-  assert.equal(summary, "Try Millet Monk for a balanced high-protein surprise.");
+  assert.equal(result.text, "Try Millet Monk for a balanced high-protein surprise.");
+  assert.equal(result.trace.provider, "openrouter");
+  assert.equal(result.trace.status, "ok");
+  assert.match(result.trace.request.messages[1].content, /Millet Monk/);
   assert.equal(calls[0].url, "https://openrouter.ai/api/v1/chat/completions");
   assert.equal(calls[0].init.headers.authorization, "Bearer test-key");
 
@@ -45,7 +48,7 @@ test("openrouter provider summarizes via chat completions without exposing key",
   restoreEnv("OPENROUTER_MODEL", oldModel);
 });
 
-test("openrouter provider falls back quickly when inference hangs", async () => {
+test("openrouter provider returns relevant error when inference hangs", async () => {
   const oldProvider = process.env.AI_PROVIDER;
   const oldKey = process.env.OPENROUTER_API_KEY;
   const oldTimeout = process.env.AI_PROVIDER_TIMEOUT_MS;
@@ -57,20 +60,28 @@ test("openrouter provider falls back quickly when inference hangs", async () => 
     fetchImpl: async () => new Promise(() => {})
   });
 
-  const summary = await provider.summarizeRecommendation({
-    mode: "solo",
-    options: [
-      {
-        restaurantName: "Millet Monk",
-        cuisine: "South Indian",
-        estimatedTotal: 249,
-        reasons: ["Fits budget"],
-        items: [{ name: "Podi Millet Bowl" }]
-      }
-    ]
-  });
-
-  assert.match(summary, /timed out|failed/);
+  await assert.rejects(
+    () =>
+      provider.summarizeRecommendation({
+        mode: "solo",
+        options: [
+          {
+            restaurantName: "Millet Monk",
+            cuisine: "South Indian",
+            estimatedTotal: 249,
+            reasons: ["Fits budget"],
+            items: [{ name: "Podi Millet Bowl" }]
+          }
+        ]
+      }),
+    (error) => {
+      assert.equal(error.status, 502);
+      assert.match(error.message, /timed out|failed/);
+      assert.equal(error.details.provider, "openrouter");
+      assert.equal(error.details.status, "request_failed");
+      return true;
+    }
+  );
 
   restoreEnv("AI_PROVIDER", oldProvider);
   restoreEnv("OPENROUTER_API_KEY", oldKey);

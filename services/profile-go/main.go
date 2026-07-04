@@ -63,8 +63,8 @@ func NewStore() *Store {
 	now := time.Now().UTC().Format(time.RFC3339)
 	return &Store{
 		users: map[string]TasteProfile{
-			"sha256:demo-user": {
-				UserIDHash:            "sha256:demo-user",
+			"sha256:fixture-user": {
+				UserIDHash:            "sha256:fixture-user",
 				SpiceTolerance:       3,
 				NoveltyPreference:    4,
 				LikedCuisines:        []string{"South Indian", "Thai", "Bengali"},
@@ -76,9 +76,9 @@ func NewStore() *Store {
 			},
 		},
 		teams: map[string]TeamProfile{
-			"team-demo": {
-				TeamID:           "team-demo",
-				Name:             "Demo Product Pod",
+			"team-fixture": {
+				TeamID:           "team-fixture",
+				Name:             "Fixture Product Pod",
 				Headcount:        6,
 				BudgetPerPerson:  250,
 				DietaryRules:     []string{"veg", "high-protein"},

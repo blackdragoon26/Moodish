@@ -11,7 +11,11 @@ async function api(path, options = {}) {
     headers: { "content-type": "application/json", ...(options.headers || {}) }
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || "Request failed");
+  if (!response.ok) {
+    const error = new Error(body.error || "Request failed");
+    error.details = body.details;
+    throw error;
+  }
   return body;
 }
 
@@ -24,6 +28,7 @@ function renderRecommendation(run) {
   currentRecommendation = run;
   selectedOptionId = run.options[0]?.optionId || null;
   $("#summary").textContent = run.summary;
+  $("#traceOutput").textContent = JSON.stringify(run.transparency || {}, null, 2);
   $("#confirmCart").disabled = !selectedOptionId;
   $("#options").innerHTML = run.options
     .map(
@@ -65,7 +70,17 @@ function setBusy(isBusy, message = "Working on it...") {
 
 function showError(error, context = "Something went wrong") {
   $("#summary").classList.add("error");
-  $("#summary").textContent = `${context}: ${error.message}. Make sure you are running npm run web from the Moodish folder.`;
+  $("#summary").textContent = `${context}: ${error.message}`;
+  if (error.details) {
+    $("#traceOutput").textContent = JSON.stringify(
+      {
+        error: error.message,
+        details: error.details
+      },
+      null,
+      2
+    );
+  }
 }
 
 function clearError() {
@@ -75,7 +90,7 @@ function clearError() {
 async function refreshHealth() {
   try {
     const health = await api("/health");
-    $("#healthText").textContent = `${health.mode} mode`;
+    $("#healthText").textContent = `${health.swiggyMode || health.mode} · ${health.aiProvider || "ai unknown"}`;
     const audit = await api("/api/audit");
     $("#auditOutput").textContent = JSON.stringify(audit, null, 2);
   } catch (error) {
