@@ -1,8 +1,8 @@
-export function createAiProvider({ fetchImpl = fetch } = {}) {
-  const provider = process.env.AI_PROVIDER || "mock";
+export function createAiProvider({ fetchImpl = fetch, overrides = {} } = {}) {
+  const provider = overrides.provider || process.env.AI_PROVIDER || "mock";
   const endpoint = process.env.AI_PROVIDER_ENDPOINT || "";
   if (provider === "mock") return mockProvider();
-  if (provider === "openrouter") return openRouterProvider(fetchImpl);
+  if (provider === "openrouter") return openRouterProvider(fetchImpl, overrides);
   return httpProvider(provider, endpoint, fetchImpl);
 }
 
@@ -86,9 +86,9 @@ function httpProvider(provider, endpoint, fetchImpl) {
   };
 }
 
-function openRouterProvider(fetchImpl) {
-  const apiKey = process.env.OPENROUTER_API_KEY || "";
-  const model = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
+function openRouterProvider(fetchImpl, overrides = {}) {
+  const apiKey = overrides.apiKey || process.env.OPENROUTER_API_KEY || "";
+  const model = overrides.model || process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
   return {
     name: "openrouter",
     async summarizeRecommendation({ mode, options }) {

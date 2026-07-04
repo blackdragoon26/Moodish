@@ -25,10 +25,10 @@ export function createTools(runtime = createToolRuntime()) {
       const userIdHash = args.userIdHash || DEFAULT_USER_HASH;
       return instrumentToolCall({ tool: "plan_personal_meal", userIdHash }, async () => {
         const run = await planPersonalMeal({
-          request: args,
+          request: publicRequest(args),
           tasteProfile: getTasteProfile(userIdHash),
           swiggy: runtime.swiggy,
-          ai: runtime.ai
+          ai: aiForRequest(args, runtime.ai)
         });
         return saveRecommendation(run);
       });
@@ -37,10 +37,10 @@ export function createTools(runtime = createToolRuntime()) {
       const userIdHash = args.userIdHash || DEFAULT_USER_HASH;
       return instrumentToolCall({ tool: "plan_office_lunch", userIdHash }, async () => {
         const run = await planOfficeLunch({
-          request: args,
+          request: publicRequest(args),
           teamProfile: getTeamProfile(args.teamId),
           swiggy: runtime.swiggy,
-          ai: runtime.ai
+          ai: aiForRequest(args, runtime.ai)
         });
         return saveRecommendation(run);
       });
@@ -82,4 +82,21 @@ export function createTools(runtime = createToolRuntime()) {
       return exportTasteMemory(args.userIdHash || DEFAULT_USER_HASH);
     }
   };
+}
+
+function aiForRequest(args, defaultAi) {
+  if (!args.aiApiKey) return defaultAi;
+  return createAiProvider({
+    overrides: {
+      provider: "openrouter",
+      apiKey: String(args.aiApiKey),
+      model: args.aiModel ? String(args.aiModel) : undefined
+    }
+  });
+}
+
+function publicRequest(args = {}) {
+  const { aiApiKey, aiModel, ...rest } = args;
+  void aiApiKey;
+  return aiModel ? { ...rest, aiModel } : rest;
 }

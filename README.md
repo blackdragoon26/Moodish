@@ -1,5 +1,7 @@
 # Moodish
 
+![Moodish logo](apps/web/public/assets/moodish-logo.png)
+
 Moodish is a mood-based food planning app for Swiggy-style ordering.
 
 You tell it what you feel like eating, your budget, and dietary needs. Moodish returns a short ranked list of meal options, explains why each option was picked, and lets you build a cart only after you choose an option.
@@ -11,6 +13,7 @@ Live app: https://moodish.onrender.com/
 - Plans a solo meal from a mood like `rainy spicy biryani craving`.
 - Plans office lunch for a small team with headcount, budget, and dietary rules.
 - Uses OpenRouter for the AI summary when configured.
+- Lets reviewers use their own OpenRouter API key for a single browser session.
 - Shows a transparent recommendation trace: mood tokens, ranking scores, AI prompt, and AI response.
 - Keeps ordering safe: cart build requires confirmation, and real checkout/order placement is not implemented.
 
@@ -69,6 +72,8 @@ AI_PROVIDER_TIMEOUT_MS=4500
 ```
 
 Do not commit `.env.local` or API keys.
+
+Reviewers can also open Developer view in the app and paste their own OpenRouter key. That key is sent only with recommendation requests and is not stored in recommendation memory or returned in the trace.
 
 ## Deploy
 

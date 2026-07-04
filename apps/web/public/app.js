@@ -24,6 +24,15 @@ function formJson(form) {
   return Object.fromEntries([...data.entries()].map(([key, value]) => [key, value.trim?.() ?? value]));
 }
 
+function recommendationPayload(form) {
+  const payload = formJson(form);
+  const aiApiKey = $("#clientAiKey")?.value?.trim();
+  const aiModel = $("#clientAiModel")?.value?.trim();
+  if (aiApiKey) payload.aiApiKey = aiApiKey;
+  if (aiApiKey && aiModel) payload.aiModel = aiModel;
+  return payload;
+}
+
 function renderRecommendation(run) {
   currentRecommendation = run;
   const optionStillExists = run.options.some((option) => option.optionId === selectedOptionId);
@@ -149,7 +158,7 @@ $("#solo").addEventListener("submit", async (event) => {
   clearError();
   setBusy(true, "Finding...");
   try {
-    const run = await api("/api/recommendations/personal", { method: "POST", body: JSON.stringify(formJson(event.currentTarget)) });
+    const run = await api("/api/recommendations/personal", { method: "POST", body: JSON.stringify(recommendationPayload(event.currentTarget)) });
     renderRecommendation(run);
     refreshHealth();
   } catch (error) {
@@ -164,7 +173,7 @@ $("#office").addEventListener("submit", async (event) => {
   clearError();
   setBusy(true, "Planning...");
   try {
-    const run = await api("/api/recommendations/office", { method: "POST", body: JSON.stringify(formJson(event.currentTarget)) });
+    const run = await api("/api/recommendations/office", { method: "POST", body: JSON.stringify(recommendationPayload(event.currentTarget)) });
     renderRecommendation(run);
     refreshHealth();
   } catch (error) {

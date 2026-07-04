@@ -9,9 +9,14 @@
   <body>
     <header class="topbar">
       <a class="brand" href="/">
-        <span class="mark">M</span>
+        <img class="brand-logo" src="/assets/moodish-logo.png" alt="" />
         <span>Moodish</span>
       </a>
+      <nav class="nav-links" aria-label="Page links">
+        <a href="#planner">Planner</a>
+        <a href="#docs">Docs</a>
+        <a href="https://github.com/blackdragoon26/Moodish" target="_blank" rel="noreferrer">GitHub</a>
+      </nav>
       <div class="status-chip">
         <span class="status-dot"></span>
         <span id="healthText">Checking agent</span>
@@ -20,15 +25,39 @@
 
     <main>
       <section class="hero">
-        <p class="eyebrow">Powered by Swiggy MCP</p>
-        <h1>Food planning for the mood you are actually in.</h1>
-        <p class="hero-copy">
-          Moodish curates personal surprises and small-team lunches with taste memory, budget awareness, and safe cart
-          confirmation.
-        </p>
+        <div class="hero-copy-block">
+          <p class="eyebrow">AI meal planning for Swiggy MCP</p>
+          <h1>Food planning for the mood you are actually in.</h1>
+          <p class="hero-copy">
+            Moodish turns fuzzy cravings, budget, dietary rules, and team constraints into transparent Swiggy-ready meal
+            shortlists. It is built for solo surprises, office lunches, and safe cart confirmation.
+          </p>
+          <div class="hero-actions">
+            <a class="primary-link" href="#planner">Try the planner</a>
+            <a class="secondary-link" href="#docs">Read the docs</a>
+          </div>
+        </div>
+        <div class="hero-brand" aria-hidden="true">
+          <img src="/assets/moodish-logo.png" alt="" />
+        </div>
       </section>
 
-      <section class="workspace">
+      <section class="proof-strip" aria-label="Product highlights">
+        <div>
+          <strong>Real AI trace</strong>
+          <span>See prompt, response, intent tags, and ranking scores.</span>
+        </div>
+        <div>
+          <strong>Cart-safe by design</strong>
+          <span>No checkout path exists without explicit confirmation.</span>
+        </div>
+        <div>
+          <strong>Swiggy-ready boundary</strong>
+          <span>Fixture data today, live MCP gateway when access is granted.</span>
+        </div>
+      </section>
+
+      <section id="planner" class="workspace">
         <div class="planner">
           <div class="mode-tabs" role="tablist" aria-label="Planner mode">
             <button class="mode-tab active" type="button" data-mode="solo">Solo</button>
@@ -101,6 +130,43 @@
         </section>
       </section>
 
+      <section id="docs" class="docs-section">
+        <div class="section-kicker">
+          <p class="eyebrow">Product docs</p>
+          <h2>What Moodish is proving</h2>
+        </div>
+        <div class="info-grid">
+          <article>
+            <h3>Mood to meal</h3>
+            <p>
+              A user can type “rainy spicy biryani” or “light vegan salad,” and Moodish extracts intent tags, filters
+              dietary constraints, ranks options, and explains the tradeoffs.
+            </p>
+          </article>
+          <article>
+            <h3>Office lunch mode</h3>
+            <p>
+              Teams can plan lunch by headcount, budget per person, cuisine rotation, and dietary rules. The app also
+              models Instamart add-ons for fruit, drinks, snacks, and office extras.
+            </p>
+          </article>
+          <article>
+            <h3>Bring your own AI key</h3>
+            <p>
+              Reviewers can paste an OpenRouter key in Developer view. It is used only for that request, never displayed
+              back, and not stored in recommendation memory.
+            </p>
+          </article>
+          <article>
+            <h3>Safe commerce layer</h3>
+            <p>
+              Moodish prepares a confirmed cart preview but does not place orders. Live Swiggy Food and Instamart MCP
+              calls are isolated behind the gateway.
+            </p>
+          </article>
+        </div>
+      </section>
+
       <section class="cart-strip">
         <div>
           <p class="eyebrow">Cart review</p>
@@ -111,6 +177,20 @@
       <details class="developer-panel">
         <summary>Developer view</summary>
         <div class="developer-grid">
+          <section>
+            <h3>AI test key</h3>
+            <p class="panel-copy">
+              Use your own OpenRouter key for this browser session. The key is sent only with recommendation requests.
+            </p>
+            <label>
+              OpenRouter key
+              <input id="clientAiKey" type="password" autocomplete="off" placeholder="sk-or-..." />
+            </label>
+            <label>
+              Model
+              <input id="clientAiModel" value="openai/gpt-4o-mini" />
+            </label>
+          </section>
           <section>
             <div class="section-title tight">
               <h3>Taste memory</h3>
