@@ -11,12 +11,12 @@ export function authConfiguration() {
   };
 }
 
-export function startGoogleOAuth() {
+export function startGoogleOAuth(publicOrigin) {
   if (!authConfiguration().google) throw unavailable("Google login needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
   const state = crypto.randomBytes(24).toString("base64url");
   const verifier = crypto.randomBytes(32).toString("base64url");
   const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
-  const redirectUri = `${publicUrl()}/api/auth/google/callback`;
+  const redirectUri = `${String(publicOrigin || publicUrl()).replace(/\/$/, "")}/api/auth/google/callback`;
   googleFlows.set(state, { verifier, redirectUri, expiresAt: Date.now() + 10 * 60_000 });
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.search = new URLSearchParams({

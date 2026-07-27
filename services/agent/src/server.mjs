@@ -26,6 +26,7 @@ import {
 } from "./auth.mjs";
 import { continueMealConversation } from "./conversation.mjs";
 import crypto from "node:crypto";
+import { resolvePublicOrigin } from "./public-origin.mjs";
 
 loadLocalEnv();
 const tools = createTools();
@@ -60,7 +61,7 @@ export async function handleAgentRequest(req, res) {
       return send(res, 200, { loggedOut: true }, { "set-cookie": clearAuthCookie() });
     }
     if (req.method === "GET" && url.pathname === "/api/auth/google/start") {
-      return redirect(res, startGoogleOAuth());
+      return redirect(res, startGoogleOAuth(resolvePublicOrigin(req)));
     }
     if (req.method === "GET" && url.pathname === "/api/auth/google/callback") {
       const user = await completeGoogleOAuth({
@@ -73,7 +74,7 @@ export async function handleAgentRequest(req, res) {
       const sessionId = `auth_${crypto.randomUUID()}`;
       const started = await startSwiggyOAuth({
         sessionId,
-        redirectUri: `${publicBase()}/api/auth/swiggy/callback`
+        redirectUri: `${resolvePublicOrigin(req)}/api/auth/swiggy/callback`
       });
       return redirect(res, started.authorizationUrl);
     }
@@ -92,7 +93,15 @@ export async function handleAgentRequest(req, res) {
       return send(res, 200, await getSwiggyConnectionStatus(url.searchParams.get("sessionId") || undefined));
     }
     if (req.method === "POST" && url.pathname === "/api/swiggy/oauth/start") {
-      return send(res, 200, await startSwiggyOAuth(await readJson(req)));
+      const body = await readJson(req);
+      return send(
+        res,
+        200,
+        await startSwiggyOAuth({
+          ...body,
+          redirectUri: body.redirectUri || `${resolvePublicOrigin(req)}/api/swiggy/oauth/callback`
+        })
+      );
     }
     if (req.method === "GET" && url.pathname === "/api/swiggy/oauth/callback") {
       return send(
@@ -135,7 +144,7 @@ export async function handleAgentRequest(req, res) {
       const rawBody = await readRaw(req);
       await verifyPlatformRequest(platform, { headers: req.headers, rawBody });
       const payload = platform === "slack" ? rawBody : JSON.parse(rawBody || "{}");
-      const command = platformCommandToSession(platform, payload, `${url.protocol}//${req.headers.host || "127.0.0.1"}`);
+      const command = platformCommandToSession(platform, payload, resolvePublicOrigin(req));
       if (command.ping) return send(res, 200, command.response());
       const cachedResponse = await getPlatformEventResponse(command.dedupeKey);
       if (cachedResponse) return send(res, 200, cachedResponse);
@@ -148,7 +157,10 @@ export async function handleAgentRequest(req, res) {
     if (req.method === "GET" && platformOauthMatch) {
       const [, platform, action] = platformOauthMatch;
       if (action === "start") {
-        const started = startPlatformOAuth(platform, { sessionId: url.searchParams.get("sessionId") });
+        const started = startPlatformOAuth(platform, {
+          sessionId: url.searchParams.get("sessionId"),
+          redirectUri: `${resolvePublicOrigin(req)}/api/platforms/${platform}/oauth/callback`
+        });
         res.writeHead(302, { location: started.authorizationUrl });
         return res.end();
       }
@@ -266,10 +278,6 @@ function send(res, status, payload, extraHeaders = {}) {
 function redirect(res, location, extraHeaders = {}) {
   res.writeHead(302, { location, ...extraHeaders });
   res.end();
-}
-
-function publicBase() {
-  return (process.env.MOODISH_PUBLIC_URL || "http://localhost:8787").replace(/\/$/, "");
 }
 
 async function readJson(req) {

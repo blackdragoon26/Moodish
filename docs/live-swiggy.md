@@ -8,6 +8,8 @@ The local product runs with `SWIGGY_MODE=fixture`, which is not live Swiggy data
 4. The callback exchanges the PKCE code and stores the encrypted, five-day access session server-side.
 5. Set `SWIGGY_MODE=live` after authenticated staging calls pass.
 
+OAuth callback URLs use `MOODISH_PUBLIC_URL` when it contains a non-local public origin. If an older deployment still has a localhost value, Moodish uses the trusted reverse-proxy origin (`X-Forwarded-Host` and `X-Forwarded-Proto`) so a production OTP flow cannot redirect to the developer machine.
+
 The live gateway maps Food `get_addresses`, `search_menu`, `search_restaurants`, `get_restaurant_menu`, and `update_food_cart`, plus Instamart `search_products`. It normalizes live and fixture responses into the same recommendation types.
 
 The gateway already centralizes retries, rate-limit readiness, and error normalization. Keep all live tool calls behind that module so safety and telemetry remain enforceable.
