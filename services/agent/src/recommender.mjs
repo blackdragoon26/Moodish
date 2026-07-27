@@ -446,7 +446,12 @@ function uniqueRestaurants(items = []) {
 
 function itemMatchesDish(entry, dish) {
   if (!dish) return false;
-  return [entry.name, ...(entry.tags || [])].join(" ").toLowerCase().includes(dish.toLowerCase());
+  const normalizedDish = dish.toLowerCase().replaceAll("-", " ");
+  return [entry.name, ...(entry.tags || [])]
+    .join(" ")
+    .toLowerCase()
+    .replaceAll("-", " ")
+    .includes(normalizedDish);
 }
 
 function resolveRequestRules(request, tasteProfile) {

@@ -32,6 +32,8 @@ const DISH_TERMS = new Set([
   "dosa",
   "fish",
   "friedrice",
+  "gulab",
+  "icecream",
   "momos",
   "noodles",
   "paratha",
@@ -45,6 +47,13 @@ const DISH_TERMS = new Set([
   "thali",
   "wrap"
 ]);
+
+const DISH_PHRASES = [
+  ["gulab jamun", "gulab-jamun"],
+  ["ice cream", "ice-cream"],
+  ["fried rice", "fried-rice"],
+  ["hakka noodles", "hakka-noodles"]
+];
 
 const ATTRIBUTE_TERMS = new Set([
   "chewy",
@@ -99,7 +108,9 @@ export function extractMealIntent(value = "") {
   const normalized = raw.toLowerCase();
   const tokens = normalized.match(/[a-z0-9]+/g) || [];
   const meaningfulTokens = [...new Set(tokens.filter((token) => token.length > 1 && !STOP_WORDS.has(token)))];
-  const dishes = meaningfulTokens.filter((token) => DISH_TERMS.has(token));
+  const phraseDishes = DISH_PHRASES.filter(([phrase]) => normalized.includes(phrase)).map(([, dish]) => dish);
+  const tokenDishes = meaningfulTokens.filter((token) => DISH_TERMS.has(token));
+  const dishes = [...new Set([...phraseDishes, ...tokenDishes])];
   const attributes = meaningfulTokens.filter((token) => ATTRIBUTE_TERMS.has(token));
   const cuisines = CUISINE_PHRASES.filter(([phrase]) => normalized.includes(phrase)).map(([, cuisine]) => cuisine);
   const primaryDish = dishes[0] || null;

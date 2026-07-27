@@ -62,11 +62,12 @@ export function extractState(message, previous = {}) {
     next.budgetExplicit = true;
   }
 
-  if (/\b(non[\s-]?veg|chicken|mutton|fish|egg)\b/.test(text) && !/\bveg only\b/.test(text)) {
+  const hasNonVegChoice = /\b(non[\s-]?veg|chicken|mutton|fish|egg)\b/.test(text);
+  if (hasNonVegChoice && !/\bveg only\b/.test(text)) {
     next.dietMode = "non_veg";
     next.dietExplicit = true;
   }
-  if (/\b(veg only|vegetarian|pure veg)\b/.test(text)) {
+  if (!hasNonVegChoice && /\b(veg|veg only|vegetarian|pure veg|vegan|jain)\b/.test(text)) {
     next.dietMode = "veg";
     next.dietExplicit = true;
   }
@@ -108,15 +109,15 @@ export function extractState(message, previous = {}) {
 function followUp(missing) {
   if (missing.includes("mood")) return "What are you in the mood for? Describe a dish, texture, flavour, or just the kind of day you are having.";
   if (missing.includes("diet") && missing.includes("budget")) {
-    return "One quick check: veg, non-veg, or both—and what is your maximum budget? You can reply like “both, under ₹450”.";
+    return "Two quick choices and I’m set. First, what food boundary should I protect?";
   }
-  if (missing.includes("diet")) return "Any food boundary—veg, non-veg, both, or a restriction I should protect?";
+  if (missing.includes("diet")) return "Choose the food boundary I should protect.";
   return "What is the most you want to spend on this meal?";
 }
 
 function quickReplies(missing) {
-  if (missing.includes("diet")) return ["Veg · ₹300", "Both · ₹400", "Non-veg · ₹500"];
-  if (missing.includes("budget")) return ["Under ₹250", "Under ₹400", "Under ₹600"];
+  if (missing.includes("diet")) return ["Veg", "Both", "Non-veg", "Vegan", "Jain"];
+  if (missing.includes("budget")) return ["Under ₹250", "Under ₹400", "Under ₹600", "Under ₹1000"];
   return ["Chewy and smoky", "Light but satisfying", "Spicy comfort food"];
 }
 

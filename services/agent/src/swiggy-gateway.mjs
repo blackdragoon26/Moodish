@@ -308,6 +308,26 @@ const fixtureRestaurants = [
       { itemId: "i50", name: "Jain Bhel Cup", price: 129, tags: ["vegan", "veg", "jain", "no-onion-garlic", "chaat", "light"] },
       { itemId: "i51", name: "Masala Nimbu Soda", price: 59, tags: ["vegan", "veg", "side", "beverage", "cooling"] }
     ]
+  },
+  {
+    id: "r21",
+    name: "Mithai & Melt",
+    cuisine: "Indian Dessert",
+    rating: 4.7,
+    distanceKm: 1.9,
+    availabilityStatus: "OPEN",
+    priceBand: 240,
+    tags: ["dessert", "sweet", "comfort", "gulab-jamun", "ice-cream", "veg", "familiar"],
+    items: [
+      {
+        itemId: "i52",
+        name: "Warm Gulab Jamun & Vanilla Ice Cream",
+        price: 229,
+        tags: ["veg", "dessert", "sweet", "comfort", "gulab-jamun", "ice-cream", "combo"]
+      },
+      { itemId: "i53", name: "Mini Gulab Jamun Box", price: 159, tags: ["veg", "dessert", "sweet", "gulab-jamun", "sharing"] },
+      { itemId: "i54", name: "Kesar Kulfi Stick", price: 89, tags: ["veg", "dessert", "sweet", "ice-cream"] }
+    ]
   }
 ];
 
@@ -439,6 +459,9 @@ export function expandIntentTokens(value = "") {
     tacos: ["tacos", "mexican", "spicy"],
     fish: ["fish", "seafood", "coastal"],
     dosa: ["dosa", "south-indian", "breakfast"],
+    gulab: ["gulab-jamun", "dessert", "sweet", "comfort"],
+    jamun: ["gulab-jamun", "dessert", "sweet"],
+    icecream: ["ice-cream", "dessert", "sweet"],
     party: ["sharing", "office-friendly", "pizza"],
     workout: ["workout", "high-protein", "healthy"],
     protein: ["high-protein", "healthy"],
