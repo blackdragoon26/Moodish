@@ -18,3 +18,35 @@ services:
         value: openai/gpt-4o-mini
       - key: AI_PROVIDER_TIMEOUT_MS
         value: 4500
+      - key: DATABASE_URL
+        fromDatabase:
+          name: moodish-db
+          property: connectionString
+      - key: TOKEN_ENCRYPTION_KEY
+        generateValue: true
+      - key: MOODISH_PUBLIC_URL
+        value: https://moodish.onrender.com
+      - key: SLACK_SIGNING_SECRET
+        sync: false
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_PUBLIC_KEY
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: TEAMS_APP_ID
+        sync: false
+      - key: TEAMS_CLIENT_SECRET
+        sync: false
+      - key: TEAMS_TENANT_ID
+        value: common
+
+databases:
+  - name: moodish-db
+    plan: free
+    databaseName: moodish
+    user: moodish

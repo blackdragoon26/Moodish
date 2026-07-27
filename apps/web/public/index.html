@@ -55,6 +55,11 @@
         </div>
       </section>
 
+      <div id="demoBanner" class="demo-banner hidden" role="status">
+        <strong>Demo data</strong>
+        Restaurant, menu, address, Instamart, and cart information is simulated until live Swiggy OAuth is connected.
+      </div>
+
       <details class="ai-settings">
         <summary>
           <span>AI provider</span>
@@ -80,7 +85,7 @@
         <div class="planner">
           <div class="mode-tabs" role="tablist" aria-label="Planner mode">
             <button class="mode-tab active" type="button" data-mode="solo">Solo</button>
-            <button class="mode-tab" type="button" data-mode="office">Office</button>
+            <button class="mode-tab" type="button" data-mode="office">Group</button>
           </div>
 
           <form id="solo" class="planner-form">
@@ -94,25 +99,46 @@
             </label>
             <div class="two-col">
               <label>
-                Budget
-                <input name="budget" type="number" min="120" max="1000" value="350" />
+                Maximum budget
+                <input name="maxBudget" type="number" min="120" max="1000" value="350" />
               </label>
               <label>
-                Novelty
-                <input name="novelty" type="number" min="1" max="5" value="4" />
+                Food preference
+                <select name="dietMode">
+                  <option value="both">Veg and non-veg</option>
+                  <option value="veg">Veg only</option>
+                  <option value="non_veg">Non-veg only</option>
+                </select>
               </label>
             </div>
             <label>
-              Dietary rules
-              <input name="dietaryRules" value="high-protein" />
+              Dietary restrictions
+              <input name="dietaryRules" placeholder="vegan, Jain, no-onion-garlic, high-protein" />
+            </label>
+            <fieldset class="choice-field">
+              <legend>What kind of discovery feels right?</legend>
+              <label><input type="radio" name="discoveryMode" value="comfort" /> Something good and familiar</label>
+              <label><input type="radio" name="discoveryMode" value="balanced" checked /> A mix of familiar and new</label>
+              <label><input type="radio" name="discoveryMode" value="explore" /> Something absolutely new</label>
+            </fieldset>
+            <label class="check-field">
+              <input name="includeInstamartAddOns" type="checkbox" value="true" />
+              Suggest optional Instamart add-ons
             </label>
             <button type="submit">Find my mood meal</button>
           </form>
 
           <form id="office" class="planner-form hidden">
             <div class="form-head">
-              <h2>Office lunch</h2>
-              <p>Plan a sane shared order without repeating the same cuisine.</p>
+              <h2>Group meal</h2>
+              <p>Create a private preference session for web, Slack, Teams, or Discord.</p>
+            </div>
+            <div class="two-col">
+              <label>
+                Session creator
+                <input name="creatorId" value="manager-demo" required />
+              </label>
+              <label>Platform <input value="Web dashboard" disabled /></label>
             </div>
             <div class="two-col">
               <label>
@@ -125,15 +151,48 @@
               </label>
             </div>
             <label>
-              Dietary rules
-              <input name="dietaryRules" value="veg, high-protein" />
+              Group vibe
+              <input name="vibe" value="easy team lunch" />
             </label>
             <label>
-              Avoid cuisines
-              <input name="cuisineAvoidList" value="North Indian" />
+              Decision mode
+              <select name="approvalMode">
+                <option value="manager_decides">Manager decides</option>
+                <option value="team_vote">Team votes, then manager confirms</option>
+                <option value="automatic">Automatic top pick</option>
+              </select>
             </label>
-            <button type="submit">Plan team lunch</button>
+            <button type="submit">Create group session</button>
           </form>
+
+          <form id="groupPreference" class="planner-form hidden">
+            <div class="form-head">
+              <h3>Private preference</h3>
+              <p>Only aggregate counts are public.</p>
+            </div>
+            <input name="sessionId" type="hidden" />
+            <label>Participant ID <input name="participantId" required /></label>
+            <label>Mood or craving <input name="mood" /></label>
+            <div class="two-col">
+              <label>
+                Food preference
+                <select name="dietMode">
+                  <option value="both">Veg and non-veg</option>
+                  <option value="veg">Veg only</option>
+                  <option value="non_veg">Non-veg only</option>
+                </select>
+              </label>
+              <label>Restrictions <input name="dietaryRules" /></label>
+            </div>
+            <label>Allergies <input name="allergies" /></label>
+            <button type="submit">Submit privately</button>
+          </form>
+
+          <div id="groupControls" class="planner-form hidden">
+            <button id="rankGroup" type="button">Close responses and rank</button>
+            <button id="voteGroup" type="button" class="secondary">Vote for selected option</button>
+            <button id="selectGroup" type="button" class="secondary">Approve selected option</button>
+          </div>
         </div>
 
         <section class="results" aria-live="polite">
@@ -163,10 +222,10 @@
             </p>
           </article>
           <article>
-            <h3>Office lunch mode</h3>
+            <h3>Private group ordering</h3>
             <p>
-              Teams can plan lunch by headcount, budget per person, cuisine rotation, and dietary rules. The app also
-              models Instamart add-ons for fruit, drinks, snacks, and office extras.
+              Collect private preferences from web, Slack, Teams, or Discord, aggregate only safe counts, then let a
+              manager, team vote, or automatic ranking choose the finalist.
             </p>
           </article>
           <article>

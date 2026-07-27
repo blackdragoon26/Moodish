@@ -1,6 +1,21 @@
 import { retrySwiggyCall } from "./telemetry.mjs";
+import { getSwiggyAccessToken } from "./swiggy-auth.mjs";
 
 const fixtureRestaurants = [
+  {
+    id: "r0",
+    name: "Delhi Chaap Junction",
+    cuisine: "North Indian",
+    rating: 4.5,
+    distanceKm: 1.3,
+    availabilityStatus: "OPEN",
+    priceBand: 260,
+    tags: ["chaap", "tandoori", "smoky", "north-indian", "veg", "non-veg"],
+    items: [
+      { itemId: "i0a", name: "Malai Soya Chaap", price: 249, tags: ["veg", "chaap", "soya", "chewy", "creamy", "tandoori"] },
+      { itemId: "i0b", name: "Tandoori Chicken Tikka", price: 329, tags: ["non-veg", "chicken", "smoky", "tandoori", "high-protein"] }
+    ]
+  },
   {
     id: "r1",
     name: "Millet Monk",
@@ -171,7 +186,25 @@ function fixtureGateway() {
         return tokens.some((token) => haystack.includes(token));
       });
     },
-    async getRestaurantMenu({ restaurantId }) {
+    async searchMenu({ query = "", addressId, restaurantIdOfAddedItem, vegFilter = 0 }) {
+      void addressId;
+      const tokens = expandIntentTokens(query);
+      return fixtureRestaurants
+        .filter((restaurant) => !restaurantIdOfAddedItem || restaurant.id === restaurantIdOfAddedItem)
+        .flatMap((restaurant) =>
+          restaurant.items
+            .filter((item) => {
+              if (vegFilter === 1 && (item.tags.includes("non-veg") || item.tags.includes("egg"))) return false;
+              const haystack = [item.name, ...item.tags, restaurant.name, restaurant.cuisine, ...restaurant.tags]
+                .join(" ")
+                .toLowerCase();
+              return !tokens.length || tokens.some((token) => haystack.includes(token));
+            })
+            .map((item) => ({ ...item, restaurant }))
+        );
+    },
+    async getRestaurantMenu({ restaurantId, addressId }) {
+      void addressId;
       const restaurant = fixtureRestaurants.find((item) => item.id === restaurantId);
       if (!restaurant) {
         const error = new Error("Restaurant not found");
@@ -180,7 +213,8 @@ function fixtureGateway() {
       }
       return { restaurantId, items: restaurant.items, restaurant };
     },
-    async searchProducts({ query = "" }) {
+    async searchProducts({ query = "", addressId }) {
+      void addressId;
       const q = query.toLowerCase();
       return fixtureProducts.filter((product) => !q || product.tags.some((tag) => tag.includes(q)) || product.name.toLowerCase().includes(q));
     },
@@ -247,9 +281,9 @@ export function expandIntentTokens(value = "") {
 }
 
 function liveGateway() {
-  const token = process.env.SWIGGY_ACCESS_TOKEN;
   const base = "https://mcp.swiggy.com";
   async function callTool(server, name, args = {}) {
+    const token = await getSwiggyAccessToken();
     if (!token) {
       const error = new Error("SWIGGY_ACCESS_TOKEN is required for live mode");
       error.status = 401;
@@ -276,15 +310,112 @@ function liveGateway() {
       }
       const body = await response.json();
       if (body.error) throw new Error(body.error.message || "Swiggy MCP error");
-      return body.result?.data ?? body.result ?? body;
+      return unwrapMcpResult(body);
     });
   }
   return {
     mode: "live",
-    getAddresses: () => callTool("food", "get_addresses"),
-    searchRestaurants: (args) => callTool("food", "search_restaurants", args),
-    getRestaurantMenu: (args) => callTool("food", "get_restaurant_menu", args),
-    searchProducts: (args) => callTool("im", "search_products", args),
+    getAddresses: async () => normalizeAddresses(await callTool("food", "get_addresses")),
+    searchMenu: async (args) => normalizeMenuSearch(await callTool("food", "search_menu", args)),
+    searchRestaurants: async (args) => normalizeRestaurants(await callTool("food", "search_restaurants", args)),
+    getRestaurantMenu: async (args) => normalizeRestaurantMenu(await callTool("food", "get_restaurant_menu", args), args),
+    searchProducts: async (args) => normalizeProducts(await callTool("im", "search_products", args)),
     buildFoodCart: (args) => callTool("food", "update_food_cart", args)
   };
+}
+
+function unwrapMcpResult(body) {
+  if (body.error) throw new Error(body.error.message || "Swiggy MCP error");
+  const result = body.result?.structuredContent ?? body.result?.data ?? body.result ?? body;
+  if (result?.success === false) throw new Error(result.error?.message || "Swiggy MCP tool failed");
+  if (result?.data !== undefined) return result.data;
+  const text = result?.content?.find?.((item) => item.type === "text")?.text;
+  if (text) {
+    try {
+      const parsed = JSON.parse(text);
+      return parsed.data ?? parsed;
+    } catch {
+      return { message: text };
+    }
+  }
+  return result;
+}
+
+function normalizeAddresses(data) {
+  const addresses = arrayFrom(data, ["addresses", "items"]);
+  return addresses.map((address) => ({
+    ...address,
+    id: String(address.id || address.addressId),
+    label: address.label || address.type || "Saved address",
+    display: address.display || address.address || address.formattedAddress || ""
+  }));
+}
+
+function normalizeRestaurants(data) {
+  return arrayFrom(data, ["restaurants", "items"]).map((restaurant) => ({
+    ...restaurant,
+    id: String(restaurant.id || restaurant.restaurantId),
+    name: restaurant.name || restaurant.restaurantName,
+    cuisine: Array.isArray(restaurant.cuisines) ? restaurant.cuisines.join(", ") : restaurant.cuisine || "Mixed",
+    rating: Number(restaurant.rating || restaurant.avgRating || 0),
+    distanceKm: Number(restaurant.distanceKm || restaurant.distance || 0),
+    priceBand: Number(restaurant.priceBand || restaurant.costForTwo / 2 || 0),
+    availabilityStatus: restaurant.availabilityStatus || "OPEN",
+    tags: [...new Set([...(restaurant.tags || []), ...(restaurant.cuisines || [])].map(String))],
+    items: restaurant.items || []
+  }));
+}
+
+function normalizeMenuSearch(data) {
+  return arrayFrom(data, ["items", "menuItems", "results"]).map((entry) => {
+    const rawRestaurant = entry.restaurant || entry.restaurantInfo || {};
+    return {
+      ...entry,
+      itemId: String(entry.itemId || entry.id),
+      name: entry.name || entry.itemName,
+      price: Number(entry.price || entry.defaultPrice || 0),
+      tags: normalizeItemTags(entry),
+      restaurant: normalizeRestaurants({ restaurants: [rawRestaurant] })[0]
+    };
+  }).filter((entry) => entry.restaurant?.id && entry.itemId);
+}
+
+function normalizeRestaurantMenu(data, args) {
+  const items = arrayFrom(data, ["items", "menuItems", "results", "categories"]).flatMap((entry) =>
+    Array.isArray(entry.items) ? entry.items : [entry]
+  );
+  return {
+    restaurantId: args.restaurantId,
+    restaurant: data.restaurant,
+    items: items.map((item) => ({
+      ...item,
+      itemId: String(item.itemId || item.id),
+      name: item.name || item.itemName,
+      price: Number(item.price || item.defaultPrice || 0),
+      tags: normalizeItemTags(item)
+    }))
+  };
+}
+
+function normalizeProducts(data) {
+  return arrayFrom(data, ["products", "items", "results"]).map((product) => ({
+    ...product,
+    productId: String(product.productId || product.id || product.spinId),
+    name: product.name || product.productName,
+    price: Number(product.price || product.finalPrice || product.variants?.[0]?.price || 0),
+    tags: (product.tags || []).map(String)
+  }));
+}
+
+function normalizeItemTags(item) {
+  const tags = [...(item.tags || [])].map((tag) => String(tag).toLowerCase());
+  if (item.isVeg === true || item.veg === true) tags.push("veg");
+  if (item.isVeg === false || item.veg === false) tags.push("non-veg");
+  return [...new Set(tags)];
+}
+
+function arrayFrom(data, keys) {
+  if (Array.isArray(data)) return data;
+  for (const key of keys) if (Array.isArray(data?.[key])) return data[key];
+  return [];
 }

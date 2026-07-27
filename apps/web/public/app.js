@@ -1,5 +1,7 @@
 const agentBase = window.location.origin;
 let currentRecommendation = null;
+let currentGroupSession = null;
+let currentGroupAccessToken = null;
 let selectedOptionId = null;
 let activeMode = "solo";
 
@@ -61,6 +63,7 @@ function renderRecommendation(run) {
           <span>${option.distanceKm} km</span>
         </div>
         <p>${option.items.map((item) => `${item.quantity}x ${item.name}`).join(", ")}</p>
+        <p class="match-note">${option.matchType === "exact" ? "Exact craving match" : option.matchType === "alternative" ? "Similar alternative" : "Broad recommendation"} · ${option.dataSource === "fixture" ? "Demo data" : "Live Swiggy data"}</p>
         <p>${option.reasons.slice(0, 3).join(" · ")}</p>
         ${
           option.addOns
@@ -70,6 +73,14 @@ function renderRecommendation(run) {
       </article>`
     )
     .join("");
+  if (run.addOns?.length) {
+    $("#options").insertAdjacentHTML(
+      "beforeend",
+      `<article class="add-on-card"><h4>Optional Instamart add-ons</h4><p>${run.addOns
+        .map((item) => `${item.name} · ₹${item.price}`)
+        .join("</p><p>")}</p><small>Separate Instamart cart and fulfilment.</small></article>`
+    );
+  }
   document.querySelectorAll(".option-card").forEach((card) => {
     const selectOption = () => {
       selectedOptionId = card.dataset.option;
@@ -91,7 +102,7 @@ function setBusy(isBusy, message = "Working on it...") {
   document.querySelectorAll("button").forEach((button) => {
     if (button.id !== "confirmCart") button.disabled = isBusy;
   });
-  if (activeSubmit) activeSubmit.textContent = isBusy ? message : activeMode === "solo" ? "Find my mood meal" : "Plan team lunch";
+  if (activeSubmit) activeSubmit.textContent = isBusy ? message : activeMode === "solo" ? "Find my mood meal" : "Create group session";
 }
 
 function showError(error, context = "Something went wrong") {
@@ -117,6 +128,7 @@ async function refreshHealth() {
   try {
     const health = await api("/health");
     $("#healthText").textContent = `${health.swiggyMode || health.mode} · ${health.aiProvider || "ai unknown"}`;
+    $("#demoBanner").classList.toggle("hidden", health.swiggyMode !== "fixture");
     const audit = await api("/api/audit");
     $("#auditOutput").textContent = JSON.stringify(audit, null, 2);
   } catch (error) {
@@ -131,8 +143,20 @@ function setMode(mode) {
   });
   $("#solo").classList.toggle("hidden", mode !== "solo");
   $("#office").classList.toggle("hidden", mode !== "office");
-  $("#summary").textContent =
-    mode === "solo" ? "Tell Moodish your mood and budget." : "Set the team constraints and get a shared lunch shortlist.";
+  $("#groupPreference").classList.toggle("hidden", mode !== "office" || !currentGroupSession);
+  $("#groupControls").classList.toggle("hidden", mode !== "office" || !currentGroupSession);
+  if (mode === "solo" && currentRecommendation) {
+    renderRecommendation(currentRecommendation);
+  } else if (mode === "office" && currentGroupSession) {
+    selectedOptionId = currentGroupSession.selectedOptionId || currentGroupSession.recommendation?.options?.[0]?.optionId || null;
+    renderGroupSession(currentGroupSession);
+  } else {
+    selectedOptionId = null;
+    $("#options").innerHTML = "";
+    $("#confirmCart").disabled = true;
+    $("#summary").textContent =
+      mode === "solo" ? "Tell Moodish your mood and budget." : "Create a group session to collect private preferences.";
+  }
   clearError();
 }
 
@@ -173,8 +197,17 @@ $("#office").addEventListener("submit", async (event) => {
   clearError();
   setBusy(true, "Planning...");
   try {
-    const run = await api("/api/recommendations/office", { method: "POST", body: JSON.stringify(recommendationPayload(event.currentTarget)) });
-    renderRecommendation(run);
+    const session = await api("/api/group-sessions", {
+      method: "POST",
+      body: JSON.stringify(recommendationPayload(event.currentTarget))
+    });
+    currentGroupSession = session;
+    currentGroupAccessToken = session.accessToken;
+    sessionStorage.setItem(`moodish-group:${session.sessionId}`, currentGroupAccessToken);
+    $("#groupPreference [name=sessionId]").value = session.sessionId;
+    $("#groupPreference").classList.remove("hidden");
+    $("#groupControls").classList.remove("hidden");
+    renderGroupSession(session);
     refreshHealth();
   } catch (error) {
     showError(error, "Could not plan office lunch");
@@ -183,7 +216,69 @@ $("#office").addEventListener("submit", async (event) => {
   }
 });
 
+$("#groupPreference").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = formJson(event.currentTarget);
+  const session = await api(`/api/group-sessions/${payload.sessionId}/preferences`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  currentGroupSession = { ...currentGroupSession, ...session };
+  renderGroupSession(currentGroupSession);
+});
+
+$("#rankGroup").addEventListener("click", async () => {
+  if (!currentGroupSession) return;
+  const session = await api(`/api/group-sessions/${currentGroupSession.sessionId}/rank`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${currentGroupAccessToken}` },
+    body: JSON.stringify({ actorId: currentGroupSession.creatorId })
+  });
+  currentGroupSession = session;
+  selectedOptionId = session.recommendation?.options?.[0]?.optionId || null;
+  renderGroupSession(session);
+});
+
+$("#voteGroup").addEventListener("click", async () => {
+  if (!currentGroupSession || !selectedOptionId) return;
+  const participantId = $("#groupPreference [name=participantId]").value.trim();
+  if (!participantId) return;
+  const session = await api(`/api/group-sessions/${currentGroupSession.sessionId}/vote`, {
+    method: "POST",
+    body: JSON.stringify({ participantId, optionId: selectedOptionId })
+  });
+  currentGroupSession = { ...currentGroupSession, ...session };
+  renderGroupSession(currentGroupSession);
+});
+
+$("#selectGroup").addEventListener("click", async () => {
+  if (!currentGroupSession || !selectedOptionId) return;
+  const session = await api(`/api/group-sessions/${currentGroupSession.sessionId}/select`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${currentGroupAccessToken}` },
+    body: JSON.stringify({ actorId: currentGroupSession.creatorId, optionId: selectedOptionId })
+  });
+  currentGroupSession = session;
+  renderGroupSession(session);
+});
+
 $("#confirmCart").addEventListener("click", async () => {
+  if (activeMode === "office" && currentGroupSession) {
+    $("#confirmCart").disabled = true;
+    try {
+      const session = await api(`/api/group-sessions/${currentGroupSession.sessionId}/confirm-cart`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${currentGroupAccessToken}` },
+        body: JSON.stringify({ actorId: currentGroupSession.creatorId, confirmed: true })
+      });
+      currentGroupSession = session;
+      $("#cartOutput").textContent = JSON.stringify(session.cart, null, 2);
+      renderGroupSession(session);
+    } catch (error) {
+      $("#cartOutput").textContent = `Could not build group cart: ${error.message}`;
+    }
+    return;
+  }
   if (!currentRecommendation || !selectedOptionId) return;
   $("#confirmCart").disabled = true;
   $("#confirmCart").textContent = "Building...";
@@ -206,6 +301,35 @@ $("#confirmCart").addEventListener("click", async () => {
   }
 });
 
+function renderGroupSession(session) {
+  const options = session.recommendation?.options || session.options || [];
+  $("#summary").textContent = `Group session ${session.state} · ${session.responseCount}/${session.headcount} responses · ${session.approvalMode.replaceAll("_", " ")}`;
+  $("#traceOutput").textContent = JSON.stringify(
+    { sessionId: session.sessionId, state: session.state, aggregate: session.aggregate, voteCounts: session.voteCounts },
+    null,
+    2
+  );
+  $("#options").innerHTML = options
+    .map(
+      (option, index) => `<article class="option-card ${option.optionId === selectedOptionId ? "selected" : ""}" data-option="${option.optionId}" role="radio" tabindex="0">
+        <div class="option-head"><h4>${index + 1}. ${option.restaurantName}</h4><span class="select-pill">${option.optionId === selectedOptionId ? "Selected" : "Select"}</span></div>
+        <p>${option.items.map((item) => `${item.quantity}x ${item.name}`).join(", ")}</p>
+        <p>₹${option.estimatedTotal} · ${option.cuisine}</p>
+      </article>`
+    )
+    .join("");
+  document.querySelectorAll(".option-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      selectedOptionId = card.dataset.option;
+      renderGroupSession(currentGroupSession);
+    });
+  });
+  $("#rankGroup").disabled = session.state !== "collecting";
+  $("#voteGroup").disabled = session.state !== "voting" || !selectedOptionId;
+  $("#selectGroup").disabled = !["voting", "awaiting_manager"].includes(session.state) || !selectedOptionId;
+  $("#confirmCart").disabled = session.state !== "awaiting_creator_confirmation";
+}
+
 $("#exportMemory").addEventListener("click", refreshMemory);
 $("#clearMemory").addEventListener("click", async () => {
   try {
@@ -223,3 +347,25 @@ document.querySelectorAll(".mode-tab").forEach((tab) => {
 setMode(activeMode);
 refreshHealth();
 refreshMemory();
+restoreGroupFromUrl();
+
+async function restoreGroupFromUrl() {
+  const url = new URL(window.location.href);
+  const sessionId = url.searchParams.get("group");
+  const token =
+    new URLSearchParams(url.hash.replace(/^#/, "")).get("access_token") ||
+    (sessionId ? sessionStorage.getItem(`moodish-group:${sessionId}`) : null);
+  if (!sessionId || !token) return;
+  try {
+    currentGroupAccessToken = token;
+    sessionStorage.setItem(`moodish-group:${sessionId}`, token);
+    currentGroupSession = await api(`/api/group-sessions/${encodeURIComponent(sessionId)}`, {
+      headers: { authorization: `Bearer ${token}` }
+    });
+    activeMode = "office";
+    setMode("office");
+    history.replaceState({}, "", `/?group=${encodeURIComponent(sessionId)}`);
+  } catch (error) {
+    showError(error, "Could not open the manager dashboard");
+  }
+}

@@ -2,11 +2,13 @@
 
 The local product runs with `SWIGGY_MODE=fixture`, which is not live Swiggy data. To wire live Swiggy access:
 
-1. Complete Swiggy Builders onboarding and OAuth setup.
-2. Configure OAuth 2.1 with PKCE in the web app login flow.
-3. Store access tokens server-side only.
-4. Set `SWIGGY_MODE=live` and provide the server-side session token through the gateway.
-5. Map official Swiggy Food and Instamart tool names into `services/agent/src/swiggy-gateway.mjs`.
+1. Complete Swiggy Builders onboarding.
+2. Set `MOODISH_PUBLIC_URL` and `TOKEN_ENCRYPTION_KEY`.
+3. Call `/api/swiggy/oauth/start`, open the returned authorization URL, and complete phone/OTP consent.
+4. The callback exchanges the PKCE code and stores the encrypted, five-day access session server-side.
+5. Set `SWIGGY_MODE=live` after authenticated staging calls pass.
+
+The live gateway maps Food `get_addresses`, `search_menu`, `search_restaurants`, `get_restaurant_menu`, and `update_food_cart`, plus Instamart `search_products`. It normalizes live and fixture responses into the same recommendation types.
 
 The gateway already centralizes retries, rate-limit readiness, and error normalization. Keep all live tool calls behind that module so safety and telemetry remain enforceable.
 

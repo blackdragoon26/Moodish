@@ -52,13 +52,13 @@ test("personal planner changes shortlist for distinct moods", async () => {
     scenarios.map((scenario) => scenario.expectedTop)
   );
   assert.ok(new Set(runs.map((run) => run.options.map((option) => option.restaurantName).join("|"))).size > 1);
-  assert.ok(runs.every((run) => run.options.length >= 3));
+  assert.ok(runs.every((run) => run.options.length >= 1));
 });
 
 test("personal planner does not let AI summary contradict top ranked option", async () => {
   const run = await planPersonalMeal({
     request: { budget: 500, mood: "office pizza party", dietaryRules: "", novelty: 4 },
-    tasteProfile: getTasteProfile(),
+    tasteProfile: await getTasteProfile(),
     swiggy: createSwiggyGateway(),
     ai: {
       summarizeRecommendation: async () => ({
@@ -75,7 +75,7 @@ test("personal planner does not let AI summary contradict top ranked option", as
 test("personal planner overrides AI summary when it mentions a runner-up first", async () => {
   const run = await planPersonalMeal({
     request: { budget: 500, mood: "office pizza party", dietaryRules: "", novelty: 4 },
-    tasteProfile: getTasteProfile(),
+    tasteProfile: await getTasteProfile(),
     swiggy: createSwiggyGateway(),
     ai: {
       summarizeRecommendation: async () => ({
@@ -88,6 +88,52 @@ test("personal planner overrides AI summary when it mentions a runner-up first",
   assert.equal(run.options[0].restaurantName, "Slice Room");
   assert.match(run.summary, /^Slice Room/);
   assert.equal(run.transparency.ai.status, "overridden");
+});
+
+test("chaap craving prioritizes an exact chaap dish over generic Punjabi branding", async () => {
+  const tools = createTools();
+  const run = await tools.plan_personal_meal({
+    mood: "something very much like chaap chewy tasty",
+    maxBudget: 1000,
+    dietMode: "both",
+    dietaryRules: "none",
+    discoveryMode: "explore"
+  });
+
+  assert.equal(run.options[0].restaurantName, "Delhi Chaap Junction");
+  assert.match(run.options[0].items[0].name, /chaap/i);
+  assert.equal(run.options[0].matchType, "exact");
+  assert.equal(run.transparency.exactMatch, true);
+  assert.deepEqual(run.request.dietaryRules, []);
+});
+
+test("maximum budget is a ceiling instead of an expensive-target preference", async () => {
+  const tools = createTools();
+  const run = await tools.plan_personal_meal({
+    mood: "chaap",
+    maxBudget: 250,
+    dietMode: "veg",
+    discoveryMode: "balanced"
+  });
+
+  assert.ok(run.options.every((option) => option.estimatedTotal <= 250));
+});
+
+test("diet mode is enforced as a hard item constraint", async () => {
+  const tools = createTools();
+  const veg = await tools.plan_personal_meal({ mood: "chaap", maxBudget: 500, dietMode: "veg" });
+  const nonVeg = await tools.plan_personal_meal({ mood: "chicken", maxBudget: 500, dietMode: "non_veg" });
+
+  assert.ok(veg.options.every((option) => option.items.every((item) => !item.tags.includes("non-veg"))));
+  assert.ok(nonVeg.options.every((option) => option.items.every((item) => item.tags.includes("non-veg"))));
+});
+
+test("fixture recommendations carry an unavoidable demo disclosure", async () => {
+  const tools = createTools();
+  const run = await tools.plan_personal_meal({ mood: "chaap", maxBudget: 500 });
+  assert.equal(run.demo.active, true);
+  assert.equal(run.transparency.dataSource, "fixture");
+  assert.ok(run.options.every((option) => option.dataSource === "fixture"));
 });
 
 test("personal planner treats vegan as a hard menu constraint", async () => {
@@ -115,6 +161,8 @@ test("office planner handles team constraints and Instamart add-ons", async () =
   assert.equal(run.mode, "office");
   assert.equal(run.request.totalBudget, 1500);
   assert.ok(run.options[0].addOns.length > 0);
+  assert.ok(run.options.every((option) => option.items.every((item) => item.quantity === 6)));
+  assert.ok(run.options.every((option) => option.estimatedTotal <= 1500));
   assert.equal(run.safety.groupPaymentSupported, false);
 });
 

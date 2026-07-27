@@ -34,6 +34,16 @@ content-type: application/json
 - `update_taste_profile`: updates taste memory.
 - `record_meal_feedback`: stores feedback tags and notes.
 - `get_taste_memory`: exports taste profile and feedback.
+- `create_group_meal_session`: creates a persistent cross-platform collection session.
+- `submit_group_preferences`: records a participant's private meal constraints.
+- `rank_group_meal`: locks collection and creates one-restaurant-first plans.
+- `vote_group_option`: records or replaces a participant vote.
+- `select_group_option`: lets a creator or co-manager approve a finalist.
+- `confirm_group_cart`: builds the selected cart only for the session creator.
+- `get_group_meal_session`: returns a private manager view or redacted public view.
+- `cancel_group_meal_session`: cancels an unfinished session.
+
+`plan_personal_meal` prefers the new `maxBudget`, `dietMode`, and `discoveryMode` arguments. Numeric `novelty` remains a deprecated compatibility input.
 
 ## Safety Contract
 

@@ -12,6 +12,16 @@ import { buildConfirmedCart, planOfficeLunch, planPersonalMeal } from "./recomme
 import { createAiProvider } from "./ai-provider.mjs";
 import { createSwiggyGateway } from "./swiggy-gateway.mjs";
 import { instrumentToolCall } from "./telemetry.mjs";
+import {
+  cancelGroupSession,
+  confirmGroupCart,
+  createGroupSession,
+  getGroupSessionView,
+  lockAndRankGroupSession,
+  selectGroupOption,
+  submitGroupPreference,
+  voteGroupOption
+} from "./group-service.mjs";
 
 export function createToolRuntime() {
   const swiggy = createSwiggyGateway();
@@ -26,7 +36,7 @@ export function createTools(runtime = createToolRuntime()) {
       return instrumentToolCall({ tool: "plan_personal_meal", userIdHash }, async () => {
         const run = await planPersonalMeal({
           request: publicRequest(args),
-          tasteProfile: getTasteProfile(userIdHash),
+          tasteProfile: await getTasteProfile(userIdHash),
           swiggy: runtime.swiggy,
           ai: aiForRequest(args, runtime.ai)
         });
@@ -38,11 +48,11 @@ export function createTools(runtime = createToolRuntime()) {
       return instrumentToolCall({ tool: "plan_office_lunch", userIdHash }, async () => {
         const run = await planOfficeLunch({
           request: publicRequest(args),
-          teamProfile: getTeamProfile(args.teamId),
+          teamProfile: await getTeamProfile(args.teamId),
           swiggy: runtime.swiggy,
           ai: aiForRequest(args, runtime.ai)
         });
-        return saveRecommendation(run);
+        return await saveRecommendation(run);
       });
     },
     async build_confirmed_cart(args = {}) {
@@ -50,7 +60,7 @@ export function createTools(runtime = createToolRuntime()) {
       return instrumentToolCall(
         { tool: "build_confirmed_cart", userIdHash, recommendationId: args.recommendationId },
         async () => {
-          const recommendation = getRecommendation(args.recommendationId);
+          const recommendation = await getRecommendation(args.recommendationId);
           if (!recommendation) {
             const error = new Error("Unknown recommendationId");
             error.status = 404;
@@ -80,6 +90,30 @@ export function createTools(runtime = createToolRuntime()) {
     },
     async get_taste_memory(args = {}) {
       return exportTasteMemory(args.userIdHash || DEFAULT_USER_HASH);
+    },
+    async create_group_meal_session(args = {}) {
+      return createGroupSession(args);
+    },
+    async submit_group_preferences(args = {}) {
+      return submitGroupPreference(args);
+    },
+    async rank_group_meal(args = {}) {
+      return lockAndRankGroupSession(args, runtime);
+    },
+    async vote_group_option(args = {}) {
+      return voteGroupOption(args);
+    },
+    async select_group_option(args = {}) {
+      return selectGroupOption(args);
+    },
+    async confirm_group_cart(args = {}) {
+      return confirmGroupCart(args, runtime);
+    },
+    async get_group_meal_session(args = {}) {
+      return getGroupSessionView(args);
+    },
+    async cancel_group_meal_session(args = {}) {
+      return cancelGroupSession(args);
     }
   };
 }

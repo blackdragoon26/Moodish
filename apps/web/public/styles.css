@@ -29,7 +29,8 @@ a {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -381,9 +382,54 @@ input {
   outline: none;
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: rgba(238, 91, 53, 0.72);
   box-shadow: 0 0 0 3px rgba(238, 91, 53, 0.12);
+}
+
+.demo-banner {
+  margin-bottom: 18px;
+  border: 1px solid #f1b596;
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: #73331f;
+  background: #fff2e8;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.demo-banner strong {
+  margin-right: 6px;
+}
+
+.choice-field {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.choice-field legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.choice-field label,
+.check-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 750;
+}
+
+.choice-field input,
+.check-field input {
+  width: auto;
+  min-height: auto;
 }
 
 button {

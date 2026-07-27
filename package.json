@@ -14,5 +14,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "jose": "^6.2.4",
+    "pg": "^8.22.0"
   }
 }

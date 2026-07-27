@@ -11,11 +11,11 @@ const DEFAULT_AI_TIMEOUT_MS = 4500;
 function mockProvider() {
   return {
     name: "mock",
-    async summarizeRecommendation({ mode, options }) {
+    async summarizeRecommendation({ mode, options, matchNotice }) {
       const lead = mode === "office" ? "A balanced office spread" : "A tuned surprise meal";
-      const prompt = buildSummaryPrompt({ mode, options });
+      const prompt = buildSummaryPrompt({ mode, options, matchNotice });
       return {
-        text: `${lead} with ${options.length} curated options. The top pick balances taste memory, budget, novelty, and availability.`,
+        text: `${lead} with ${options.length} curated options. The top pick prioritizes the craving, dietary needs, maximum budget, and availability.`,
         trace: {
           provider: "mock",
           status: "local_mock",
@@ -91,8 +91,8 @@ function openRouterProvider(fetchImpl, overrides = {}) {
   const model = overrides.model || process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini";
   return {
     name: "openrouter",
-    async summarizeRecommendation({ mode, options }) {
-      const prompt = buildSummaryPrompt({ mode, options });
+    async summarizeRecommendation({ mode, options, matchNotice }) {
+      const prompt = buildSummaryPrompt({ mode, options, matchNotice });
       if (!apiKey) {
         throw providerError("OpenRouter is configured but OPENROUTER_API_KEY is missing.", {
           provider: "openrouter",
@@ -162,24 +162,26 @@ function openRouterProvider(fetchImpl, overrides = {}) {
   };
 }
 
-function buildSummaryPrompt({ mode, options }) {
+function buildSummaryPrompt({ mode, options, matchNotice = "" }) {
   return {
     messages: [
       {
         role: "system",
         content:
-          "You are Moodish, a concise food planning assistant. Summarize recommendations in one friendly sentence. Mention the top-ranked restaurant first. Do not mention hidden scores or internal ids."
+          "You are Moodish, a concise food planning assistant. Summarize recommendations in one friendly sentence. Mention the top-ranked restaurant first. Never claim an exact craving match when matchType is alternative or broad. Do not mention hidden scores or internal ids."
       },
       {
         role: "user",
         content: JSON.stringify({
           mode,
+          matchNotice,
           options: options.map((option) => ({
             restaurantName: option.restaurantName,
             cuisine: option.cuisine,
             estimatedTotal: option.estimatedTotal,
             reasons: option.reasons,
-            items: option.items.map((item) => item.name)
+            items: option.items.map((item) => item.name),
+            matchType: option.matchType
           }))
         })
       }

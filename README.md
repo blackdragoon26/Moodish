@@ -4,14 +4,16 @@
 
 Moodish is a mood-based food planning app for Swiggy-style ordering.
 
-You tell it what you feel like eating, your budget, and dietary needs. Moodish returns a short ranked list of meal options, explains why each option was picked, and lets you build a cart only after you choose an option.
+You tell it what you feel like eating, your maximum budget, dietary needs, and whether you want something familiar, balanced, or completely new. Moodish returns craving-first meal options, explains exact matches and alternatives, and lets you build a cart only after confirmation.
 
 Live app: https://moodish.onrender.com/
 
 ## What It Does
 
 - Plans a solo meal from a mood like `rainy spicy biryani craving`.
-- Plans office lunch for a small team with headcount, budget, and dietary rules.
+- Creates private group-meal preference sessions for web, Slack, Teams, and Discord.
+- Supports manager choice, team voting, or automatic ranking with creator-only cart confirmation.
+- Suggests optional, separately fulfilled Instamart add-ons.
 - Uses OpenRouter for the AI summary when configured.
 - Lets reviewers use their own OpenRouter API key for a single browser session.
 - Shows a transparent recommendation trace: mood tokens, ranking scores, AI prompt, and AI response.
@@ -19,11 +21,11 @@ Live app: https://moodish.onrender.com/
 
 ## Important Note
 
-Moodish currently uses a local fixture catalog for Swiggy-like restaurant and Instamart data.
+Moodish defaults to a visibly labelled local demo catalog for Swiggy-like restaurant and Instamart data.
 
 That means:
 
-- Recommendations and cart previews are functional.
+- Recommendations, group sessions, voting, and cart previews are functional.
 - OpenRouter AI inference is real when `AI_PROVIDER=openrouter` is configured.
 - Real Swiggy MCP ordering is not live yet.
 - `SWIGGY_MODE=live` is reserved for when Swiggy grants live MCP access.
@@ -32,9 +34,9 @@ That means:
 
 ```text
 Mood input
-  -> intent tags
-  -> fixture/live Swiggy search
-  -> budget and dietary filtering
+  -> structured craving intent
+  -> dish-first fixture/live Swiggy search
+  -> hard availability, maximum-budget, and dietary filtering
   -> ranked shortlist
   -> AI summary
   -> confirmed cart preview
@@ -71,6 +73,15 @@ OPENROUTER_MODEL=openai/gpt-4o-mini
 AI_PROVIDER_TIMEOUT_MS=4500
 ```
 
+For durable profiles and group sessions:
+
+```bash
+DATABASE_URL=postgresql://...
+TOKEN_ENCRYPTION_KEY=a-long-random-secret
+```
+
+Collaboration webhooks require platform signing credentials, and manager dashboard access requires the matching Slack, Discord, or Microsoft OAuth client credentials listed in `.env.example`. All three adapters use the same group-session service, reject unsigned requests, and bind private dashboard access to the platform identity that created or manages the session.
+
 Do not commit `.env.local` or API keys.
 
 Reviewers can also open Developer view in the app and paste their own OpenRouter key. That key is sent only with recommendation requests and is not stored in recommendation memory or returned in the trace.
@@ -82,7 +93,17 @@ This is a Node web service. The repo includes `render.yaml` for Render.
 1. Push the repo to GitHub.
 2. Create a Render Blueprint from the repo.
 3. Add `OPENROUTER_API_KEY` as a secret env var.
-4. Keep `SWIGGY_MODE=fixture` until live Swiggy MCP access is available.
+4. Keep `SWIGGY_MODE=fixture` until live Swiggy OAuth has been completed.
+
+## Recommendation Contract
+
+Personal requests accept `mood`, `maxBudget`, `dietMode` (`veg`, `non_veg`, `both`), optional `dietaryRules` and `allergies`, `discoveryMode` (`comfort`, `balanced`, `explore`), `addressId`, and `includeInstamartAddOns`.
+
+Legacy `budget` and numeric `novelty` remain accepted. Novelty values 1-2 map to comfort, 3 to balanced, and 4-5 to explore.
+
+## Group Sessions
+
+Create a group session through `POST /api/group-sessions`, privately submit preferences, close and rank the session, vote or select an option, then have the session creator explicitly confirm the cart. Public session views contain aggregate counts and never include participant allergies or private submissions.
 
 Production command:
 
