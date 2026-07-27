@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { runtimeSigningSecret } from "./runtime-secrets.mjs";
 
 export function signGroupAccessToken({ sessionId, actorId, expiresInSeconds = 3600 }) {
   const payload = Buffer.from(
@@ -29,14 +30,7 @@ export function verifyGroupAccessToken(token, expectedSessionId) {
 }
 
 function signingKey() {
-  const key = process.env.GROUP_SESSION_SIGNING_KEY || process.env.TOKEN_ENCRYPTION_KEY;
-  if (key) return key;
-  if (process.env.NODE_ENV === "production") {
-    const error = new Error("GROUP_SESSION_SIGNING_KEY or TOKEN_ENCRYPTION_KEY is required in production");
-    error.status = 503;
-    throw error;
-  }
-  return "moodish-local-group-session-only";
+  return runtimeSigningSecret("group-session");
 }
 
 function safeEqual(left, right) {

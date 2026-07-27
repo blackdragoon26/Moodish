@@ -26,15 +26,24 @@ const DISH_TERMS = new Set([
   "burger",
   "chaap",
   "chicken",
+  "chowmein",
   "chocolate",
   "dessert",
+  "dosa",
+  "fish",
+  "friedrice",
   "momos",
+  "noodles",
   "paratha",
   "pasta",
   "pizza",
+  "ramen",
+  "roll",
   "salad",
   "sandwich",
-  "thali"
+  "tacos",
+  "thali",
+  "wrap"
 ]);
 
 const ATTRIBUTE_TERMS = new Set([
@@ -59,6 +68,11 @@ const CUISINE_PHRASES = [
   ["punjabi", "North Indian"],
   ["bengali", "Bengali"],
   ["thai", "Thai"],
+  ["chinese", "Chinese"],
+  ["indo chinese", "Chinese"],
+  ["italian", "Italian"],
+  ["japanese", "Japanese"],
+  ["mexican", "Mexican"],
   ["lebanese", "Lebanese"],
   ["continental", "Continental"]
 ];
@@ -68,8 +82,15 @@ const ALTERNATIVE_QUERIES = {
   biryani: ["rice bowl", "pulao"],
   burger: ["sandwich", "wrap"],
   chicken: ["high protein", "tandoori"],
+  chowmein: ["noodles", "fried rice"],
+  dosa: ["south indian", "idli"],
+  fish: ["seafood", "coastal"],
   momos: ["dumplings", "rolls"],
+  noodles: ["chowmein", "fried rice"],
+  pasta: ["italian", "pizza"],
   pizza: ["flatbread", "sharing"],
+  ramen: ["noodles", "japanese"],
+  tacos: ["wrap", "mexican"],
   salad: ["healthy bowl", "fresh"]
 };
 

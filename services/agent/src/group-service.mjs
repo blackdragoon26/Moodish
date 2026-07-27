@@ -97,6 +97,9 @@ export async function lockAndRankGroupSession(args = {}, runtime) {
       dietMode: aggregate.dietMode,
       dietaryRules: aggregate.sharedRules,
       allergies: aggregate.allergies,
+      vegCount: aggregate.vegCount,
+      nonVegCount: aggregate.nonVegCount,
+      bothCount: aggregate.bothCount,
       includeInstamartAddOns: true
     },
     teamProfile: {

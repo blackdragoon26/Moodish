@@ -61,6 +61,23 @@ test("automatic group ranking still requires creator cart confirmation", async (
   assert.equal(confirmed.cart.checkoutBlocked, true);
 });
 
+test("mixed-diet group plan reserves both veg and non-veg portions", async () => {
+  const tools = createTools();
+  const session = await tools.create_group_meal_session({
+    creatorId: "mixed-manager",
+    headcount: 4,
+    budgetPerPerson: 400,
+    vibe: "spicy Chinese"
+  });
+  await tools.submit_group_preferences({ sessionId: session.sessionId, participantId: "veg-person", dietMode: "veg", mood: "noodles" });
+  await tools.submit_group_preferences({ sessionId: session.sessionId, participantId: "nonveg-person", dietMode: "non_veg", mood: "chicken" });
+  const ranked = await tools.rank_group_meal({ sessionId: session.sessionId, actorId: "mixed-manager" });
+  const tags = ranked.recommendation.options[0].items.map((item) => item.tags);
+  assert.ok(tags.some((itemTags) => itemTags.includes("non-veg")));
+  assert.ok(tags.some((itemTags) => !itemTags.includes("non-veg") && !itemTags.includes("egg")));
+  assert.equal(ranked.recommendation.options[0].items.reduce((sum, item) => sum + item.quantity, 0), 4);
+});
+
 test("team voting supports one vote per participant and manager selection", async () => {
   const tools = createTools();
   const created = await tools.create_group_meal_session({

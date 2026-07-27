@@ -3,285 +3,185 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Moodish</title>
+    <meta name="theme-color" content="#17120f" />
+    <title>Moodish — say the mood, get the meal</title>
     <link rel="icon" type="image/png" href="/assets/moodish-logo.png" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <a class="brand" href="/">
-        <img class="brand-logo" src="/assets/moodish-logo.png" alt="" />
-        <span>Moodish</span>
-      </a>
-      <nav class="nav-links" aria-label="Page links">
-        <a href="#planner">Planner</a>
-        <a href="#docs">Docs</a>
-        <a href="https://github.com/blackdragoon26/Moodish" target="_blank" rel="noreferrer">GitHub</a>
-      </nav>
-      <div class="status-chip">
-        <span class="status-dot"></span>
-        <span id="healthText">Checking agent</span>
+    <section id="loginGate" class="login-gate hidden" aria-labelledby="loginTitle">
+      <div class="login-art" aria-hidden="true">
+        <span class="floating-card card-one">chewy · smoky · ₹400</span>
+        <span class="floating-card card-two">rainy-day biryani</span>
+        <span class="floating-card card-three">lunch for eight</span>
       </div>
-    </header>
-
-    <main>
-      <section class="hero">
-        <div class="hero-copy-block">
-          <p class="eyebrow">AI meal planning for Swiggy MCP</p>
-          <h1>Food planning for the mood you are actually in.</h1>
-          <p class="hero-copy">
-            Moodish turns cravings, budgets, dietary rules, and team lunch constraints into ranked meal shortlists with
-            transparent AI reasoning and safe cart confirmation.
-          </p>
-          <div class="hero-actions">
-            <a class="primary-link" href="#planner">Try the planner</a>
-            <a class="secondary-link" href="#docs">Read the docs</a>
-          </div>
+      <div class="login-card">
+        <a class="brand brand-large" href="/">
+          <img src="/assets/moodish-logo.png" alt="" />
+          <span>Moodish</span>
+        </a>
+        <p class="kicker">Your food concierge</p>
+        <h1 id="loginTitle">Say the mood.<br />We’ll find the meal.</h1>
+        <p class="login-copy">No filters to fight. Moodish asks only what matters, then plans from what is actually available.</p>
+        <div class="login-actions">
+          <a id="googleLogin" class="login-button google" href="/api/auth/google/start">
+            <span class="provider-mark">G</span> Continue with Google
+          </a>
+          <a id="swiggyLogin" class="login-button swiggy" href="/api/auth/swiggy/start">
+            <span class="provider-mark">S</span> Continue with Swiggy
+          </a>
+          <button id="demoLogin" class="login-button demo hidden" type="button">Preview with demo access</button>
         </div>
-      </section>
-
-      <section class="proof-strip" aria-label="Product highlights">
-        <div>
-          <strong>Real AI trace</strong>
-          <span>See prompt, response, intent tags, and ranking scores.</span>
-        </div>
-        <div>
-          <strong>Cart-safe by design</strong>
-          <span>No checkout path exists without explicit confirmation.</span>
-        </div>
-        <div>
-          <strong>Swiggy-ready boundary</strong>
-          <span>Fixture data today, live MCP gateway when access is granted.</span>
-        </div>
-      </section>
-
-      <div id="demoBanner" class="demo-banner hidden" role="status">
-        <strong>Demo data</strong>
-        Restaurant, menu, address, Instamart, and cart information is simulated until live Swiggy OAuth is connected.
+        <p id="loginNote" class="fine-print">Swiggy sign-in connects your saved address and live availability when MCP access is enabled.</p>
       </div>
+    </section>
 
-      <details class="ai-settings">
-        <summary>
-          <span>AI provider</span>
-          <strong>Uses deployed OpenRouter by default. Paste your own key to test without using mine.</strong>
-        </summary>
-        <div class="ai-settings-grid">
-          <label>
-            OpenRouter key
-            <input id="clientAiKey" type="password" autocomplete="off" placeholder="sk-or-..." />
-          </label>
-          <label>
-            Model
-            <input id="clientAiModel" value="openai/gpt-4o-mini" />
-          </label>
-          <p>
-            Leave this blank to use the deployed OpenRouter configuration. Paste a key to override it for this browser
-            session; Moodish does not store the key or print it in the recommendation trace.
-          </p>
+    <div id="product" class="product hidden">
+      <header class="topbar">
+        <a class="brand" href="/">
+          <img src="/assets/moodish-logo.png" alt="" />
+          <span>Moodish</span>
+        </a>
+        <div class="topbar-actions">
+          <span id="demoBadge" class="demo-badge hidden">Demo catalogue</span>
+          <span id="healthText" class="health-text">Connecting</span>
+          <button id="userMenu" class="user-chip" type="button"><span id="userInitial">M</span><strong id="userName">Member</strong></button>
+          <button id="logout" class="text-button" type="button">Sign out</button>
         </div>
-      </details>
+      </header>
 
-      <section id="planner" class="workspace">
-        <div class="planner">
-          <div class="mode-tabs" role="tablist" aria-label="Planner mode">
-            <button class="mode-tab active" type="button" data-mode="solo">Solo</button>
-            <button class="mode-tab" type="button" data-mode="office">Group</button>
+      <main class="app-shell">
+        <aside class="rail">
+          <p class="rail-label">Plan</p>
+          <button class="rail-link active" data-view="solo" type="button"><span>✦</span> My meal</button>
+          <button class="rail-link" data-view="group" type="button"><span>◎</span> Moodish Tables</button>
+          <div class="rail-spacer"></div>
+          <div class="rail-note">
+            <span class="pulse"></span>
+            <div><strong>Cart-safe</strong><small>Moodish always asks before changing a cart.</small></div>
+          </div>
+          <details class="developer-panel">
+            <summary>Developer lens</summary>
+            <pre id="traceOutput">The recommendation trace will appear here.</pre>
+          </details>
+        </aside>
+
+        <section id="soloView" class="view">
+          <div class="conversation-head">
+            <p class="kicker">Moodish concierge</p>
+            <h2>What would hit the spot?</h2>
+            <p>Dish, texture, weather, energy—say as much or as little as you know.</p>
           </div>
 
-          <form id="solo" class="planner-form">
-            <div class="form-head">
-              <h2>Surprise me</h2>
-              <p>Tell Moodish the vibe; it handles the filtering.</p>
-            </div>
-            <label>
-              Mood
-              <input name="mood" value="curious but protein-heavy" />
-            </label>
-            <div class="two-col">
-              <label>
-                Maximum budget
-                <input name="maxBudget" type="number" min="120" max="1000" value="350" />
-              </label>
-              <label>
-                Food preference
-                <select name="dietMode">
-                  <option value="both">Veg and non-veg</option>
-                  <option value="veg">Veg only</option>
-                  <option value="non_veg">Non-veg only</option>
-                </select>
-              </label>
-            </div>
-            <label>
-              Dietary restrictions
-              <input name="dietaryRules" placeholder="vegan, Jain, no-onion-garlic, high-protein" />
-            </label>
-            <fieldset class="choice-field">
-              <legend>What kind of discovery feels right?</legend>
-              <label><input type="radio" name="discoveryMode" value="comfort" /> Something good and familiar</label>
-              <label><input type="radio" name="discoveryMode" value="balanced" checked /> A mix of familiar and new</label>
-              <label><input type="radio" name="discoveryMode" value="explore" /> Something absolutely new</label>
-            </fieldset>
-            <label class="check-field">
-              <input name="includeInstamartAddOns" type="checkbox" value="true" />
-              Suggest optional Instamart add-ons
-            </label>
-            <button type="submit">Find my mood meal</button>
-          </form>
-
-          <form id="office" class="planner-form hidden">
-            <div class="form-head">
-              <h2>Group meal</h2>
-              <p>Create a private preference session for web, Slack, Teams, or Discord.</p>
-            </div>
-            <div class="two-col">
-              <label>
-                Session creator
-                <input name="creatorId" value="manager-demo" required />
-              </label>
-              <label>Platform <input value="Web dashboard" disabled /></label>
-            </div>
-            <div class="two-col">
-              <label>
-                People
-                <input name="headcount" type="number" min="2" max="15" value="6" />
-              </label>
-              <label>
-                Budget each
-                <input name="budgetPerPerson" type="number" min="120" max="1000" value="250" />
-              </label>
-            </div>
-            <label>
-              Group vibe
-              <input name="vibe" value="easy team lunch" />
-            </label>
-            <label>
-              Decision mode
-              <select name="approvalMode">
-                <option value="manager_decides">Manager decides</option>
-                <option value="team_vote">Team votes, then manager confirms</option>
-                <option value="automatic">Automatic top pick</option>
-              </select>
-            </label>
-            <button type="submit">Create group session</button>
-          </form>
-
-          <form id="groupPreference" class="planner-form hidden">
-            <div class="form-head">
-              <h3>Private preference</h3>
-              <p>Only aggregate counts are public.</p>
-            </div>
-            <input name="sessionId" type="hidden" />
-            <label>Participant ID <input name="participantId" required /></label>
-            <label>Mood or craving <input name="mood" /></label>
-            <div class="two-col">
-              <label>
-                Food preference
-                <select name="dietMode">
-                  <option value="both">Veg and non-veg</option>
-                  <option value="veg">Veg only</option>
-                  <option value="non_veg">Non-veg only</option>
-                </select>
-              </label>
-              <label>Restrictions <input name="dietaryRules" /></label>
-            </div>
-            <label>Allergies <input name="allergies" /></label>
-            <button type="submit">Submit privately</button>
-          </form>
-
-          <div id="groupControls" class="planner-form hidden">
-            <button id="rankGroup" type="button">Close responses and rank</button>
-            <button id="voteGroup" type="button" class="secondary">Vote for selected option</button>
-            <button id="selectGroup" type="button" class="secondary">Approve selected option</button>
-          </div>
-        </div>
-
-        <section class="results" aria-live="polite">
-          <div class="section-title">
-            <div>
-              <p class="eyebrow">Recommendation</p>
-              <h2>Your shortlist</h2>
-            </div>
-            <button id="confirmCart" class="secondary" disabled>Build cart</button>
-          </div>
-          <div id="summary" class="summary">Choose a mode and plan a meal.</div>
-          <div id="options" class="options"></div>
-        </section>
-      </section>
-
-      <section id="docs" class="docs-section">
-        <div class="section-kicker">
-          <p class="eyebrow">Product docs</p>
-          <h2>What Moodish is proving</h2>
-        </div>
-        <div class="info-grid">
-          <article>
-            <h3>Mood to meal</h3>
-            <p>
-              A user can type “rainy spicy biryani” or “light vegan salad,” and Moodish extracts intent tags, filters
-              dietary constraints, ranks options, and explains the tradeoffs.
-            </p>
-          </article>
-          <article>
-            <h3>Private group ordering</h3>
-            <p>
-              Collect private preferences from web, Slack, Teams, or Discord, aggregate only safe counts, then let a
-              manager, team vote, or automatic ranking choose the finalist.
-            </p>
-          </article>
-          <article>
-            <h3>Bring your own AI key</h3>
-            <p>
-              Reviewers can paste an OpenRouter key in Developer view. It is used only for that request, never displayed
-              back, and not stored in recommendation memory.
-            </p>
-          </article>
-          <article>
-            <h3>Safe commerce layer</h3>
-            <p>
-              Moodish prepares a confirmed cart preview but does not place orders. Live Swiggy Food and Instamart MCP
-              calls are isolated behind the gateway.
-            </p>
-          </article>
-        </div>
-      </section>
-
-      <section class="cart-strip">
-        <div>
-          <p class="eyebrow">Cart review</p>
-          <pre id="cartOutput">No cart yet. Moodish will ask before building one.</pre>
-        </div>
-      </section>
-
-      <details class="developer-panel">
-        <summary>Developer view</summary>
-        <div class="developer-grid">
-          <section>
-            <div class="section-title tight">
-              <h3>Taste memory</h3>
-              <div class="button-row">
-                <button id="exportMemory" type="button" class="secondary">Refresh</button>
-                <button id="clearMemory" type="button" class="danger">Delete</button>
+          <div id="chatThread" class="chat-thread" aria-live="polite">
+            <article class="message assistant">
+              <div class="avatar">M</div>
+              <div class="bubble">
+                <strong>Hey, I’m Moodish.</strong>
+                <p>Tell me what you feel like eating. Try “chewy smoky chaap” or give me everything at once: “spicy Chinese, non-veg, under ₹450.”</p>
               </div>
+            </article>
+          </div>
+
+          <div id="quickReplies" class="quick-replies">
+            <button type="button">Chewy and smoky</button>
+            <button type="button">Light but satisfying</button>
+            <button type="button">Spicy comfort food</button>
+          </div>
+
+          <form id="chatComposer" class="composer">
+            <textarea id="chatInput" rows="1" placeholder="I’m craving..." aria-label="Describe what you want to eat"></textarea>
+            <button id="sendChat" type="submit" aria-label="Send">↑</button>
+          </form>
+          <p class="composer-hint">Moodish defaults discovery to balanced and suggests sensible add-ons. You can override either in your message.</p>
+
+          <section id="recommendationDeck" class="recommendation-deck hidden">
+            <div class="deck-head">
+              <div><p class="kicker">Your plan</p><h3 id="summary">Here’s what fits.</h3></div>
+              <button id="confirmCart" class="outline-button" type="button" disabled>Build this cart</button>
             </div>
-            <pre id="memoryOutput">Open developer view to inspect memory.</pre>
+            <div id="options" class="options"></div>
+            <div id="pairings" class="pairings hidden"></div>
           </section>
-          <section>
-            <h3>Audit</h3>
-            <pre id="auditOutput">Audit logs will appear here.</pre>
-          </section>
-          <section>
-            <h3>Recommendation trace</h3>
-            <pre id="traceOutput">Run a recommendation to inspect mood parsing, ranking, and AI prompt/response.</pre>
-          </section>
-        </div>
-      </details>
-    </main>
+          <pre id="cartOutput" class="cart-output hidden"></pre>
+        </section>
 
-    <footer class="site-footer">
-      <span>Built by <a href="https://sankalpjha.dev/" target="_blank" rel="noreferrer">Sankalp Jha</a></span>
-      <span><a href="https://github.com/blackdragoon26/Moodish" target="_blank" rel="noreferrer">GitHub repo</a></span>
-    </footer>
+        <section id="groupView" class="view hidden">
+          <div class="group-hero">
+            <div>
+              <p class="kicker">Moodish Tables</p>
+              <h2>One table. Everyone considered.</h2>
+              <p>Collect preferences privately, see only safe aggregates, and arrive at one efficient group order.</p>
+            </div>
+            <span class="group-seal">Private by default</span>
+          </div>
 
+          <div class="group-grid">
+            <form id="office" class="surface group-create">
+              <div class="surface-head"><span>01</span><div><h3>Set the table</h3><p>Start with the group vibe and hard commercial limits.</p></div></div>
+              <input name="creatorId" id="creatorId" type="hidden" />
+              <div class="two-col">
+                <label>People <input name="headcount" type="number" min="2" max="100" value="6" /></label>
+                <label>Budget each <input name="budgetPerPerson" type="number" min="120" max="2000" value="350" /></label>
+              </div>
+              <label>Overall vibe <input name="vibe" value="easy, satisfying team lunch" /></label>
+              <label>Decision
+                <select name="approvalMode">
+                  <option value="manager_decides">Manager decides</option>
+                  <option value="team_vote">Team votes</option>
+                  <option value="automatic">Moodish picks the best plan</option>
+                </select>
+              </label>
+              <button type="submit">Create a Moodish Table</button>
+            </form>
+
+            <section id="groupBoard" class="surface group-board">
+              <div class="surface-head"><span>02</span><div><h3>Collect privately</h3><p id="groupStatus">Create a table to receive preferences.</p></div></div>
+              <div id="groupProgress" class="progress-track"><span></span></div>
+              <div class="group-actions">
+                <button id="copyInvite" class="outline-button" type="button" disabled>Copy invite</button>
+                <button id="fillDemoTeam" class="outline-button" type="button" disabled>Simulate 3 teammates</button>
+              </div>
+              <form id="groupPreference" class="preference-form hidden">
+                <input name="sessionId" type="hidden" />
+                <div class="two-col">
+                  <label>Name or ID <input name="participantId" required placeholder="teammate-1" /></label>
+                  <label>Food mode
+                    <select name="dietMode"><option value="both">Veg & non-veg</option><option value="veg">Veg</option><option value="non_veg">Non-veg</option></select>
+                  </label>
+                </div>
+                <label>Craving <input name="mood" placeholder="spicy, comforting, light..." /></label>
+                <div class="two-col">
+                  <label>Restrictions <input name="dietaryRules" placeholder="Jain, vegan..." /></label>
+                  <label>Allergies <input name="allergies" placeholder="peanut..." /></label>
+                </div>
+                <button type="submit">Submit privately</button>
+              </form>
+              <div id="groupControls" class="group-actions hidden">
+                <button id="rankGroup" type="button">Close & rank</button>
+                <button id="selectGroup" class="outline-button" type="button">Approve selected</button>
+                <button id="voteGroup" class="outline-button" type="button">Vote selected</button>
+              </div>
+            </section>
+          </div>
+
+          <section id="groupResults" class="surface group-results hidden">
+            <div class="surface-head"><span>03</span><div><h3>The table plan</h3><p>Optimized for coverage, budget, and delivery—not just average taste.</p></div></div>
+            <div id="groupOptions" class="options"></div>
+            <button id="confirmGroupCart" type="button" disabled>Creator: confirm final cart</button>
+          </section>
+
+          <section class="channel-section">
+            <div><p class="kicker">Meet teams where they are</p><h3>Moodish, branded for every room.</h3></div>
+            <div class="channel-cards">
+              <article><span class="channel-icon slack">✣</span><strong>Moodish for Slack</strong><small>/moodish starts a private preference table.</small></article>
+              <article><span class="channel-icon teams">T</span><strong>Moodish for Teams</strong><small>A calm lunch-planning card inside work.</small></article>
+              <article><span class="channel-icon discord">D</span><strong>Moodish for Discord</strong><small>Fast group votes without exposing diets.</small></article>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
     <script src="/app.js"></script>
   </body>
 </html>

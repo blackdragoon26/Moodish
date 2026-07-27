@@ -15,6 +15,17 @@ import { platformCommandToSession, verifyPlatformRequest } from "./platform-adap
 import { completeSwiggyOAuth, getSwiggyConnectionStatus, startSwiggyOAuth } from "./swiggy-auth.mjs";
 import { signGroupAccessToken, verifyGroupAccessToken } from "./access-token.mjs";
 import { completePlatformOAuth, startPlatformOAuth } from "./platform-oauth.mjs";
+import {
+  authConfiguration,
+  clearAuthCookie,
+  completeGoogleOAuth,
+  demoUser,
+  issueAuthCookie,
+  readAuthUser,
+  startGoogleOAuth
+} from "./auth.mjs";
+import { continueMealConversation } from "./conversation.mjs";
+import crypto from "node:crypto";
 
 loadLocalEnv();
 const tools = createTools();
@@ -34,6 +45,45 @@ export async function handleAgentRequest(req, res) {
         swiggyMode: process.env.SWIGGY_MODE || "fixture",
         aiProvider: process.env.AI_PROVIDER || "mock"
       });
+    }
+    if (req.method === "GET" && url.pathname === "/api/auth/config") {
+      return send(res, 200, authConfiguration());
+    }
+    if (req.method === "GET" && url.pathname === "/api/auth/me") {
+      return send(res, 200, { user: readAuthUser(req.headers.cookie) });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/demo") {
+      const user = demoUser();
+      return send(res, 200, { user }, { "set-cookie": issueAuthCookie(user) });
+    }
+    if (req.method === "POST" && url.pathname === "/api/auth/logout") {
+      return send(res, 200, { loggedOut: true }, { "set-cookie": clearAuthCookie() });
+    }
+    if (req.method === "GET" && url.pathname === "/api/auth/google/start") {
+      return redirect(res, startGoogleOAuth());
+    }
+    if (req.method === "GET" && url.pathname === "/api/auth/google/callback") {
+      const user = await completeGoogleOAuth({
+        code: url.searchParams.get("code"),
+        state: url.searchParams.get("state")
+      });
+      return redirect(res, "/?login=google", { "set-cookie": issueAuthCookie(user) });
+    }
+    if (req.method === "GET" && url.pathname === "/api/auth/swiggy/start") {
+      const sessionId = `auth_${crypto.randomUUID()}`;
+      const started = await startSwiggyOAuth({
+        sessionId,
+        redirectUri: `${publicBase()}/api/auth/swiggy/callback`
+      });
+      return redirect(res, started.authorizationUrl);
+    }
+    if (req.method === "GET" && url.pathname === "/api/auth/swiggy/callback") {
+      const connected = await completeSwiggyOAuth({
+        code: url.searchParams.get("code"),
+        state: url.searchParams.get("state")
+      });
+      const user = { id: `swiggy:${connected.sessionId}`, name: "Swiggy member", provider: "swiggy" };
+      return redirect(res, "/?login=swiggy", { "set-cookie": issueAuthCookie(user) });
     }
     if (req.method === "GET" && url.pathname === "/api/profile") {
       return send(res, 200, await getTasteProfile(url.searchParams.get("userIdHash") || undefined));
@@ -57,6 +107,18 @@ export async function handleAgentRequest(req, res) {
     }
     if (req.method === "POST" && url.pathname === "/api/recommendations/personal") {
       return send(res, 200, await tools.plan_personal_meal(await readJson(req)));
+    }
+    if (req.method === "POST" && url.pathname === "/api/planner/chat") {
+      const body = await readJson(req);
+      const authUser = readAuthUser(req.headers.cookie);
+      return send(
+        res,
+        200,
+        await continueMealConversation(
+          { ...body, userIdHash: body.userIdHash || authUser?.id || undefined },
+          tools
+        )
+      );
     }
     if (req.method === "POST" && url.pathname === "/api/recommendations/office") {
       return send(res, 200, await tools.plan_office_lunch(await readJson(req)));
@@ -190,14 +252,24 @@ async function handleJsonRpc(message) {
   }
 }
 
-function send(res, status, payload) {
+function send(res, status, payload, extraHeaders = {}) {
   res.writeHead(status, {
     "content-type": "application/json",
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type,authorization"
+    "access-control-allow-headers": "content-type,authorization",
+    ...extraHeaders
   });
   res.end(status === 204 ? "" : JSON.stringify(payload, null, 2));
+}
+
+function redirect(res, location, extraHeaders = {}) {
+  res.writeHead(302, { location, ...extraHeaders });
+  res.end();
+}
+
+function publicBase() {
+  return (process.env.MOODISH_PUBLIC_URL || "http://localhost:8787").replace(/\/$/, "");
 }
 
 async function readJson(req) {

@@ -8,6 +8,8 @@ You tell it what you feel like eating, your maximum budget, dietary needs, and w
 
 Live app: https://moodish.onrender.com/
 
+The main experience is now conversational: sign in, describe the mood, and Moodish asks only for missing hard constraints such as food mode and maximum budget. A complete prompt such as `spicy Chinese, non-veg, under ₹450 with a cold drink` goes directly to recommendations.
+
 ## What It Does
 
 - Plans a solo meal from a mood like `rainy spicy biryani craving`.
@@ -78,7 +80,10 @@ For durable profiles and group sessions:
 ```bash
 DATABASE_URL=postgresql://...
 TOKEN_ENCRYPTION_KEY=a-long-random-secret
+GROUP_SESSION_SIGNING_KEY=a-different-long-random-secret
 ```
+
+Google login additionally needs `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Swiggy login uses the MCP OAuth 2.1 + PKCE flow. Fixture deployments expose clearly labelled demo access so reviewers can test without pretending that an OAuth provider is connected.
 
 Collaboration webhooks require platform signing credentials, and manager dashboard access requires the matching Slack, Discord, or Microsoft OAuth client credentials listed in `.env.example`. All three adapters use the same group-session service, reject unsigned requests, and bind private dashboard access to the platform identity that created or manages the session.
 
@@ -116,6 +121,8 @@ Health check:
 ```text
 /health
 ```
+
+See [the Moodish Tables testing guide](docs/group-testing.md) for a one-click demo-team journey, a two-browser test, production secret setup, and Slack/Teams/Discord adapter checks.
 
 ## Tests
 

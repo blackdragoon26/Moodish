@@ -125,6 +125,8 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
     avoidCuisines,
     likedCuisines: [],
     headcount,
+    requiresVegOption: Number(request.vegCount || 0) > 0,
+    requiresNonVegOption: Number(request.nonVegCount || 0) > 0,
     matchTypes: new Map()
   }).slice(0, 3);
   const options = await Promise.all(
@@ -133,11 +135,17 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
         addressId: address.id,
         intentTags,
         dietaryRules,
-        dietMode
+        dietMode,
+        vegCount: Number(request.vegCount || 0),
+        nonVegCount: Number(request.nonVegCount || 0),
+        bothCount: Number(request.bothCount || 0),
+        requiresVegOption: Number(request.vegCount || 0) > 0,
+        requiresNonVegOption: Number(request.nonVegCount || 0) > 0
       })
     )
   );
-  const addOns = await swiggy.searchProducts({ addressId: address.id, query: "office-friendly" });
+  const officeIntent = extractMealIntent(request.query || "office lunch");
+  const addOns = await complementaryProducts(swiggy, address.id, officeIntent, totalBudget);
   const aiSummary = await summarizeShortlist(ai, { mode: "office", options });
   const run = {
     recommendationId: makeRecommendationId("office"),
@@ -259,6 +267,7 @@ function rankRestaurants(restaurants, context) {
   return restaurants
     .filter((restaurant) => restaurant.availabilityStatus === "OPEN")
     .filter((restaurant) => hasCompatibleItem(restaurant.items || [], context))
+    .filter((restaurant) => hasDietCoverage(restaurant.items || [], context))
     .map((restaurant) => {
       const result = scoreRestaurant(restaurant, context);
       return { ...restaurant, score: result.score, adjustments: result.adjustments };
@@ -331,9 +340,40 @@ function pickItems(items, budget, headcount, context = {}) {
   }
   const sorted = [...items].sort((a, b) => scoreItem(b, context) - scoreItem(a, context) || b.price - a.price);
   const perPersonBudget = headcount > 1 ? budget / headcount : budget;
+  if (headcount > 1 && context.requiresVegOption && context.requiresNonVegOption) {
+    const vegItems = sorted.filter((item) => !item.tags.includes("non-veg") && !item.tags.includes("egg"));
+    const nonVegItems = sorted.filter((item) => item.tags.includes("non-veg"));
+    const vegMain = vegItems.find((item) => item.price <= perPersonBudget);
+    const nonVegMain = nonVegItems.find((item) => item.price <= perPersonBudget);
+    if (vegMain && nonVegMain) {
+      const vegQuantity = Math.max(1, Math.min(headcount - 1, Number(context.vegCount || 1)));
+      const nonVegQuantity = headcount - vegQuantity;
+      return [
+        { ...vegMain, quantity: vegQuantity },
+        { ...nonVegMain, quantity: nonVegQuantity }
+      ];
+    }
+  }
   const main = sorted.find((item) => item.price <= perPersonBudget) || [...sorted].sort((a, b) => a.price - b.price)[0];
   const quantity = Math.max(1, headcount);
-  return [{ ...main, quantity }];
+  const remaining = perPersonBudget - main.price;
+  const side = sorted.find(
+    (item) =>
+      item.itemId !== main.itemId &&
+      item.price <= remaining &&
+      item.tags.some((tag) => ["side", "beverage", "bread", "fries", "dessert"].includes(tag))
+  );
+  return [{ ...main, quantity }, ...(side ? [{ ...side, quantity }] : [])];
+}
+
+function hasDietCoverage(items, context = {}) {
+  if (!context.requiresVegOption && !context.requiresNonVegOption) return true;
+  const compatible = filterCompatibleItems(items, context);
+  const hasVeg = compatible.some((item) => !item.tags.includes("non-veg") && !item.tags.includes("egg"));
+  const hasNonVeg = compatible.some((item) => item.tags.includes("non-veg"));
+  if (context.requiresVegOption && !hasVeg) return false;
+  if (context.requiresNonVegOption && !hasNonVeg) return false;
+  return true;
 }
 
 function hasCompatibleItem(items, context = {}) {
@@ -439,12 +479,47 @@ function scoreDiscoveryPreference(restaurant, context) {
 
 async function complementaryProducts(swiggy, addressId, intent, remainingBudget) {
   if (remainingBudget < 50) return [];
-  const query = intent.attributes.includes("spicy") ? "cooling" : intent.attributes.includes("healthy") ? "fruit" : "beverage";
+  const query = pairingQuery(intent);
   const products = await swiggy.searchProducts({ addressId, query });
   return (products || [])
     .filter((product) => product.price <= remainingBudget)
     .slice(0, 3)
-    .map((product) => ({ ...product, dataSource: swiggy.mode, separateFulfilment: true }));
+    .map((product) => ({
+      ...product,
+      pairingReason: pairingReason(query),
+      dataSource: swiggy.mode,
+      separateFulfilment: true
+    }));
+}
+
+function pairingQuery(intent) {
+  const tokens = new Set([intent.primaryDish, ...intent.tokens, ...intent.attributes].filter(Boolean));
+  const cuisine = intent.cuisines.join(" ").toLowerCase();
+  if ([...tokens].some((token) => ["chinese", "chowmein", "noodles", "momos"].includes(token)) || cuisine.includes("chinese")) {
+    return "cold-drink";
+  }
+  if (tokens.has("biryani")) return "raita";
+  if ([...tokens].some((token) => ["pizza", "burger"].includes(token))) return "cola";
+  if (tokens.has("chaap") || tokens.has("tandoori")) return "mint";
+  if ([...tokens].some((token) => ["pasta"].includes(token)) || cuisine.includes("italian")) return "italian";
+  if ([...tokens].some((token) => ["fish", "tacos"].includes(token))) return "cooling";
+  if (intent.attributes.includes("spicy")) return "cooling";
+  if (intent.attributes.includes("healthy") || intent.attributes.includes("light")) return "fruit";
+  return "beverage";
+}
+
+function pairingReason(query) {
+  const reasons = {
+    "cold-drink": "A chilled drink balances a salty, spicy Indo-Chinese meal",
+    raita: "Cooling curd rounds out a rich biryani",
+    cola: "A crisp cola is a familiar match for pizza or burgers",
+    mint: "Mint and lemon cut through smoky tandoori flavours",
+    italian: "Sparkling water keeps a creamy Italian meal fresh",
+    cooling: "A cooling drink softens the heat",
+    fruit: "Fresh fruit keeps a lighter meal complete",
+    beverage: "An easy drink to complete the meal"
+  };
+  return reasons[query] || reasons.beverage;
 }
 
 function demoDisclosure() {

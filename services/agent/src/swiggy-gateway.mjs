@@ -13,7 +13,9 @@ const fixtureRestaurants = [
     tags: ["chaap", "tandoori", "smoky", "north-indian", "veg", "non-veg"],
     items: [
       { itemId: "i0a", name: "Malai Soya Chaap", price: 249, tags: ["veg", "chaap", "soya", "chewy", "creamy", "tandoori"] },
-      { itemId: "i0b", name: "Tandoori Chicken Tikka", price: 329, tags: ["non-veg", "chicken", "smoky", "tandoori", "high-protein"] }
+      { itemId: "i0b", name: "Tandoori Chicken Tikka", price: 329, tags: ["non-veg", "chicken", "smoky", "tandoori", "high-protein"] },
+      { itemId: "i0c", name: "Roomali Roti", price: 39, tags: ["veg", "side", "bread"] },
+      { itemId: "i0d", name: "Mint Chutney Cup", price: 29, tags: ["vegan", "veg", "side", "mint", "cooling"] }
     ]
   },
   {
@@ -155,14 +157,173 @@ const fixtureRestaurants = [
       { itemId: "i19", name: "Rajma Rice Value Bowl", price: 169, tags: ["veg", "comfort", "budget"] },
       { itemId: "i20", name: "Paneer Roti Mini Thali", price: 199, tags: ["veg", "north-indian", "comfort"] }
     ]
+  },
+  {
+    id: "r11",
+    name: "Wok & Fizz",
+    cuisine: "Chinese",
+    rating: 4.6,
+    distanceKm: 1.7,
+    availabilityStatus: "OPEN",
+    priceBand: 290,
+    tags: ["chinese", "indo-chinese", "spicy", "noodles", "office-friendly", "familiar"],
+    items: [
+      { itemId: "i21", name: "Smoky Chicken Hakka Noodles", price: 289, tags: ["non-veg", "chicken", "noodles", "chinese", "smoky"] },
+      { itemId: "i22", name: "Veg Schezwan Fried Rice", price: 249, tags: ["vegan", "veg", "friedrice", "rice", "chinese", "spicy"] },
+      { itemId: "i23", name: "Chilli Paneer Dry", price: 269, tags: ["veg", "paneer", "chinese", "spicy", "high-protein"] },
+      { itemId: "i24", name: "Crispy Spring Rolls", price: 129, tags: ["veg", "side", "crispy", "chinese"] }
+    ]
+  },
+  {
+    id: "r12",
+    name: "Momo Weather",
+    cuisine: "Tibetan",
+    rating: 4.4,
+    distanceKm: 1.1,
+    availabilityStatus: "OPEN",
+    priceBand: 230,
+    tags: ["momos", "dumplings", "spicy", "comfort", "budget"],
+    items: [
+      { itemId: "i25", name: "Kurkure Chicken Momos", price: 239, tags: ["non-veg", "chicken", "momos", "crunchy", "spicy"] },
+      { itemId: "i26", name: "Steamed Paneer Momos", price: 199, tags: ["veg", "paneer", "momos", "chewy"] },
+      { itemId: "i27", name: "Fiery Momo Chutney", price: 29, tags: ["vegan", "veg", "side", "spicy"] }
+    ]
+  },
+  {
+    id: "r13",
+    name: "The Burger Foundry",
+    cuisine: "American",
+    rating: 4.5,
+    distanceKm: 2.2,
+    availabilityStatus: "OPEN",
+    priceBand: 330,
+    tags: ["burger", "fries", "comfort", "familiar", "office-friendly"],
+    items: [
+      { itemId: "i28", name: "Smash Chicken Cheeseburger", price: 319, tags: ["non-veg", "chicken", "burger", "cheesy", "comfort"] },
+      { itemId: "i29", name: "Crispy Paneer Burger", price: 269, tags: ["veg", "paneer", "burger", "crispy"] },
+      { itemId: "i30", name: "Sea Salt Fries", price: 99, tags: ["vegan", "veg", "side", "fries", "crispy"] }
+    ]
+  },
+  {
+    id: "r14",
+    name: "Pasta Atelier",
+    cuisine: "Italian",
+    rating: 4.6,
+    distanceKm: 2.7,
+    availabilityStatus: "OPEN",
+    priceBand: 390,
+    tags: ["italian", "pasta", "creamy", "novel"],
+    items: [
+      { itemId: "i31", name: "Truffle Mushroom Penne", price: 389, tags: ["veg", "pasta", "creamy", "mushroom", "italian"] },
+      { itemId: "i32", name: "Spicy Chicken Arrabbiata", price: 419, tags: ["non-veg", "chicken", "pasta", "spicy", "italian"] },
+      { itemId: "i33", name: "Roasted Garlic Bread", price: 109, tags: ["veg", "side", "bread", "garlic"] }
+    ]
+  },
+  {
+    id: "r15",
+    name: "Coast & Curry",
+    cuisine: "Coastal Indian",
+    rating: 4.7,
+    distanceKm: 3.0,
+    availabilityStatus: "OPEN",
+    priceBand: 420,
+    tags: ["fish", "seafood", "coastal", "rice", "novel", "non-veg"],
+    items: [
+      { itemId: "i34", name: "Mangalorean Fish Curry Rice", price: 399, tags: ["non-veg", "fish", "seafood", "rice", "spicy"] },
+      { itemId: "i35", name: "Prawn Ghee Roast Bowl", price: 449, tags: ["non-veg", "prawn", "seafood", "spicy", "high-protein"] },
+      { itemId: "i36", name: "Sol Kadhi", price: 69, tags: ["veg", "side", "beverage", "cooling"] }
+    ]
+  },
+  {
+    id: "r16",
+    name: "Dosa District",
+    cuisine: "South Indian",
+    rating: 4.5,
+    distanceKm: 1.5,
+    availabilityStatus: "OPEN",
+    priceBand: 210,
+    tags: ["south-indian", "dosa", "breakfast", "comfort", "veg", "familiar"],
+    items: [
+      { itemId: "i37", name: "Ghee Podi Masala Dosa", price: 199, tags: ["veg", "dosa", "crispy", "spicy", "comfort"] },
+      { itemId: "i38", name: "Jain Mini Idli Sambar", price: 179, tags: ["vegan", "veg", "jain", "no-onion-garlic", "light"] },
+      { itemId: "i39", name: "Filter Coffee", price: 59, tags: ["veg", "side", "beverage", "coffee"] }
+    ]
+  },
+  {
+    id: "r17",
+    name: "Levant Table",
+    cuisine: "Lebanese",
+    rating: 4.6,
+    distanceKm: 2.6,
+    availabilityStatus: "OPEN",
+    priceBand: 350,
+    tags: ["lebanese", "wrap", "grill", "healthy", "high-protein", "novel"],
+    items: [
+      { itemId: "i40", name: "Chicken Shawarma Meal", price: 349, tags: ["non-veg", "chicken", "wrap", "lebanese", "high-protein"] },
+      { itemId: "i41", name: "Falafel Hummus Bowl", price: 299, tags: ["vegan", "veg", "lebanese", "high-protein", "healthy"] },
+      { itemId: "i42", name: "Za'atar Pita Crisps", price: 89, tags: ["vegan", "veg", "side", "crispy"] }
+    ]
+  },
+  {
+    id: "r18",
+    name: "Ramen After Rain",
+    cuisine: "Japanese",
+    rating: 4.5,
+    distanceKm: 3.3,
+    availabilityStatus: "OPEN",
+    priceBand: 450,
+    tags: ["japanese", "ramen", "noodles", "rainy", "comfort", "novel"],
+    items: [
+      { itemId: "i43", name: "Spicy Chicken Miso Ramen", price: 449, tags: ["non-veg", "chicken", "ramen", "noodles", "spicy", "comfort"] },
+      { itemId: "i44", name: "Tofu Sesame Ramen", price: 399, tags: ["vegan", "veg", "tofu", "ramen", "noodles"] },
+      { itemId: "i45", name: "Edamame Sea Salt", price: 119, tags: ["vegan", "veg", "side", "high-protein"] }
+    ]
+  },
+  {
+    id: "r19",
+    name: "Cantina Verde",
+    cuisine: "Mexican",
+    rating: 4.3,
+    distanceKm: 2.5,
+    availabilityStatus: "OPEN",
+    priceBand: 340,
+    tags: ["mexican", "tacos", "bowl", "spicy", "sharing", "novel"],
+    items: [
+      { itemId: "i46", name: "Chipotle Chicken Burrito Bowl", price: 349, tags: ["non-veg", "chicken", "mexican", "spicy", "high-protein"] },
+      { itemId: "i47", name: "Jain Bean & Corn Tacos", price: 299, tags: ["vegan", "veg", "jain", "no-onion-garlic", "tacos", "mexican"] },
+      { itemId: "i48", name: "Salsa & Corn Chips", price: 99, tags: ["vegan", "veg", "side", "crispy"] }
+    ]
+  },
+  {
+    id: "r20",
+    name: "Bombay Chaat Radio",
+    cuisine: "Street Food",
+    rating: 4.4,
+    distanceKm: 1.0,
+    availabilityStatus: "OPEN",
+    priceBand: 180,
+    tags: ["chaat", "street-food", "tangy", "spicy", "budget", "veg"],
+    items: [
+      { itemId: "i49", name: "Crunchy Papdi Chaat", price: 149, tags: ["veg", "chaat", "crunchy", "tangy", "spicy"] },
+      { itemId: "i50", name: "Jain Bhel Cup", price: 129, tags: ["vegan", "veg", "jain", "no-onion-garlic", "chaat", "light"] },
+      { itemId: "i51", name: "Masala Nimbu Soda", price: 59, tags: ["vegan", "veg", "side", "beverage", "cooling"] }
+    ]
   }
 ];
 
 const fixtureProducts = [
-  { productId: "p1", name: "Tender Coconut Water", price: 79, tags: ["beverage", "cooling"] },
+  { productId: "p1", name: "Tender Coconut Water", price: 79, tags: ["beverage", "cooling", "healthy"] },
   { productId: "p2", name: "Seasonal Fruit Box", price: 149, tags: ["fruit", "office-friendly"] },
   { productId: "p3", name: "Roasted Makhana", price: 119, tags: ["snack", "high-protein"] },
-  { productId: "p4", name: "Paper Plates Pack", price: 99, tags: ["office-supply"] }
+  { productId: "p4", name: "Paper Plates Pack", price: 99, tags: ["office-supply", "office-friendly"] },
+  { productId: "p5", name: "Chilled Cola Can Pack", price: 120, tags: ["cold-drink", "cola", "chinese", "pizza", "burger", "momos", "office-friendly"] },
+  { productId: "p6", name: "Zero Sugar Cola", price: 45, tags: ["cold-drink", "cola", "chinese", "pizza", "burger"] },
+  { productId: "p7", name: "Mint Lemon Sparkler", price: 69, tags: ["beverage", "mint", "chaap", "tandoori", "cooling"] },
+  { productId: "p8", name: "Classic Curd Cup", price: 55, tags: ["raita", "biryani", "rice", "cooling"] },
+  { productId: "p9", name: "Mango Ice Cream Tub", price: 189, tags: ["dessert", "spicy", "chinese", "biryani", "office-friendly"] },
+  { productId: "p10", name: "Sparkling Water", price: 60, tags: ["beverage", "italian", "pasta", "healthy"] },
+  { productId: "p11", name: "Chocolate Brownie Bites", price: 159, tags: ["dessert", "pizza", "burger", "office-friendly"] },
+  { productId: "p12", name: "Fresh Lime Soda", price: 65, tags: ["beverage", "seafood", "coastal", "mexican", "cooling"] }
 ];
 
 export function createSwiggyGateway() {
@@ -268,6 +429,16 @@ export function expandIntentTokens(value = "") {
     cheap: ["cheap", "budget"],
     budget: ["budget", "cheap"],
     pizza: ["pizza", "sharing", "office-friendly"],
+    chinese: ["chinese", "indo-chinese", "noodles", "spicy"],
+    chowmein: ["noodles", "chinese"],
+    noodles: ["noodles", "chinese", "ramen"],
+    momos: ["momos", "dumplings", "spicy"],
+    burger: ["burger", "fries", "comfort"],
+    pasta: ["pasta", "italian", "creamy"],
+    ramen: ["ramen", "noodles", "japanese"],
+    tacos: ["tacos", "mexican", "spicy"],
+    fish: ["fish", "seafood", "coastal"],
+    dosa: ["dosa", "south-indian", "breakfast"],
     party: ["sharing", "office-friendly", "pizza"],
     workout: ["workout", "high-protein", "healthy"],
     protein: ["high-protein", "healthy"],
