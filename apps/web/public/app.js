@@ -25,11 +25,33 @@ function formJson(form) {
 }
 
 async function boot() {
-  const [config, session, health] = await Promise.all([
-    api("/api/auth/config"),
-    api("/api/auth/me"),
-    api("/health")
-  ]);
+  let lastError;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      const [config, session, health] = await Promise.all([
+        api("/api/auth/config"),
+        api("/api/auth/me"),
+        api("/health")
+      ]);
+      configureLogin(config, health);
+      if (session.user) enterProduct(session.user);
+      else $("#loginGate").classList.remove("hidden");
+      return;
+    } catch (error) {
+      lastError = error;
+      $("#loginGate").classList.remove("hidden");
+      $("#loginNote").textContent =
+        attempt < 5
+          ? "Moodish is waking up after a service update. Reconnecting automatically…"
+          : "Moodish is taking longer to wake up. We’ll keep reconnecting—there is nothing you need to reset.";
+      await wait(Math.min(5000, 500 * 2 ** attempt));
+    }
+  }
+  console.warn("Moodish startup is still reconnecting", lastError);
+  window.setTimeout(boot, 5000);
+}
+
+function configureLogin(config, health) {
   $("#healthText").textContent = health.swiggyMode === "fixture" ? "Demo availability" : "Live availability";
   $("#demoBadge").classList.toggle("hidden", health.swiggyMode !== "fixture");
   $("#demoLogin").classList.toggle("hidden", !config.demo);
@@ -37,14 +59,12 @@ async function boot() {
     $("#googleLogin").classList.add("unavailable");
     $("#googleLogin").title = "Add Google OAuth credentials to enable";
     $("#googleLogin").href = "#";
-    $("#googleLogin").addEventListener("click", (event) => {
+    $("#googleLogin").onclick = (event) => {
       event.preventDefault();
       $("#loginNote").textContent = "Google login is ready in code; add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on Render to switch it on.";
-    });
+    };
     $("#loginNote").textContent = "Google needs OAuth credentials; Swiggy uses approved MCP access. Demo access is available for review.";
   }
-  if (session.user) enterProduct(session.user);
-  else $("#loginGate").classList.remove("hidden");
 }
 
 function enterProduct(user) {
@@ -306,7 +326,8 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 }
 
-boot().catch((error) => {
-  $("#loginGate").classList.remove("hidden");
-  $("#loginNote").textContent = `Moodish could not start: ${error.message}`;
-});
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+boot();
