@@ -25,6 +25,23 @@ test("web server serves UI and API from one port", async () => {
   }
 });
 
+test("web bootstrap combines health, auth configuration and current session without caching", async () => {
+  const server = createWebServer();
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/bootstrap`);
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(body.health.ok, true);
+    assert.equal(body.config.swiggy, true);
+    assert.equal(body.user, null);
+  } finally {
+    server.close();
+  }
+});
+
 async function fetchText(port, path) {
   const response = await fetch(`http://127.0.0.1:${port}${path}`);
   assert.equal(response.ok, true);

@@ -40,11 +40,13 @@ export async function handleAgentRequest(req, res) {
     const url = new URL(req.url, "http://127.0.0.1");
     if (req.method === "OPTIONS") return send(res, 204, {});
     if (req.method === "GET" && url.pathname === "/health") {
+      return send(res, 200, healthPayload());
+    }
+    if (req.method === "GET" && url.pathname === "/api/bootstrap") {
       return send(res, 200, {
-        ok: true,
-        service: "moodish-agent",
-        swiggyMode: process.env.SWIGGY_MODE || "fixture",
-        aiProvider: process.env.AI_PROVIDER || "mock"
+        config: authConfiguration(),
+        user: readAuthUser(req.headers.cookie),
+        health: healthPayload()
       });
     }
     if (req.method === "GET" && url.pathname === "/api/auth/config") {
@@ -267,6 +269,7 @@ async function handleJsonRpc(message) {
 function send(res, status, payload, extraHeaders = {}) {
   res.writeHead(status, {
     "content-type": "application/json",
+    "cache-control": "no-store",
     "access-control-allow-origin": "*",
     "access-control-allow-methods": "GET,POST,OPTIONS",
     "access-control-allow-headers": "content-type,authorization",
@@ -278,6 +281,15 @@ function send(res, status, payload, extraHeaders = {}) {
 function redirect(res, location, extraHeaders = {}) {
   res.writeHead(302, { location, ...extraHeaders });
   res.end();
+}
+
+function healthPayload() {
+  return {
+    ok: true,
+    service: "moodish-agent",
+    swiggyMode: process.env.SWIGGY_MODE || "fixture",
+    aiProvider: process.env.AI_PROVIDER || "mock"
+  };
 }
 
 async function readJson(req) {

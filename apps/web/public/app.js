@@ -28,13 +28,10 @@ async function boot() {
   let lastError;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
-      const [config, session, health] = await Promise.all([
-        api("/api/auth/config"),
-        api("/api/auth/me"),
-        api("/health")
-      ]);
+      const bootstrap = await api("/api/bootstrap");
+      const { config, health } = bootstrap;
       configureLogin(config, health);
-      if (session.user) enterProduct(session.user);
+      if (bootstrap.user) enterProduct(bootstrap.user);
       else $("#loginGate").classList.remove("hidden");
       return;
     } catch (error) {

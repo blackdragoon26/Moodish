@@ -24,11 +24,14 @@ export function createWebServer() {
       const file = pathname === "/" ? "index.html" : pathname.slice(1);
       const path = join(root, "public", file);
       const body = await readFile(path);
-      res.writeHead(200, { "content-type": mime[extname(path)] || "application/octet-stream" });
+      res.writeHead(200, {
+        "content-type": mime[extname(path)] || "application/octet-stream",
+        "cache-control": "no-store"
+      });
       res.end(body);
     } catch {
       const body = await readFile(join(root, "public", "index.html"));
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
       res.end(body);
     }
   });
