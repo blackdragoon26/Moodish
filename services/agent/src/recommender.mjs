@@ -178,7 +178,7 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
   return run;
 }
 
-export async function buildConfirmedCart({ recommendation, optionId, swiggy, confirmed }) {
+export async function buildConfirmedCart({ recommendation, optionId, addOnProductIds = [], swiggy, confirmed }) {
   if (!confirmed) {
     const error = new Error("Explicit confirmation is required before cart build");
     error.status = 409;
@@ -194,8 +194,26 @@ export async function buildConfirmedCart({ recommendation, optionId, swiggy, con
     restaurantId: option.restaurantId,
     items: option.items.map((item) => ({ itemId: item.itemId, quantity: item.quantity }))
   });
+  const requestedAddOns = new Set(normalizeList(addOnProductIds));
+  const instamartItems = (recommendation.addOns || []).filter((item) => requestedAddOns.has(item.productId));
   return {
     ...cart,
+    foodCart: {
+      restaurant: cart.restaurant,
+      items: cart.items,
+      total: cart.total,
+      fulfilment: "Swiggy Food"
+    },
+    instamartCartPreview: {
+      items: instamartItems,
+      total: instamartItems.reduce((sum, item) => sum + item.price, 0),
+      fulfilment: "Instamart",
+      separateFulfilment: true,
+      mutationApplied: false,
+      note: instamartItems.length
+        ? "Selected add-ons are prepared as a separate Instamart cart preview."
+        : "No Instamart add-ons selected."
+    },
     recommendationId: recommendation.recommendationId,
     explicitConfirmationCaptured: true,
     checkoutBlocked: true,

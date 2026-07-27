@@ -54,7 +54,7 @@
         <aside class="rail">
           <p class="rail-label">Plan</p>
           <button class="rail-link active" data-view="solo" type="button"><span>✦</span> My meal</button>
-          <button class="rail-link" data-view="group" type="button"><span>◎</span> Moodish Tables</button>
+          <button class="rail-link" data-view="group" type="button"><span>◎</span> Moodish Enterprise</button>
           <div class="rail-spacer"></div>
           <div class="rail-note">
             <span class="pulse"></span>
@@ -98,7 +98,7 @@
           <section id="recommendationDeck" class="recommendation-deck hidden">
             <div class="deck-head">
               <div><p class="kicker">Your plan</p><h3 id="summary">Here’s what fits.</h3></div>
-              <button id="confirmCart" class="outline-button" type="button" disabled>Build this cart</button>
+              <button id="confirmCart" class="outline-button" type="button" disabled>Review selected carts</button>
             </div>
             <div id="options" class="options"></div>
             <div id="pairings" class="pairings hidden"></div>
@@ -109,16 +109,23 @@
         <section id="groupView" class="view hidden">
           <div class="group-hero">
             <div>
-              <p class="kicker">Moodish Tables</p>
-              <h2>One table. Everyone considered.</h2>
-              <p>Collect preferences privately, see only safe aggregates, and arrive at one efficient group order.</p>
+              <p class="kicker">Moodish Enterprise</p>
+              <h2>Lunch operations, without the spreadsheet.</h2>
+              <p>A manager sets the policy. Employees respond privately. Moodish builds one efficient, approval-ready plan.</p>
             </div>
-            <span class="group-seal">Private by default</span>
+            <span class="group-seal">Enterprise controls · private by default</span>
           </div>
+
+          <section class="enterprise-flow" aria-label="How Moodish Enterprise works">
+            <article><span>1</span><div><strong>Manager sets policy</strong><small>Headcount, budget per person, vibe, delivery need, and decision method.</small></div></article>
+            <article><span>2</span><div><strong>Employees answer privately</strong><small>A web link or workplace app collects cravings, diet rules, and allergies.</small></div></article>
+            <article><span>3</span><div><strong>Moodish consolidates</strong><small>One restaurant first; a split is disclosed only when hard constraints require it.</small></div></article>
+            <article><span>4</span><div><strong>Creator confirms the cart</strong><small>The manager approves a plan; the Swiggy-connected creator confirms the final mutation.</small></div></article>
+          </section>
 
           <div class="group-grid">
             <form id="office" class="surface group-create">
-              <div class="surface-head"><span>01</span><div><h3>Set the table</h3><p>Start with the group vibe and hard commercial limits.</p></div></div>
+              <div class="surface-head"><span>01</span><div><h3>Define lunch policy</h3><p>Set the commercial limits and the experience you want for the team.</p></div></div>
               <input name="creatorId" id="creatorId" type="hidden" />
               <div class="two-col">
                 <label>People <input name="headcount" type="number" min="2" max="100" value="6" /></label>
@@ -132,11 +139,11 @@
                   <option value="automatic">Moodish picks the best plan</option>
                 </select>
               </label>
-              <button type="submit">Create a Moodish Table</button>
+              <button type="submit">Launch enterprise lunch</button>
             </form>
 
             <section id="groupBoard" class="surface group-board">
-              <div class="surface-head"><span>02</span><div><h3>Collect privately</h3><p id="groupStatus">Create a table to receive preferences.</p></div></div>
+              <div class="surface-head"><span>02</span><div><h3>Invite employees privately</h3><p id="groupStatus">Launch a lunch to create the private response link.</p></div></div>
               <div id="groupProgress" class="progress-track"><span></span></div>
               <div class="group-actions">
                 <button id="copyInvite" class="outline-button" type="button" disabled>Copy invite</button>
@@ -166,17 +173,17 @@
           </div>
 
           <section id="groupResults" class="surface group-results hidden">
-            <div class="surface-head"><span>03</span><div><h3>The table plan</h3><p>Optimized for coverage, budget, and delivery—not just average taste.</p></div></div>
+            <div class="surface-head"><span>03</span><div><h3>Approve the enterprise plan</h3><p>Coverage, budget, quantities, and trade-offs are visible before any cart change.</p></div></div>
             <div id="groupOptions" class="options"></div>
             <button id="confirmGroupCart" type="button" disabled>Creator: confirm final cart</button>
           </section>
 
           <section class="channel-section">
-            <div><p class="kicker">Meet teams where they are</p><h3>Moodish, branded for every room.</h3></div>
+            <div><p class="kicker">Workplace app adapters</p><h3>Deploy where employees already work.</h3><p class="channel-copy">Each adapter starts the same private enterprise workflow. Public channels see progress and aggregate coverage—never individual dietary or allergy details.</p></div>
             <div class="channel-cards">
-              <article><span class="channel-icon slack">✣</span><strong>Moodish for Slack</strong><small>/moodish starts a private preference table.</small></article>
-              <article><span class="channel-icon teams">T</span><strong>Moodish for Teams</strong><small>A calm lunch-planning card inside work.</small></article>
-              <article><span class="channel-icon discord">D</span><strong>Moodish for Discord</strong><small>Fast group votes without exposing diets.</small></article>
+              <article><img class="channel-logo" src="/assets/slack.svg" alt="Slack" /><strong>Moodish for Slack</strong><small><code>/moodish</code> starts the lunch; teammates open a private form.</small><em>Adapter ready · app credentials required</em></article>
+              <article><img class="channel-logo" src="/assets/teams.svg" alt="Microsoft Teams" /><strong>Moodish for Microsoft Teams</strong><small>An adaptive card launches collection and reports safe progress.</small><em>Adapter ready · app registration required</em></article>
+              <article><img class="channel-logo" src="/assets/discord.svg" alt="Discord" /><strong>Moodish for Discord</strong><small>A command starts collection; private responses feed the same dashboard.</small><em>Adapter ready · bot credentials required</em></article>
             </div>
           </section>
         </section>

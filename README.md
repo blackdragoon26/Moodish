@@ -122,7 +122,7 @@ Health check:
 /health
 ```
 
-See [the Moodish Tables testing guide](docs/group-testing.md) for a one-click demo-team journey, a two-browser test, production secret setup, and Slack/Teams/Discord adapter checks.
+See [the Moodish Enterprise testing guide](docs/group-testing.md) for a one-click demo-team journey, a two-browser test, production secret setup, and Slack/Teams/Discord adapter checks.
 
 ## Tests
 

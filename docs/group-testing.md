@@ -1,11 +1,11 @@
-# Testing Moodish Tables
+# Testing Moodish Enterprise
 
-Moodish Tables is the branded group-order workspace. The web demo uses the same group-session service as the Slack, Teams, and Discord adapters.
+Moodish Enterprise is the branded group-order workspace. The web demo uses the same group-session service as the Slack, Microsoft Teams, and Discord adapters.
 
 ## Fast browser test
 
 1. Open Moodish and choose **Preview with demo access**.
-2. Open **Moodish Tables** in the left navigation.
+2. Open **Moodish Enterprise** in the left navigation.
 3. Pick headcount, budget, vibe, and decision mode.
 4. Select **Create a Moodish Table**.
 5. Select **Simulate 3 teammates**. This creates three private submissions with different food modes, cravings, and an allergy.
@@ -66,5 +66,5 @@ Brand names used in product surfaces:
 - **Moodish for Slack**
 - **Moodish for Teams**
 - **Moodish for Discord**
-- Shared group workspace: **Moodish Tables**
+- Shared group workspace: **Moodish Enterprise**
 - Meal-completion suggestions: **Moodish Pairings**

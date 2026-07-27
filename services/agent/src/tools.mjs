@@ -69,6 +69,7 @@ export function createTools(runtime = createToolRuntime()) {
           return buildConfirmedCart({
             recommendation,
             optionId: args.optionId,
+            addOnProductIds: args.addOnProductIds,
             confirmed: args.confirmed === true,
             swiggy: runtime.swiggy
           });

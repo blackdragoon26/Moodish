@@ -189,3 +189,31 @@ test("confirmed cart carries safety metadata and disables checkout", async () =>
   assert.equal(cart.checkoutBlocked, true);
   assert.ok(cart.total > 0);
 });
+
+test("selected Instamart pairings are carried into a separate cart preview", async () => {
+  const tools = createTools();
+  const run = await tools.plan_personal_meal({
+    mood: "spicy Chinese noodles with a cold drink",
+    maxBudget: 500,
+    dietMode: "both",
+    includeInstamartAddOns: true
+  });
+  const selectedAddOn = run.addOns[0];
+
+  assert.ok(selectedAddOn);
+
+  const cart = await tools.build_confirmed_cart({
+    recommendationId: run.recommendationId,
+    optionId: run.options[0].optionId,
+    addOnProductIds: [selectedAddOn.productId, "not-a-real-product"],
+    confirmed: true
+  });
+
+  assert.equal(cart.foodCart.fulfilment, "Swiggy Food");
+  assert.ok(cart.foodCart.total > 0);
+  assert.deepEqual(cart.instamartCartPreview.items.map((item) => item.productId), [selectedAddOn.productId]);
+  assert.equal(cart.instamartCartPreview.total, selectedAddOn.price);
+  assert.equal(cart.instamartCartPreview.separateFulfilment, true);
+  assert.equal(cart.instamartCartPreview.mutationApplied, false);
+  assert.equal(cart.checkoutBlocked, true);
+});

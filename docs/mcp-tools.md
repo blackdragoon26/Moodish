@@ -30,7 +30,7 @@ content-type: application/json
 
 - `plan_personal_meal`: returns 2-3 ranked meal options for one user.
 - `plan_office_lunch`: returns 2-3 ranked office lunch options plus Instamart add-ons.
-- `build_confirmed_cart`: builds a cart only when `confirmed: true`.
+- `build_confirmed_cart`: builds a Food cart only when `confirmed: true`; optional `addOnProductIds` are validated against the recommendation and returned as a separate Instamart cart preview.
 - `update_taste_profile`: updates taste memory.
 - `record_meal_feedback`: stores feedback tags and notes.
 - `get_taste_memory`: exports taste profile and feedback.

@@ -3,6 +3,7 @@ let authUser = null;
 let conversationState = {};
 let currentRecommendation = null;
 let selectedOptionId = null;
+let selectedAddOnIds = new Set();
 let currentGroupSession = null;
 let currentGroupAccessToken = null;
 let selectedGroupOptionId = null;
@@ -154,6 +155,7 @@ $("#quickReplies").addEventListener("click", (event) => {
 function renderRecommendation(run) {
   currentRecommendation = run;
   selectedOptionId = run.options[0]?.optionId || null;
+  selectedAddOnIds = new Set();
   $("#recommendationDeck").classList.remove("hidden");
   $("#summary").textContent = run.summary;
   $("#traceOutput").textContent = JSON.stringify(run.transparency || {}, null, 2);
@@ -205,18 +207,50 @@ function renderPairings(items) {
   $("#pairings").classList.toggle("hidden", !items.length);
   $("#pairings").innerHTML = items.length
     ? `<div><p class="kicker">Moodish Pairings · optional Instamart cart</p><h4>Make it a complete moment.</h4></div>
-       <div class="pairing-list">${items.map((item) => `<article><strong>${escapeHtml(item.name)}</strong><span>₹${item.price}</span><small>${escapeHtml(item.pairingReason || "Completes the meal")}</small></article>`).join("")}</div>`
+       <div class="pairing-list">${items
+         .map(
+           (item) => `<button class="pairing-card ${selectedAddOnIds.has(item.productId) ? "selected" : ""}" type="button" data-product-id="${item.productId}" aria-pressed="${selectedAddOnIds.has(item.productId)}">
+             <span class="pairing-check">${selectedAddOnIds.has(item.productId) ? "✓" : "+"}</span>
+             <strong>${escapeHtml(item.name)}</strong><span class="pairing-price">₹${item.price}</span>
+             <small>${escapeHtml(item.pairingReason || "Completes the meal")}</small>
+           </button>`
+         )
+         .join("")}</div>
+       <div class="pairing-summary"><span>${selectedAddOnIds.size} selected for a separate Instamart cart</span><strong>₹${items
+         .filter((item) => selectedAddOnIds.has(item.productId))
+         .reduce((sum, item) => sum + item.price, 0)}</strong></div>`
     : "";
+  $("#pairings").querySelectorAll(".pairing-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      if (selectedAddOnIds.has(card.dataset.productId)) selectedAddOnIds.delete(card.dataset.productId);
+      else selectedAddOnIds.add(card.dataset.productId);
+      renderPairings(items);
+    });
+  });
 }
 
 $("#confirmCart").addEventListener("click", async () => {
-  if (!currentRecommendation || !selectedOptionId || !window.confirm("Build this food cart preview? This still will not place an order.")) return;
+  if (!currentRecommendation || !selectedOptionId || !window.confirm("Prepare the selected Food and Instamart cart previews? This still will not place an order.")) return;
   const cart = await api("/api/cart/confirm", {
     method: "POST",
-    body: JSON.stringify({ recommendationId: currentRecommendation.recommendationId, optionId: selectedOptionId, confirmed: true })
+    body: JSON.stringify({
+      recommendationId: currentRecommendation.recommendationId,
+      optionId: selectedOptionId,
+      addOnProductIds: [...selectedAddOnIds],
+      confirmed: true
+    })
   });
   $("#cartOutput").classList.remove("hidden");
-  $("#cartOutput").textContent = `Cart ready for review · ${cart.restaurant} · ₹${cart.total}\nCheckout stays blocked until a separate final confirmation flow exists.`;
+  const instamart = cart.instamartCartPreview;
+  $("#cartOutput").textContent = [
+    `FOOD CART · ${cart.foodCart.restaurant} · ₹${cart.foodCart.total}`,
+    ...cart.foodCart.items.map((item) => `${item.quantity}× ${item.name}`),
+    "",
+    `INSTAMART CART · ₹${instamart.total}`,
+    ...(instamart.items.length ? instamart.items.map((item) => `1× ${item.name}`) : ["No add-ons selected"]),
+    "",
+    "Separate fulfilment · Checkout stays blocked until a later final-confirmation flow."
+  ].join("\n");
 });
 
 $("#office").addEventListener("submit", async (event) => {
@@ -233,7 +267,7 @@ $("#office").addEventListener("submit", async (event) => {
     $("#fillDemoTeam").disabled = false;
     renderGroup(session);
   } catch (error) {
-    $("#groupStatus").textContent = `Could not create table: ${error.message}`;
+    $("#groupStatus").textContent = `Could not launch enterprise lunch: ${error.message}`;
   }
 });
 
