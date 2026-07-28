@@ -1,10 +1,12 @@
 import { DEFAULT_USER_HASH } from "./contracts.mjs";
 import {
   exportTasteMemory,
+  getMealHistory,
   getRecommendation,
   getTasteProfile,
   getTeamProfile,
   recordFeedback,
+  recordMealHistory,
   saveRecommendation,
   updateTasteProfile
 } from "./memory.mjs";
@@ -34,9 +36,18 @@ export function createTools(runtime = createToolRuntime()) {
     async plan_personal_meal(args = {}) {
       const userIdHash = args.userIdHash || DEFAULT_USER_HASH;
       return instrumentToolCall({ tool: "plan_personal_meal", userIdHash }, async () => {
+        const tasteProfile = await getTasteProfile(userIdHash);
+        const recentMeals = await getMealHistory(userIdHash, 10);
         const run = await planPersonalMeal({
           request: publicRequest(args),
-          tasteProfile: await getTasteProfile(userIdHash),
+          tasteProfile: {
+            ...tasteProfile,
+            recentMeals,
+            weeklyCuisineHistory: [
+              ...recentMeals.map((meal) => meal.cuisine).filter(Boolean),
+              ...(tasteProfile.weeklyCuisineHistory || [])
+            ].slice(0, 12)
+          },
           swiggy: runtime.swiggy,
           ai: aiForRequest(args, runtime.ai)
         });
@@ -66,13 +77,32 @@ export function createTools(runtime = createToolRuntime()) {
             error.status = 404;
             throw error;
           }
-          return buildConfirmedCart({
+          const cart = await buildConfirmedCart({
             recommendation,
             optionId: args.optionId,
             addOnProductIds: args.addOnProductIds,
             confirmed: args.confirmed === true,
             swiggy: runtime.swiggy
           });
+          const option =
+            recommendation.options.find((candidate) => candidate.optionId === args.optionId) ||
+            recommendation.options[0];
+          const selectedAddOnIds = new Set(args.addOnProductIds || []);
+          const selectedAddOns = (recommendation.addOns || []).filter((item) =>
+            selectedAddOnIds.has(item.productId)
+          );
+          const mealMemoryEntry = await recordMealHistory({
+            userIdHash,
+            recommendationId: recommendation.recommendationId,
+            restaurantName: option?.restaurantName,
+            cuisine: option?.cuisine,
+            items: option?.items?.map((item) => ({ name: item.name, quantity: item.quantity })) || [],
+            addOns: selectedAddOns.map((item) => ({ name: item.name, price: item.price })),
+            foodTotal: cart.foodCart.total,
+            instamartTotal: cart.instamartCartPreview.total,
+            dataSource: recommendation.transparency?.dataSource || "fixture"
+          });
+          return { ...cart, mealMemoryEntry };
         }
       );
     },

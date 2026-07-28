@@ -15,6 +15,7 @@ const userProfiles = new Map();
 const teamProfiles = new Map();
 const recommendations = new Map();
 const feedbackEvents = [];
+const mealHistoryEvents = [];
 const groupSessions = new Map();
 const platformEvents = new Map();
 const secretSessions = new Map();
@@ -28,6 +29,7 @@ const blankTasteProfile = (userIdHash = DEFAULT_USER_HASH) => ({
   dislikedIngredients: [],
   dietaryRules: [],
   weeklyCuisineHistory: [],
+  recentMeals: [],
   budgetComfort: 350,
   createdAt: nowIso(),
   updatedAt: nowIso()
@@ -125,6 +127,62 @@ export async function recordFeedback(event) {
   return stored;
 }
 
+export async function recordMealHistory(event) {
+  const stored = {
+    ...event,
+    userIdHash: event.userIdHash || DEFAULT_USER_HASH,
+    items: Array.isArray(event.items) ? event.items : [],
+    addOns: Array.isArray(event.addOns) ? event.addOns : [],
+    confirmedAt: event.confirmedAt || nowIso()
+  };
+  const existingInMemory = mealHistoryEvents.find(
+    (item) => item.userIdHash === stored.userIdHash && item.recommendationId === stored.recommendationId
+  );
+  if (existingInMemory) return existingInMemory;
+  if (pool) {
+    await ensureSchema();
+    const existing = await pool.query(
+      "SELECT data FROM moodish_meal_history WHERE user_id_hash = $1 AND data->>'recommendationId' = $2 LIMIT 1",
+      [stored.userIdHash, stored.recommendationId]
+    );
+    if (existing.rows[0]) return existing.rows[0].data;
+  }
+  mealHistoryEvents.unshift(stored);
+  if (pool) {
+    await pool.query(
+      "INSERT INTO moodish_meal_history (user_id_hash, data, confirmed_at) VALUES ($1, $2::jsonb, $3)",
+      [stored.userIdHash, JSON.stringify(stored), stored.confirmedAt]
+    );
+  }
+  const profile = await getTasteProfile(stored.userIdHash);
+  const recentCuisines = [
+    stored.cuisine,
+    ...(profile.weeklyCuisineHistory || [])
+  ].filter(Boolean).slice(0, 12);
+  await updateTasteProfile(stored.userIdHash, {
+    weeklyCuisineHistory: recentCuisines,
+    recentMeals: [stored, ...(profile.recentMeals || [])].slice(0, 6)
+  });
+  await logAudit("meal_history_recorded", {
+    userIdHash: stored.userIdHash,
+    recommendationId: stored.recommendationId,
+    restaurantName: stored.restaurantName
+  });
+  return stored;
+}
+
+export async function getMealHistory(userIdHash = DEFAULT_USER_HASH, limit = 6) {
+  if (pool) {
+    await ensureSchema();
+    const result = await pool.query(
+      "SELECT data FROM moodish_meal_history WHERE user_id_hash = $1 ORDER BY confirmed_at DESC LIMIT $2",
+      [userIdHash, Math.max(1, Math.min(30, Number(limit) || 6))]
+    );
+    return result.rows.map((row) => row.data);
+  }
+  return mealHistoryEvents.filter((event) => event.userIdHash === userIdHash).slice(0, limit);
+}
+
 export async function exportTasteMemory(userIdHash = DEFAULT_USER_HASH) {
   let feedback = feedbackEvents.filter((event) => event.userIdHash === userIdHash);
   if (pool) {
@@ -142,6 +200,9 @@ export async function deleteTasteMemory(userIdHash = DEFAULT_USER_HASH) {
   for (let index = feedbackEvents.length - 1; index >= 0; index -= 1) {
     if (feedbackEvents[index].userIdHash === userIdHash) feedbackEvents.splice(index, 1);
   }
+  for (let index = mealHistoryEvents.length - 1; index >= 0; index -= 1) {
+    if (mealHistoryEvents[index].userIdHash === userIdHash) mealHistoryEvents.splice(index, 1);
+  }
   if (pool) {
     await ensureSchema();
     const client = await pool.connect();
@@ -149,6 +210,7 @@ export async function deleteTasteMemory(userIdHash = DEFAULT_USER_HASH) {
       await client.query("BEGIN");
       await client.query("DELETE FROM moodish_profiles WHERE user_id_hash = $1", [userIdHash]);
       await client.query("DELETE FROM moodish_feedback WHERE user_id_hash = $1", [userIdHash]);
+      await client.query("DELETE FROM moodish_meal_history WHERE user_id_hash = $1", [userIdHash]);
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
@@ -284,6 +346,14 @@ async function ensureSchema() {
         data JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      CREATE TABLE IF NOT EXISTS moodish_meal_history (
+        id BIGSERIAL PRIMARY KEY,
+        user_id_hash TEXT NOT NULL,
+        data JSONB NOT NULL,
+        confirmed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS moodish_meal_history_user_time
+        ON moodish_meal_history (user_id_hash, confirmed_at DESC);
       CREATE TABLE IF NOT EXISTS moodish_group_sessions (
         session_id TEXT PRIMARY KEY,
         state TEXT NOT NULL,

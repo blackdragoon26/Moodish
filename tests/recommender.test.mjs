@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createTools } from "../services/agent/src/tools.mjs";
-import { getTasteProfile } from "../services/agent/src/memory.mjs";
+import { getMealHistory, getTasteProfile } from "../services/agent/src/memory.mjs";
 import { planPersonalMeal } from "../services/agent/src/recommender.mjs";
 import { createSwiggyGateway } from "../services/agent/src/swiggy-gateway.mjs";
 
@@ -216,4 +216,37 @@ test("selected Instamart pairings are carried into a separate cart preview", asy
   assert.equal(cart.instamartCartPreview.separateFulfilment, true);
   assert.equal(cart.instamartCartPreview.mutationApplied, false);
   assert.equal(cart.checkoutBlocked, true);
+});
+
+test("confirmed personal carts become user-scoped meal context", async () => {
+  const tools = createTools();
+  const userIdHash = "memory-test-user";
+  const run = await tools.plan_personal_meal({
+    userIdHash,
+    mood: "rainy spicy biryani",
+    maxBudget: 500,
+    dietMode: "both"
+  });
+  const cart = await tools.build_confirmed_cart({
+    userIdHash,
+    recommendationId: run.recommendationId,
+    optionId: run.options[0].optionId,
+    confirmed: true
+  });
+  const history = await getMealHistory(userIdHash);
+  const profile = await getTasteProfile(userIdHash);
+
+  assert.equal(history[0].recommendationId, run.recommendationId);
+  assert.equal(history[0].restaurantName, run.options[0].restaurantName);
+  assert.equal(cart.mealMemoryEntry.userIdHash, userIdHash);
+  assert.equal(profile.recentMeals[0].recommendationId, run.recommendationId);
+  assert.equal(profile.weeklyCuisineHistory[0], run.options[0].cuisine);
+
+  await tools.build_confirmed_cart({
+    userIdHash,
+    recommendationId: run.recommendationId,
+    optionId: run.options[0].optionId,
+    confirmed: true
+  });
+  assert.equal((await getMealHistory(userIdHash)).length, 1);
 });

@@ -7,7 +7,7 @@ Moodish Enterprise is the branded group-order workspace. The web demo uses the s
 1. Open Moodish and choose **Preview with demo access**.
 2. Open **Moodish Enterprise** in the left navigation.
 3. Pick headcount, budget, vibe, and decision mode.
-4. Select **Create a Moodish Table**.
+4. Select **Launch enterprise lunch**.
 5. Select **Simulate 3 teammates**. This creates three private submissions with different food modes, cravings, and an allergy.
 6. You can add another response manually in the private preference form.
 7. Select **Close & rank**.
@@ -24,8 +24,10 @@ The progress board shows aggregate counts. Private allergy and dietary details n
 1. Create a table in the first browser.
 2. Copy the invite URL.
 3. Open it in a private/incognito browser.
-4. Submit a participant preference there.
-5. Return to the creator browser and continue ranking.
+4. Submit a participant preference there. The invite is deliberately a preference page first.
+5. Return to the creator browser and select **Close & rank**.
+6. If the session uses **Team votes**, refresh the same participant link. It now shows the ranked meal cards and voting control.
+7. Return to the creator browser to approve the winning plan.
 
 The current web demo keeps creator authorization in the creator browser session. Platform production flows bind manager access to Slack, Microsoft, or Discord OAuth.
 
@@ -60,6 +62,18 @@ Each platform needs its own installation and request-verification credentials. C
 ```bash
 node --test tests/platform-adapters.test.mjs tests/platform-oauth.test.mjs
 ```
+
+### Slack walkthrough
+
+1. Create an app from scratch at `https://api.slack.com/apps`.
+2. Add `/moodish` under **Slash Commands**.
+3. Use `https://moodish.onrender.com/api/platforms/slack/events` as the Request URL.
+4. Copy the Slack Signing Secret into Render as `SLACK_SIGNING_SECRET`.
+5. Add `https://moodish.onrender.com/api/platforms/slack/oauth/callback` under OAuth redirect URLs.
+6. Add `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET` to Render for protected manager access.
+7. Install the app, redeploy Moodish, and run `/moodish easy team lunch`.
+
+The public Slack response contains safe aggregate progress, a private participant URL, and a manager dashboard link. Moodish validates Slack’s signature before creating a session.
 
 Brand names used in product surfaces:
 

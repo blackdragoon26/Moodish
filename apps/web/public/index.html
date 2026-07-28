@@ -36,6 +36,52 @@
       </div>
     </section>
 
+    <section id="participantGate" class="participant-gate hidden" aria-labelledby="participantTitle">
+      <header class="participant-topbar">
+        <a class="brand" href="/">
+          <img src="/assets/moodish-logo.png" alt="" />
+          <span>Moodish Enterprise</span>
+        </a>
+        <span class="private-pill">Private response</span>
+      </header>
+      <main class="participant-shell">
+        <section class="participant-card">
+          <p class="kicker">You’re invited to a team meal</p>
+          <h1 id="participantTitle">Tell Moodish what works for you.</h1>
+          <p id="participantSessionSummary" class="participant-summary">Loading the lunch brief…</p>
+          <div id="participantStage" class="participant-stage"></div>
+          <form id="participantPreferenceForm" class="preference-form hidden">
+            <label>Your name <input name="participantId" required autocomplete="name" placeholder="e.g. Sankalp" /></label>
+            <div class="choice-field">
+              <span>Food mode</span>
+              <div class="segmented" data-field="dietMode">
+                <button type="button" data-value="veg">Veg</button>
+                <button type="button" data-value="both" class="selected">Both</button>
+                <button type="button" data-value="non_veg">Non-veg</button>
+              </div>
+              <input name="dietMode" type="hidden" value="both" />
+            </div>
+            <label>Your craving <input name="mood" placeholder="spicy noodles, light bowls, comfort food…" /></label>
+            <div class="two-col">
+              <label>Restrictions <input name="dietaryRules" placeholder="Jain, vegan, no onion/garlic…" /></label>
+              <label>Allergies <input name="allergies" placeholder="peanut, dairy…" /></label>
+            </div>
+            <button type="submit">Send my preferences privately</button>
+          </form>
+          <section id="participantVote" class="participant-vote hidden">
+            <p class="stage-label">Finalists are ready</p>
+            <div id="participantOptions" class="options"></div>
+            <label>Your name <input id="participantVoterId" autocomplete="name" placeholder="Use the same name as your response" /></label>
+            <button id="participantVoteButton" type="button" disabled>Vote for selected meal</button>
+          </section>
+          <div class="participant-footer">
+            <small>Only aggregate dietary coverage is shown publicly. Individual restrictions stay private.</small>
+            <button id="refreshParticipant" class="text-button" type="button">Refresh status</button>
+          </div>
+        </section>
+      </main>
+    </section>
+
     <div id="product" class="product hidden">
       <header class="topbar">
         <a class="brand" href="/">
@@ -55,10 +101,19 @@
           <p class="rail-label">Plan</p>
           <button class="rail-link active" data-view="solo" type="button"><span>✦</span> My meal</button>
           <button class="rail-link" data-view="group" type="button"><span>◎</span> Moodish Enterprise</button>
+          <section class="rail-dynamic">
+            <p class="rail-label">Right now</p>
+            <p id="railNudge" class="rail-nudge">Loading your meal rhythm…</p>
+            <div id="railPromptList" class="rail-prompts"></div>
+          </section>
+          <section class="rail-memory">
+            <div class="rail-section-head"><p class="rail-label">Your meal memory</p><span id="memoryCount">0</span></div>
+            <div id="mealMemoryList" class="memory-list"><small>No confirmed meal plans yet.</small></div>
+          </section>
           <div class="rail-spacer"></div>
-          <div class="rail-note">
+          <div class="rail-note" title="Moodish prepares a preview first. It never places an order without a separate confirmation.">
             <span class="pulse"></span>
-            <div><strong>Cart-safe</strong><small>Moodish always asks before changing a cart.</small></div>
+            <div><strong>You approve every cart</strong><small>Planning cannot place an order. Cart changes always need your review.</small></div>
           </div>
           <details class="developer-panel">
             <summary>Developer lens</summary>
@@ -181,10 +236,30 @@
           <section class="channel-section">
             <div><p class="kicker">Workplace app adapters</p><h3>Deploy where employees already work.</h3><p class="channel-copy">Each adapter starts the same private enterprise workflow. Public channels see progress and aggregate coverage—never individual dietary or allergy details.</p></div>
             <div class="channel-cards">
-              <article><img class="channel-logo" src="/assets/slack.svg" alt="Slack" /><strong>Moodish for Slack</strong><small><code>/moodish</code> starts the lunch; teammates open a private form.</small><em>Adapter ready · app credentials required</em></article>
-              <article><img class="channel-logo" src="/assets/teams.svg" alt="Microsoft Teams" /><strong>Moodish for Microsoft Teams</strong><small>An adaptive card launches collection and reports safe progress.</small><em>Adapter ready · app registration required</em></article>
-              <article><img class="channel-logo" src="/assets/discord.svg" alt="Discord" /><strong>Moodish for Discord</strong><small>A command starts collection; private responses feed the same dashboard.</small><em>Adapter ready · bot credentials required</em></article>
+              <article>
+                <svg class="channel-logo" viewBox="0 0 127 127" role="img" aria-label="Slack"><path d="M27.2 80c0 7.3-5.9 13.2-13.2 13.2C6.7 93.2.8 87.3.8 80c0-7.3 5.9-13.2 13.2-13.2h13.2V80zm6.6 0c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V80z" fill="#E01E5A"/><path d="M47 27c-7.3 0-13.2-5.9-13.2-13.2C33.8 6.5 39.7.6 47 .6c7.3 0 13.2 5.9 13.2 13.2V27H47zm0 6.7c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H13.9C6.6 60.1.7 54.2.7 46.9c0-7.3 5.9-13.2 13.2-13.2H47z" fill="#36C5F0"/><path d="M99.9 46.9c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H99.9V46.9zm-6.6 0c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V13.8C66.9 6.5 72.8.6 80.1.6c7.3 0 13.2 5.9 13.2 13.2v33.1z" fill="#2EB67D"/><path d="M80.1 99.8c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V99.8h13.2zm0-6.6c-7.3 0-13.2-5.9-13.2-13.2 0-7.3 5.9-13.2 13.2-13.2h33.1c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H80.1z" fill="#ECB22E"/></svg>
+                <strong>Moodish for Slack</strong><small><code>/moodish</code> starts the lunch; teammates open a private form.</small><em>Adapter ready · app credentials required</em>
+              </article>
+              <article>
+                <svg class="channel-logo" viewBox="4 4 36 38" role="img" aria-label="Microsoft Teams"><path fill="#5f50e2" d="M22 20h12a6 6 0 0 1 6 6v10a6 6 0 0 1-12 0V26a6 6 0 0 0-6-6"/><path fill="#7588ff" d="M8 24a6 6 0 0 1 6-6h8a6 6 0 0 1 6 6v12a6 6 0 0 0 6 6H18A10 10 0 0 1 8 32z"/><circle cx="33" cy="13" r="5" fill="#6868f7"/><circle cx="18" cy="10" r="6" fill="#8282ff"/><rect width="16" height="16" x="4" y="23" fill="#5149de" rx="3.25"/><path fill="#fff" d="M15.48 28.1h-2.45v7.47h-2.06V28.1H8.52v-1.67h6.96z"/></svg>
+                <strong>Moodish for Microsoft Teams</strong><small>An adaptive card launches collection and reports safe progress.</small><em>Adapter ready · app registration required</em>
+              </article>
+              <article>
+                <svg class="channel-logo" viewBox="0 0 24 24" role="img" aria-label="Discord"><path fill="#5865F2" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.211.375-.445.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.618-1.25.077.077 0 0 0-.078-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.028C.533 9.046-.319 13.58.099 18.058a.082.082 0 0 0 .031.056c2.053 1.508 4.041 2.423 5.993 3.03a.078.078 0 0 0 .084-.028c.462-.63.873-1.295 1.226-1.994a.076.076 0 0 0-.042-.106 12.3 12.3 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.099.246.198.373.292a.077.077 0 0 1-.007.128c-.597.342-1.22.644-1.873.891a.077.077 0 0 0-.04.107c.36.698.772 1.363 1.225 1.993a.076.076 0 0 0 .084.029c1.961-.607 3.95-1.522 6.002-3.03a.077.077 0 0 0 .032-.055c.5-5.177-.839-9.674-3.549-13.66a.061.061 0 0 0-.031-.029ZM8.02 15.331c-1.183 0-2.157-1.086-2.157-2.419s.956-2.419 2.157-2.419c1.21 0 2.176 1.095 2.157 2.419 0 1.333-.956 2.419-2.157 2.419Zm7.975 0c-1.183 0-2.157-1.086-2.157-2.419s.955-2.419 2.157-2.419c1.21 0 2.176 1.095 2.157 2.419 0 1.333-.946 2.419-2.157 2.419Z"/></svg>
+                <strong>Moodish for Discord</strong><small>A command starts collection; private responses feed the same dashboard.</small><em>Adapter ready · bot credentials required</em>
+              </article>
             </div>
+            <details class="integration-faq">
+              <summary>How do I test Moodish in Slack?</summary>
+              <ol>
+                <li>Create an app at <strong>api.slack.com/apps</strong> and choose “From scratch.”</li>
+                <li>Add a slash command named <code>/moodish</code>. Set its Request URL to <code>https://moodish.onrender.com/api/platforms/slack/events</code>.</li>
+                <li>Copy the app’s Signing Secret to Render as <code>SLACK_SIGNING_SECRET</code>.</li>
+                <li>For the manager dashboard, add the redirect URL <code>https://moodish.onrender.com/api/platforms/slack/oauth/callback</code>, then set <code>SLACK_CLIENT_ID</code> and <code>SLACK_CLIENT_SECRET</code> on Render.</li>
+                <li>Install the app to your workspace, redeploy Moodish, then type <code>/moodish easy team lunch</code> in a test channel.</li>
+              </ol>
+              <p>The channel receives safe progress plus a private preference link. The manager button uses Slack identity to protect approval access.</p>
+            </details>
           </section>
         </section>
       </main>

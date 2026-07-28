@@ -6,6 +6,7 @@ import {
   clearTeamHistory,
   deleteTasteMemory,
   getAuditLogs,
+  getMealHistory,
   getPlatformEventResponse,
   getTasteProfile,
   savePlatformEventResponse,
@@ -43,9 +44,11 @@ export async function handleAgentRequest(req, res) {
       return send(res, 200, healthPayload());
     }
     if (req.method === "GET" && url.pathname === "/api/bootstrap") {
+      const user = readAuthUser(req.headers.cookie);
       return send(res, 200, {
         config: authConfiguration(),
-        user: readAuthUser(req.headers.cookie),
+        user,
+        mealMemory: user ? await getMealHistory(user.id, 6) : [],
         health: healthPayload()
       });
     }
@@ -135,7 +138,16 @@ export async function handleAgentRequest(req, res) {
       return send(res, 200, await tools.plan_office_lunch(await readJson(req)));
     }
     if (req.method === "POST" && url.pathname === "/api/cart/confirm") {
-      return send(res, 200, await tools.build_confirmed_cart(await readJson(req)));
+      const body = await readJson(req);
+      const authUser = readAuthUser(req.headers.cookie);
+      return send(
+        res,
+        200,
+        await tools.build_confirmed_cart({
+          ...body,
+          userIdHash: authUser?.id || body.userIdHash
+        })
+      );
     }
     if (req.method === "POST" && url.pathname === "/api/feedback") {
       return send(res, 200, await tools.record_meal_feedback(await readJson(req)));

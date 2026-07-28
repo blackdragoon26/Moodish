@@ -7,6 +7,11 @@ let selectedAddOnIds = new Set();
 let currentGroupSession = null;
 let currentGroupAccessToken = null;
 let selectedGroupOptionId = null;
+let mealMemory = [];
+let participantSession = null;
+let participantSelectedOptionId = null;
+let participantSubmitted = false;
+let participantVoted = false;
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -26,13 +31,19 @@ function formJson(form) {
 }
 
 async function boot() {
+  const inviteSessionId = new URLSearchParams(window.location.search).get("group");
+  const managerAccessToken = new URLSearchParams(window.location.hash.slice(1)).get("access_token");
+  if (inviteSessionId && !managerAccessToken) {
+    await openParticipantInvite(inviteSessionId);
+    return;
+  }
   let lastError;
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
       const bootstrap = await api("/api/bootstrap");
       const { config, health } = bootstrap;
       configureLogin(config, health);
-      if (bootstrap.user) enterProduct(bootstrap.user);
+      if (bootstrap.user) enterProduct(bootstrap.user, bootstrap.mealMemory || []);
       else $("#loginGate").classList.remove("hidden");
       return;
     } catch (error) {
@@ -65,18 +76,30 @@ function configureLogin(config, health) {
   }
 }
 
-function enterProduct(user) {
+function enterProduct(user, history = []) {
   authUser = user;
+  mealMemory = history;
   $("#loginGate").classList.add("hidden");
+  $("#participantGate").classList.add("hidden");
   $("#product").classList.remove("hidden");
   $("#userName").textContent = user.name;
   $("#userInitial").textContent = user.name.charAt(0).toUpperCase();
   $("#creatorId").value = user.id;
+  renderMealMemory();
+  renderRailNudge();
+  if (mealMemory[0]) {
+    const previous = mealMemory[0];
+    appendMessage(
+      "assistant",
+      `I remember your last confirmed plan: ${previous.items?.map((item) => item.name).join(", ") || previous.restaurantName}. I’ll use that only as a light preference signal—today’s craving still comes first.`
+    );
+  }
 }
 
 $("#demoLogin").addEventListener("click", async () => {
-  const { user } = await api("/api/auth/demo", { method: "POST", body: "{}" });
-  enterProduct(user);
+  await api("/api/auth/demo", { method: "POST", body: "{}" });
+  const bootstrap = await api("/api/bootstrap");
+  enterProduct(bootstrap.user, bootstrap.mealMemory || []);
 });
 
 $("#logout").addEventListener("click", async () => {
@@ -86,10 +109,22 @@ $("#logout").addEventListener("click", async () => {
 
 document.querySelectorAll(".rail-link").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".rail-link").forEach((item) => item.classList.toggle("active", item === button));
-    $("#soloView").classList.toggle("hidden", button.dataset.view !== "solo");
-    $("#groupView").classList.toggle("hidden", button.dataset.view !== "group");
+    showProductView(button.dataset.view);
   });
+});
+
+function showProductView(view) {
+  document.querySelectorAll(".rail-link").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
+  $("#soloView").classList.toggle("hidden", view !== "solo");
+  $("#groupView").classList.toggle("hidden", view !== "group");
+}
+
+$("#railPromptList").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-prompt]");
+  if (!button) return;
+  showProductView("solo");
+  $("#chatInput").value = button.dataset.prompt;
+  $("#chatComposer").requestSubmit();
 });
 
 $("#chatComposer").addEventListener("submit", async (event) => {
@@ -206,7 +241,9 @@ function optionCard(option, index, selectedId) {
 function renderPairings(items) {
   $("#pairings").classList.toggle("hidden", !items.length);
   $("#pairings").innerHTML = items.length
-    ? `<div><p class="kicker">Moodish Pairings · optional Instamart cart</p><h4>Make it a complete moment.</h4></div>
+    ? `<div class="pairing-head"><div><p class="kicker">Moodish Pairings · optional Instamart cart</p><h4>Make it a complete moment.</h4></div>
+         <details class="pairing-why"><summary>Why these?</summary><p>Moodish maps Chinese to chilled drinks, biryani to raita, pizza or burgers to cola, chaap or tandoori food to mint and lemon, spicy food to cooling drinks, and light meals to fruit. A pairing appears only when it is available and fits the remaining budget. It never changes the main-meal ranking and stays in a separate Instamart cart.</p></details>
+       </div>
        <div class="pairing-list">${items
          .map(
            (item) => `<button class="pairing-card ${selectedAddOnIds.has(item.productId) ? "selected" : ""}" type="button" data-product-id="${item.productId}" aria-pressed="${selectedAddOnIds.has(item.productId)}">
@@ -237,6 +274,7 @@ $("#confirmCart").addEventListener("click", async () => {
       recommendationId: currentRecommendation.recommendationId,
       optionId: selectedOptionId,
       addOnProductIds: [...selectedAddOnIds],
+      userIdHash: authUser?.id,
       confirmed: true
     })
   });
@@ -251,6 +289,11 @@ $("#confirmCart").addEventListener("click", async () => {
     "",
     "Separate fulfilment · Checkout stays blocked until a later final-confirmation flow."
   ].join("\n");
+  if (cart.mealMemoryEntry) {
+    mealMemory = [cart.mealMemoryEntry, ...mealMemory.filter((item) => item.recommendationId !== cart.mealMemoryEntry.recommendationId)].slice(0, 6);
+    renderMealMemory();
+    renderRailNudge();
+  }
 });
 
 $("#office").addEventListener("submit", async (event) => {
@@ -295,9 +338,9 @@ $("#fillDemoTeam").addEventListener("click", async () => {
 
 $("#copyInvite").addEventListener("click", async () => {
   if (!currentGroupSession) return;
-  const invite = `${location.origin}/?group=${encodeURIComponent(currentGroupSession.sessionId)}`;
+  const invite = `${location.origin}/?group=${encodeURIComponent(currentGroupSession.sessionId)}&action=preferences`;
   await navigator.clipboard.writeText(invite);
-  $("#copyInvite").textContent = "Invite copied";
+  $("#copyInvite").textContent = "Private invite copied";
 });
 
 $("#rankGroup").addEventListener("click", async () => {
@@ -351,6 +394,142 @@ function renderGroup(session) {
       renderGroup(currentGroupSession);
     });
   });
+}
+
+async function openParticipantInvite(sessionId) {
+  $("#loginGate").classList.add("hidden");
+  $("#product").classList.add("hidden");
+  $("#participantGate").classList.remove("hidden");
+  try {
+    participantSession = await api(`/api/group-sessions/${encodeURIComponent(sessionId)}`);
+    renderParticipantSession();
+  } catch (error) {
+    $("#participantSessionSummary").textContent = "This invite is unavailable.";
+    $("#participantStage").innerHTML = `<div class="stage-message error"><strong>We couldn’t open this team meal.</strong><span>${escapeHtml(error.message)}</span></div>`;
+  }
+}
+
+function renderParticipantSession() {
+  const session = participantSession;
+  const collected = `${session.responseCount} of ${session.headcount} people have responded`;
+  $("#participantSessionSummary").textContent = `${session.vibe} · up to ₹${session.budgetPerPerson} per person · ${collected}`;
+  const collecting = session.state === "collecting";
+  const voting = session.state === "voting" && (session.options || []).length > 0;
+  $("#participantPreferenceForm").classList.toggle("hidden", !collecting || participantSubmitted);
+  $("#participantVote").classList.toggle("hidden", !voting);
+
+  if (collecting && participantSubmitted) {
+    $("#participantStage").innerHTML = `<div class="stage-message success"><strong>Your preferences are saved.</strong><span>Return to this same link after the manager closes collection. If this lunch uses team voting, the finalists will appear here.</span></div>`;
+  } else if (collecting) {
+    $("#participantStage").innerHTML = `<div class="stage-message"><strong>Step 1 · Share your boundaries and craving</strong><span>This is not the vote yet. Once collection closes, this same link becomes the voting page when “Team votes” is selected.</span></div>`;
+  } else if (voting) {
+    $("#participantStage").innerHTML = participantVoted
+      ? `<div class="stage-message success"><strong>Your vote is saved.</strong><span>You can still change it while voting remains open by selecting another finalist.</span></div>`
+      : `<div class="stage-message voting"><strong>Step 2 · Vote on the finalists</strong><span>Select one plan below. Individual votes are counted without exposing dietary details.</span></div>`;
+    participantSelectedOptionId ||= session.options[0]?.optionId || null;
+    $("#participantOptions").innerHTML = session.options
+      .map((option, index) => optionCard(option, index, participantSelectedOptionId))
+      .join("");
+    $("#participantOptions").querySelectorAll(".option-card").forEach((card) => {
+      card.addEventListener("click", () => {
+        participantSelectedOptionId = card.dataset.option;
+        renderParticipantSession();
+      });
+    });
+    $("#participantVoteButton").disabled = !participantSelectedOptionId;
+  } else {
+    const messages = {
+      locked: "Collection has closed. Moodish is preparing the finalists.",
+      ranking: "Moodish is ranking group-safe meal plans now.",
+      awaiting_manager: "Finalists are ready and awaiting the manager’s decision.",
+      awaiting_creator_confirmation: "A plan is approved and awaiting the creator’s final cart review.",
+      cart_built: "The team meal cart has been prepared.",
+      expired: "This team meal invite has expired.",
+      cancelled: "This team meal was cancelled."
+    };
+    $("#participantStage").innerHTML = `<div class="stage-message"><strong>${escapeHtml(messages[session.state] || "This lunch is being updated.")}</strong><span>Use refresh to check the latest status.</span></div>`;
+  }
+}
+
+$("#participantPreferenceForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const payload = formJson(event.currentTarget);
+  participantSession = await api(`/api/group-sessions/${participantSession.sessionId}/preferences`, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+  participantSubmitted = true;
+  window.localStorage.setItem(`moodish-participant:${participantSession.sessionId}`, payload.participantId);
+  renderParticipantSession();
+});
+
+document.querySelectorAll(".segmented").forEach((group) => {
+  group.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-value]");
+    if (!button) return;
+    group.querySelectorAll("button").forEach((item) => item.classList.toggle("selected", item === button));
+    group.parentElement.querySelector(`input[name="${group.dataset.field}"]`).value = button.dataset.value;
+  });
+});
+
+$("#participantVoteButton").addEventListener("click", async () => {
+  const participantId =
+    $("#participantVoterId").value.trim() ||
+    window.localStorage.getItem(`moodish-participant:${participantSession.sessionId}`);
+  if (!participantId) {
+    $("#participantVoterId").focus();
+    return;
+  }
+  participantSession = await api(`/api/group-sessions/${participantSession.sessionId}/vote`, {
+    method: "POST",
+    body: JSON.stringify({ participantId, optionId: participantSelectedOptionId })
+  });
+  participantVoted = true;
+  renderParticipantSession();
+});
+
+$("#refreshParticipant").addEventListener("click", async () => {
+  if (!participantSession) return;
+  participantSession = await api(`/api/group-sessions/${participantSession.sessionId}`);
+  renderParticipantSession();
+});
+
+function renderMealMemory() {
+  $("#memoryCount").textContent = mealMemory.length;
+  $("#mealMemoryList").innerHTML = mealMemory.length
+    ? mealMemory
+        .slice(0, 3)
+        .map(
+          (meal) => `<article>
+            <strong>${escapeHtml(meal.items?.[0]?.name || meal.restaurantName || "Meal plan")}</strong>
+            <small>${escapeHtml(meal.restaurantName || meal.cuisine || "")}${meal.foodTotal ? ` · ₹${meal.foodTotal}` : ""}</small>
+          </article>`
+        )
+        .join("")
+    : "<small>No confirmed meal plans yet. Your first reviewed cart will appear here.</small>";
+}
+
+function renderRailNudge() {
+  const hour = new Date().getHours();
+  const moment = hour < 11 ? "Breakfast energy" : hour < 16 ? "Lunch window" : hour < 19 ? "Evening bite" : "Dinner mood";
+  const defaultPrompt =
+    hour < 11
+      ? "quick satisfying breakfast, both, under ₹300"
+      : hour < 16
+        ? "satisfying lunch, both, under ₹400"
+        : "comfort food, both, under ₹450";
+  $("#railNudge").textContent = mealMemory[0]
+    ? `${moment}. Go familiar or make a clean break from your last ${mealMemory[0].cuisine || "meal"}.`
+    : `${moment}. Start with a feeling; Moodish will ask only what is missing.`;
+  const prompts = [
+    { label: "Plan for right now", prompt: defaultPrompt },
+    mealMemory[0]
+      ? { label: "Something unlike last time", prompt: `something absolutely new, both, under ₹450, different from ${mealMemory[0].cuisine || mealMemory[0].restaurantName}` }
+      : { label: "Surprise me", prompt: "something absolutely new, both, under ₹450" }
+  ];
+  $("#railPromptList").innerHTML = prompts
+    .map((item) => `<button type="button" data-prompt="${escapeHtml(item.prompt)}">${escapeHtml(item.label)} <span>→</span></button>`)
+    .join("");
 }
 
 function escapeHtml(value) {

@@ -20,6 +20,8 @@ test("Slack requests require a valid signing-secret signature", async () => {
     const command = platformCommandToSession("slack", rawBody, "https://moodish.example");
     assert.equal(command.args.creatorId, "u1");
     assert.equal(command.dedupeKey, "slack:trigger1");
+    const response = command.response({ sessionId: "group-1", responseCount: 0, headcount: 6, vibe: "team lunch" });
+    assert.match(response.blocks[1].elements[0].url, /group=group-1&action=preferences/);
   } finally {
     if (previous === undefined) delete process.env.SLACK_SIGNING_SECRET;
     else process.env.SLACK_SIGNING_SECRET = previous;
