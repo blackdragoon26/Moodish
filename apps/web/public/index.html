@@ -178,7 +178,12 @@
 
           <form id="chatComposer" class="composer">
             <textarea id="chatInput" rows="1" placeholder="I’m craving..." aria-label="Describe what you want to eat"></textarea>
-            <button id="voiceInput" class="voice-input hidden" type="button" aria-label="Speak your craving" title="Speak your craving">🎙</button>
+            <button id="voiceInput" class="voice-input hidden" type="button" aria-label="Speak your craving" title="Speak your craving">
+              <svg class="mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+                <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M9 21h6"></path>
+              </svg>
+            </button>
             <button id="sendChat" type="submit" aria-label="Send">↑</button>
           </form>
           <p id="composerHint" class="composer-hint">Moodish defaults discovery to balanced and suggests sensible add-ons. You can override either in your message.</p>

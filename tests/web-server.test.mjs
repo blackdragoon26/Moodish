@@ -18,9 +18,14 @@ test("web server serves UI and API from one port", async () => {
     assert.match(html, /https:\/\/mcp\.swiggy\.com\/builders\//);
     assert.match(html, /Built for Swiggy Food \+ Instamart/);
     assert.match(html, /data-theme-toggle/);
+    assert.match(html, /class="mic-icon"/);
+    assert.doesNotMatch(html, /🎙|🎤/);
     assert.doesNotMatch(html, /Overall vibe/);
     assert.match(html, /Good old favourite/);
     assert.match(html, /Absolutely new/);
+    const styles = await fetchText(port, "/styles.css");
+    assert.match(styles, /html\[data-theme="dark"\] \.moment-message \.bubble/);
+    assert.match(styles, /html\[data-theme="dark"\] \.discovery-choices button\.selected/);
     const slackLogo = await fetch(`http://127.0.0.1:${port}/assets/slack.svg`);
     assert.equal(slackLogo.headers.get("content-type"), "image/svg+xml");
 

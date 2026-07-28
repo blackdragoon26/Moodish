@@ -275,7 +275,8 @@ if (SpeechRecognitionApi) {
   });
   recognition.onstart = () => {
     voiceButton.classList.add("listening");
-    voiceButton.textContent = "■";
+    voiceButton.setAttribute("aria-label", "Stop listening");
+    voiceButton.setAttribute("title", "Stop listening");
     $("#composerHint").textContent = "Listening… say the dish, mood, budget, or the change you want.";
   };
   recognition.onresult = (event) => {
@@ -290,7 +291,8 @@ if (SpeechRecognitionApi) {
   };
   recognition.onend = () => {
     voiceButton.classList.remove("listening");
-    voiceButton.textContent = "🎙";
+    voiceButton.setAttribute("aria-label", "Speak your craving");
+    voiceButton.setAttribute("title", "Speak your craving");
     if (!$("#composerHint").textContent.includes("blocked") && !$("#composerHint").textContent.includes("missed")) {
       $("#composerHint").textContent = "Voice captured. Edit it if needed, then send.";
     }
