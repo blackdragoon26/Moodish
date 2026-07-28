@@ -164,3 +164,24 @@ test("every normal plan includes a beverage from Food or Instamart when budget p
   assert.match(result.recommendation.summary, /\nAlternatives:/);
   assert.match(result.reply, /\n\nSearch coverage:/);
 });
+
+test("changing the discovery choice releases the previous restaurant affinity", async () => {
+  const tools = createTools();
+  const familiar = await continueMealConversation(
+    { message: "something good and familiar, both, under ₹450" },
+    tools
+  );
+  const exploratory = await continueMealConversation(
+    { message: "something absolutely new, under ₹600", state: familiar.state },
+    tools
+  );
+
+  assert.equal(exploratory.state.discoveryMode, "explore");
+  assert.equal(exploratory.state.discoveryChanged, true);
+  assert.equal(
+    exploratory.recommendation.transparency.ranking[0].adjustments.some(
+      (adjustment) => adjustment.reason === "preserve-active-plan-restaurant"
+    ),
+    false
+  );
+});

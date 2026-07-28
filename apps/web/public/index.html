@@ -140,6 +140,22 @@
           </div>
 
           <div id="quickReplies" class="quick-replies"></div>
+          <section id="mealDial" class="meal-dial" aria-label="Discovery and budget preferences">
+            <div class="dial-choice">
+              <span>How adventurous?</span>
+              <div id="discoveryChoices" class="discovery-choices" role="group" aria-label="Discovery preference">
+                <button type="button" data-discovery="comfort" aria-pressed="false">Good old favourite</button>
+                <button type="button" class="selected" data-discovery="balanced" aria-pressed="true">A bit of both</button>
+                <button type="button" data-discovery="explore" aria-pressed="false">Absolutely new</button>
+              </div>
+            </div>
+            <label class="budget-dial" for="mealBudgetRange">
+              <span><b>Maximum spend</b><output id="mealBudgetOutput" for="mealBudgetRange">₹450</output></span>
+              <input id="mealBudgetRange" type="range" min="150" max="1000" step="50" value="450" />
+              <small>₹150</small><small>₹1,000</small>
+            </label>
+            <button id="applyMealDial" class="apply-meal-dial" type="button">Use these preferences →</button>
+          </section>
 
           <form id="chatComposer" class="composer">
             <textarea id="chatInput" rows="1" placeholder="I’m craving..." aria-label="Describe what you want to eat"></textarea>

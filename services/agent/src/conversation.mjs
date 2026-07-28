@@ -48,7 +48,7 @@ export async function continueMealConversation(args = {}, tools) {
     includeInstamartAddOns: state.includeInstamartAddOns,
     addOnIntent: state.addOnIntent,
     addOnPreferences: state.addOnPreferences,
-    preferredRestaurantId: state.moodChanged ? undefined : state.activeRestaurantId,
+    preferredRestaurantId: state.moodChanged || state.discoveryChanged ? undefined : state.activeRestaurantId,
     addressId: args.addressId,
     userIdHash: args.userIdHash,
     aiApiKey: args.aiApiKey,
@@ -94,6 +94,7 @@ export function extractState(message, previous = {}) {
     activeRestaurantId: previous.activeRestaurantId,
     activeRestaurantName: previous.activeRestaurantName,
     moodChanged: false,
+    discoveryChanged: false,
     dietExplicit: Boolean(previous.dietExplicit),
     budgetExplicit: Boolean(previous.budgetExplicit)
   };
@@ -136,6 +137,7 @@ export function extractState(message, previous = {}) {
   if (/\b(familiar|usual|good old|comfort)\b/.test(text)) next.discoveryMode = "comfort";
   if (/\b(absolutely new|something new|surprise me|adventurous|explore)\b/.test(text)) next.discoveryMode = "explore";
   if (/\b(mix|balanced)\b/.test(text)) next.discoveryMode = "balanced";
+  next.discoveryChanged = Boolean(previous.discoveryMode && next.discoveryMode !== normalizeDiscoveryMode(previous));
   if (/\b(no add[\s-]?ons?|food only|keep (?:the )?meal only)\b/.test(text)) next.includeInstamartAddOns = false;
   if (/\b(no add[\s-]?ons?|food only|keep (?:the )?meal only|remove (?:the )?(?:drink|dessert|side))\b/.test(text)) {
     next.addOnIntent = "remove_addons";
@@ -197,6 +199,7 @@ function mergeSemanticState(deterministic, semantic, previous) {
   }
   if (["comfort", "balanced", "explore"].includes(semantic.discoveryMode)) {
     next.discoveryMode = semantic.discoveryMode;
+    next.discoveryChanged = Boolean(previous.discoveryMode && semantic.discoveryMode !== normalizeDiscoveryMode(previous));
   }
   if (["beverage", "dessert", "side", "complete_meal", "remove_addons"].includes(semantic.addOnIntent)) {
     next.addOnIntent = semantic.addOnIntent;

@@ -10,6 +10,9 @@ test("web server serves UI and API from one port", async () => {
   try {
     const html = await fetchText(port, "/");
     assert.match(html, /Moodish/);
+    assert.match(html, /id="mealBudgetRange"/);
+    assert.match(html, /Good old favourite/);
+    assert.match(html, /Absolutely new/);
     const slackLogo = await fetch(`http://127.0.0.1:${port}/assets/slack.svg`);
     assert.equal(slackLogo.headers.get("content-type"), "image/svg+xml");
 

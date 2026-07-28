@@ -12,6 +12,7 @@ let participantSession = null;
 let participantSelectedOptionId = null;
 let participantSubmitted = false;
 let participantVoted = false;
+let selectedDiscoveryMode = "balanced";
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -191,6 +192,33 @@ function renderQuickReplies(replies) {
 $("#quickReplies").addEventListener("click", (event) => {
   if (event.target.tagName !== "BUTTON") return;
   $("#chatInput").value = event.target.dataset.prompt || event.target.textContent;
+  $("#chatComposer").requestSubmit();
+});
+
+$("#discoveryChoices").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-discovery]");
+  if (!button) return;
+  selectedDiscoveryMode = button.dataset.discovery;
+  $("#discoveryChoices").querySelectorAll("button").forEach((item) => {
+    const selected = item === button;
+    item.classList.toggle("selected", selected);
+    item.setAttribute("aria-pressed", String(selected));
+  });
+});
+
+$("#mealBudgetRange").addEventListener("input", (event) => {
+  $("#mealBudgetOutput").textContent = `₹${Number(event.target.value).toLocaleString("en-IN")}`;
+});
+
+$("#applyMealDial").addEventListener("click", () => {
+  const discoveryPrompt = {
+    comfort: "something good and familiar",
+    balanced: "a mix of familiar and new",
+    explore: "something absolutely new"
+  }[selectedDiscoveryMode];
+  const budget = $("#mealBudgetRange").value;
+  const input = $("#chatInput");
+  input.value = [input.value.trim(), discoveryPrompt, `under ₹${budget}`].filter(Boolean).join(", ");
   $("#chatComposer").requestSubmit();
 });
 
