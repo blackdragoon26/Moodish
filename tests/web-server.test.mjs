@@ -24,6 +24,7 @@ test("web server serves UI and API from one port", async () => {
     assert.match(html, /src="\/assets\/instamart\.png"/);
     assert.doesNotMatch(html, /One place to plan the meal/);
     assert.doesNotMatch(html, /\u2014/);
+    assert.doesNotMatch(html, /Plan for right now|Surprise me/);
     assert.match(html, /class="mic-icon"/);
     assert.doesNotMatch(html, /🎙|🎤/);
     assert.doesNotMatch(html, /Overall vibe/);
@@ -32,6 +33,12 @@ test("web server serves UI and API from one port", async () => {
     const styles = await fetchText(port, "/styles.css");
     assert.match(styles, /html\[data-theme="dark"\] \.moment-message \.bubble/);
     assert.match(styles, /html\[data-theme="dark"\] \.discovery-choices button\.selected/);
+    assert.match(styles, /\.meal-dial\.only-budget/);
+    const appScript = await fetchText(port, "/app.js");
+    assert.match(appScript, /function updateMealDial\(\)/);
+    assert.match(appScript, /conversationState\.budgetExplicit/);
+    assert.match(appScript, /conversationState\.mood/);
+    assert.match(appScript, /filter\(\(reply\) => !\/\^Under/);
     const swiggyImage = await fetch(`http://127.0.0.1:${port}/assets/swiggy.png`);
     assert.equal(swiggyImage.headers.get("content-type"), "image/png");
     const instamartImage = await fetch(`http://127.0.0.1:${port}/assets/instamart.png`);

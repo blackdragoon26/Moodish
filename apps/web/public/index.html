@@ -167,7 +167,7 @@
 
           <div id="quickReplies" class="quick-replies"></div>
           <section id="mealDial" class="meal-dial" aria-label="Discovery and budget preferences">
-            <div class="dial-choice">
+            <div id="discoveryDial" class="dial-choice">
               <span>How adventurous?</span>
               <div id="discoveryChoices" class="discovery-choices" role="group" aria-label="Discovery preference">
                 <button type="button" data-discovery="comfort" aria-pressed="false">Good old favourite</button>
@@ -175,7 +175,7 @@
                 <button type="button" data-discovery="explore" aria-pressed="false">Absolutely new</button>
               </div>
             </div>
-            <label class="budget-dial" for="mealBudgetRange">
+            <label id="budgetDial" class="budget-dial" for="mealBudgetRange">
               <span><b>Maximum spend</b><output id="mealBudgetOutput" for="mealBudgetRange">₹450</output></span>
               <input id="mealBudgetRange" type="range" min="150" max="1000" step="50" value="450" />
               <small>₹150</small><small>₹1,000</small>
@@ -193,7 +193,7 @@
             </button>
             <button id="sendChat" type="submit" aria-label="Send">↑</button>
           </form>
-          <p id="composerHint" class="composer-hint">Moodish defaults discovery to balanced and suggests sensible add-ons. You can override either in your message.</p>
+          <p id="composerHint" class="composer-hint">Choose once, or include these details in your message.</p>
 
           <section id="recommendationDeck" class="recommendation-deck hidden">
             <div class="deck-head">

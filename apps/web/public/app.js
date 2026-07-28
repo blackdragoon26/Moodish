@@ -19,6 +19,7 @@ let participantVoted = false;
 let participantInvitePasscode = "";
 let participantAccessGranted = false;
 let selectedDiscoveryMode = "balanced";
+let discoveryPreferenceCommitted = false;
 
 function applyTheme(theme) {
   const resolved = theme === "dark" ? "dark" : "light";
@@ -183,6 +184,7 @@ $("#chatComposer").addEventListener("submit", async (event) => {
     });
     conversationState = result.state;
     appendMessage("assistant", result.reply);
+    updateMealDial();
     renderQuickReplies(result.quickReplies || []);
     if (result.recommendation) renderRecommendation(result.recommendation);
   } catch (error) {
@@ -226,7 +228,12 @@ function setChatBusy(busy) {
 }
 
 function renderQuickReplies(replies) {
-  $("#quickReplies").innerHTML = replies.map((reply) => `<button type="button">${escapeHtml(reply)}</button>`).join("");
+  const visibleReplies = conversationState.budgetExplicit
+    ? replies
+    : replies.filter((reply) => !/^Under ₹\d+/i.test(reply));
+  $("#quickReplies").innerHTML = visibleReplies
+    .map((reply) => `<button type="button">${escapeHtml(reply)}</button>`)
+    .join("");
 }
 
 $("#quickReplies").addEventListener("click", (event) => {
@@ -239,6 +246,7 @@ $("#discoveryChoices").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-discovery]");
   if (!button) return;
   selectedDiscoveryMode = button.dataset.discovery;
+  conversationState = { ...conversationState, discoveryMode: selectedDiscoveryMode };
   $("#discoveryChoices").querySelectorAll("button").forEach((item) => {
     const selected = item === button;
     item.classList.toggle("selected", selected);
@@ -248,19 +256,57 @@ $("#discoveryChoices").addEventListener("click", (event) => {
 
 $("#mealBudgetRange").addEventListener("input", (event) => {
   $("#mealBudgetOutput").textContent = `₹${Number(event.target.value).toLocaleString("en-IN")}`;
+  updateMealDialAction();
 });
 
 $("#applyMealDial").addEventListener("click", () => {
-  const discoveryPrompt = {
-    comfort: "something good and familiar",
-    balanced: "a mix of familiar and new",
-    explore: "something absolutely new"
-  }[selectedDiscoveryMode];
-  const budget = $("#mealBudgetRange").value;
+  const discoveryVisible = !$("#discoveryDial").classList.contains("hidden");
+  const budgetVisible = !$("#budgetDial").classList.contains("hidden");
+  if (discoveryVisible) {
+    discoveryPreferenceCommitted = true;
+    conversationState = { ...conversationState, discoveryMode: selectedDiscoveryMode };
+  }
   const input = $("#chatInput");
-  input.value = [input.value.trim(), discoveryPrompt, `under ₹${budget}`].filter(Boolean).join(", ");
-  $("#chatComposer").requestSubmit();
+  if (budgetVisible) {
+    input.value = [input.value.trim(), `under ₹${$("#mealBudgetRange").value}`].filter(Boolean).join(", ");
+    $("#chatComposer").requestSubmit();
+  } else {
+    updateMealDial();
+    input.focus();
+  }
 });
+
+function updateMealDial() {
+  const moodResolved = Boolean(conversationState.mood);
+  const budgetResolved = Boolean(conversationState.budgetExplicit);
+  const showDiscovery = !moodResolved && !discoveryPreferenceCommitted;
+  const showBudget = !budgetResolved;
+  $("#discoveryDial").classList.toggle("hidden", !showDiscovery);
+  $("#budgetDial").classList.toggle("hidden", !showBudget);
+  $("#mealDial").classList.toggle("hidden", !showDiscovery && !showBudget);
+  $("#mealDial").classList.toggle("only-budget", !showDiscovery && showBudget);
+  $("#mealDial").classList.toggle("only-discovery", showDiscovery && !showBudget);
+  $("#composerHint").textContent =
+    showDiscovery && showBudget
+      ? "Choose once, or include these details in your message."
+      : showBudget
+        ? "Your mood is clear. Set a maximum spend here or include it in your message."
+        : showDiscovery
+          ? "Choose how adventurous this meal should be, then tell me the craving."
+          : "Mood and budget are set. Tell me any change in plain language.";
+  updateMealDialAction();
+}
+
+function updateMealDialAction() {
+  const discoveryVisible = !$("#discoveryDial").classList.contains("hidden");
+  const budgetVisible = !$("#budgetDial").classList.contains("hidden");
+  $("#applyMealDial").textContent =
+    discoveryVisible && budgetVisible
+      ? "Use these preferences →"
+      : budgetVisible
+        ? `Use ₹${Number($("#mealBudgetRange").value).toLocaleString("en-IN")} budget →`
+        : "Use this preference →";
+}
 
 const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (SpeechRecognitionApi) {
@@ -850,24 +896,11 @@ function renderMealMemory() {
 function renderRailNudge() {
   const hour = new Date().getHours();
   const moment = hour < 11 ? "Breakfast energy" : hour < 16 ? "Lunch window" : hour < 19 ? "Evening bite" : "Dinner mood";
-  const defaultPrompt =
-    hour < 11
-      ? "quick satisfying breakfast, both, under ₹300"
-      : hour < 16
-        ? "satisfying lunch, both, under ₹400"
-        : "comfort food, both, under ₹450";
   $("#momentNudge").textContent = mealMemory[0]
     ? `It’s ${moment.toLowerCase()}. We can stay familiar or make a clean break from your last ${mealMemory[0].cuisine || "meal"}. What sounds better?`
     : `It’s ${moment.toLowerCase()}. Start with a feeling and I’ll ask only for anything essential that’s missing.`;
-  const prompts = [
-    { label: "Plan for right now", prompt: defaultPrompt },
-    mealMemory[0]
-      ? { label: "Something unlike last time", prompt: `something absolutely new, both, under ₹450, different from ${mealMemory[0].cuisine || mealMemory[0].restaurantName}` }
-      : { label: "Surprise me", prompt: "something absolutely new, both, under ₹450" }
-  ];
-  $("#quickReplies").innerHTML = prompts
-    .map((item) => `<button type="button" data-prompt="${escapeHtml(item.prompt)}">${escapeHtml(item.label)}</button>`)
-    .join("");
+  $("#quickReplies").innerHTML = "";
+  updateMealDial();
 }
 
 function escapeHtml(value) {
