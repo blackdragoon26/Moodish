@@ -99,7 +99,8 @@ export async function lockAndRankGroupSession(args = {}, runtime) {
     request: {
       headcount: Math.max(Object.keys(session.submissions).length, session.headcount),
       budgetPerPerson: session.budgetPerPerson,
-      query: [session.vibe, ...aggregate.moods].filter(Boolean).join(" "),
+      query: aggregate.moods.join(" ") || "team lunch",
+      participantPreferences: Object.values(session.submissions),
       dietMode: aggregate.dietMode,
       dietaryRules: aggregate.sharedRules,
       allergies: aggregate.allergies,

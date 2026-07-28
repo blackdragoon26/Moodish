@@ -298,25 +298,58 @@ function renderRecommendationSelection() {
 }
 
 function optionCard(option, index, selectedId) {
+  const coverage = option.coverage;
   const metadata = [
     `₹${option.estimatedTotal}`,
     option.rating ? `${option.rating} ★` : null,
     option.distanceKm ? `${option.distanceKm} km` : null,
-    option.matchType
+    coverage
+      ? coverage.compromiseCount
+        ? `${coverage.compromiseCount} need review`
+        : `${coverage.satisfiedCount}/${coverage.totalParticipants} covered`
+      : option.matchType
       ? option.matchType === "exact"
         ? "Exact match"
         : option.matchType === "alternative"
           ? "Relevant alternative"
-          : "Strong match"
+          : option.matchType === "full_coverage"
+            ? "Full coverage · one restaurant"
+            : option.matchType === "full_coverage_split"
+              ? "Full coverage · split fulfilment"
+              : option.matchType === "compromise"
+                ? "Compromise disclosed"
+                : "Strong match"
       : null
   ].filter(Boolean);
+  const sourceLine = coverage
+    ? `<div class="fulfilment-line">
+        ${(option.foodSources || []).map((source) => `<span>Food · ${escapeHtml(source.restaurantName)}</span>`).join("")}
+        ${option.instamartItems?.length ? `<span>Instamart · ${escapeHtml(option.instamartItems.map((item) => `${item.quantity}× ${item.name}`).join(", "))}</span>` : ""}
+      </div>`
+    : "";
+  const coveragePanel = coverage
+    ? `<div class="coverage-panel">
+        <div class="coverage-title"><strong>Who gets what</strong><span>${coverage.satisfiedCount}/${coverage.totalParticipants} matched</span></div>
+        ${coverage.participants
+          .map(
+            (person) => `<div class="coverage-person ${person.status}">
+              <div><strong>${escapeHtml(person.participantId)}</strong><small>Asked for ${escapeHtml(person.request)}</small></div>
+              <div><span>${person.status === "satisfied" ? "Covered" : person.status === "unanswered" ? "Awaiting input" : "Compromise"}</span><small>${escapeHtml(person.matchedItem || "No safe match")}</small></div>
+              <p>${escapeHtml(person.note)}</p>
+            </div>`
+          )
+          .join("")}
+      </div>`
+    : "";
   return `<article class="option-card ${option.optionId === selectedId ? "selected" : ""}" data-option="${option.optionId}">
     <div class="option-rank">0${index + 1}</div>
     <div class="option-content">
       <div class="option-head"><div><p>${escapeHtml(option.cuisine)}</p><h4>${escapeHtml(option.restaurantName)}</h4></div><span class="select-pill">${option.optionId === selectedId ? "Chosen" : "Choose"}</span></div>
       <p class="dish-line">${option.items.map((item) => `${item.quantity}× ${escapeHtml(item.name)}`).join(" + ")}</p>
+      ${sourceLine}
       <div class="meta">${metadata.map((item) => `<span>${item}</span>`).join("")}</div>
       ${option.reasons?.length ? `<p class="reason">${escapeHtml(option.reasons.slice(0, 2).join(" · "))}</p>` : ""}
+      ${coveragePanel}
     </div>
   </article>`;
 }
@@ -437,24 +470,33 @@ $("#copyInvite").addEventListener("click", async () => {
   if (!currentGroupSession) return;
   const invite = `${location.origin}/?group=${encodeURIComponent(currentGroupSession.sessionId)}&action=preferences`;
   await navigator.clipboard.writeText(invite);
-  $("#copyInvite").textContent = "Private invite copied";
+  flashCopyLabel($("#copyInvite"), "Private invite copied", "Copy invite");
 });
 
 $("#copyInviteCode").addEventListener("click", async () => {
   if (!currentGroupInvitePasscode) return;
   await navigator.clipboard.writeText(currentGroupInvitePasscode);
-  $("#copyInviteCode").textContent = "Team code copied";
+  flashCopyLabel($("#copyInviteCode"), "Team code copied", "Copy team code");
 });
+
+function flashCopyLabel(button, copiedLabel, defaultLabel) {
+  button.textContent = copiedLabel;
+  window.setTimeout(() => {
+    button.textContent = defaultLabel;
+  }, 1800);
+}
 
 $("#rankGroup").addEventListener("click", async () => {
   currentGroupSession = await groupApi(`/api/group-sessions/${currentGroupSession.sessionId}/rank`, {});
   selectedGroupOptionId = currentGroupSession.recommendation?.options?.[0]?.optionId || null;
   renderGroup(currentGroupSession);
+  $("#groupResults").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
 $("#selectGroup").addEventListener("click", async () => {
   currentGroupSession = await groupApi(`/api/group-sessions/${currentGroupSession.sessionId}/select`, { optionId: selectedGroupOptionId });
   renderGroup(currentGroupSession);
+  $("#confirmGroupCart").scrollIntoView({ behavior: "smooth", block: "center" });
 });
 
 $("#voteGroup").addEventListener("click", async () => {
@@ -514,9 +556,31 @@ function renderGroup(session) {
     ? `Team passcode · ${currentGroupInvitePasscode} · share it separately from the invite URL`
     : "";
   $("#rankGroup").disabled = session.state !== "collecting";
+  $("#rankGroup").classList.toggle("hidden", session.state !== "collecting");
+  $("#rankGroup").textContent =
+    session.state === "collecting" && count >= session.headcount
+      ? "All responses in — build meal plans"
+      : "Close responses & build meal plans";
   $("#selectGroup").disabled = !["awaiting_manager", "voting"].includes(session.state) || !selectedGroupOptionId;
+  $("#selectGroup").classList.toggle("hidden", !["awaiting_manager", "voting"].includes(session.state));
   $("#voteGroup").disabled = session.state !== "voting" || !selectedGroupOptionId;
+  $("#voteGroup").classList.toggle("hidden", session.state !== "voting");
+  $("#groupControls").classList.toggle(
+    "hidden",
+    !["collecting", "awaiting_manager", "voting"].includes(session.state)
+  );
   $("#confirmGroupCart").disabled = session.state !== "awaiting_creator_confirmation";
+  $("#confirmGroupCart").textContent =
+    session.state === "awaiting_creator_confirmation"
+      ? "Review fulfilments & confirm final carts"
+      : "Approve a plan before final confirmation";
+  $("#groupPreference").classList.toggle("hidden", session.state !== "collecting" || count >= session.headcount);
+  const reviewingPlans = session.state !== "collecting";
+  $("#office").classList.toggle("hidden", reviewingPlans);
+  $("#groupSetupGrid").classList.toggle("review-mode", reviewingPlans);
+  $("#groupShareActions").classList.toggle("hidden", reviewingPlans);
+  $("#groupInviteCode").classList.toggle("hidden", reviewingPlans || !currentGroupInvitePasscode);
+  renderManagerInputs(session.submissions || []);
   const options = session.recommendation?.options || session.options || [];
   $("#groupResults").classList.toggle("hidden", !options.length);
   $("#groupOptions").innerHTML = options.map((option, index) => optionCard(option, index, selectedGroupOptionId)).join("");
@@ -526,6 +590,39 @@ function renderGroup(session) {
       renderGroup(currentGroupSession);
     });
   });
+  const nextStep = {
+    collecting:
+      count >= session.headcount
+        ? "Everyone has responded. Build plans to compare exact coverage, split fulfilments, and any honest compromises."
+        : `Waiting for ${Math.max(0, session.headcount - count)} more response${session.headcount - count === 1 ? "" : "s"}. You can close collection early when needed.`,
+    awaiting_manager: "Review who gets what below, select a plan, then click “Approve this plan”.",
+    voting: "Finalists are ready for the team vote. The manager can still approve a selected plan.",
+    awaiting_creator_confirmation: "Plan approved. The session creator can now review every Food and Instamart fulfilment and confirm the cart previews.",
+    cart_built: "Cart previews prepared. Checkout remains safely disabled."
+  }[session.state] || `Session is ${session.state.replaceAll("_", " ")}.`;
+  $("#groupNextStep").textContent = nextStep;
+}
+
+function renderManagerInputs(submissions) {
+  $("#managerInputReview").classList.toggle("hidden", !submissions.length);
+  $("#managerInputs").innerHTML = submissions
+    .map(
+      (submission) => `<article>
+        <div><strong>${escapeHtml(submission.participantId)}</strong><span>${escapeHtml(formatDietMode(submission.dietMode))}</span></div>
+        <p>${escapeHtml(submission.mood || "No specific craving")}</p>
+        <small>${[
+          submission.dietaryRules?.length ? `Rules: ${submission.dietaryRules.join(", ")}` : null,
+          submission.allergies?.length ? `Allergies: ${submission.allergies.join(", ")}` : null
+        ].filter(Boolean).map(escapeHtml).join(" · ") || "No additional restrictions"}</small>
+      </article>`
+    )
+    .join("");
+}
+
+function formatDietMode(mode) {
+  if (mode === "non_veg") return "Non-veg";
+  if (mode === "veg") return "Veg";
+  return "Veg & non-veg";
 }
 
 async function openParticipantInvite(sessionId) {
@@ -545,7 +642,7 @@ async function openParticipantInvite(sessionId) {
 function renderParticipantSession() {
   const session = participantSession;
   const collected = `${session.responseCount} of ${session.headcount} people have responded`;
-  $("#participantSessionSummary").textContent = `${session.vibe} · up to ₹${session.budgetPerPerson} per person · ${collected}`;
+  $("#participantSessionSummary").textContent = `Team lunch · up to ₹${session.budgetPerPerson} per person · ${collected}`;
   const collecting = session.state === "collecting";
   const voting = session.state === "voting" && (session.options || []).length > 0;
   $("#participantAccessForm").classList.toggle("hidden", participantAccessGranted);

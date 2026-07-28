@@ -190,6 +190,28 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
     swiggy,
     address.id
   );
+  const participantPreferences = Array.isArray(request.participantPreferences) ? request.participantPreferences : [];
+  const participantMenuMatches = participantPreferences.length
+    ? (
+        await Promise.all(
+          participantPreferences.map((participant) =>
+            swiggy.searchMenu({
+              addressId: address.id,
+              query: extractMealIntent(participant.mood || "").exactQuery,
+              vegFilter: participant.dietMode === "veg" ? 1 : 0
+            })
+          )
+        )
+      ).flat()
+    : [];
+  const candidateIds = new Set(candidates.map((candidate) => candidate.id));
+  const extraCoverageRestaurants = uniqueRestaurants(participantMenuMatches).filter(
+    (restaurant) => !candidateIds.has(restaurant.id)
+  );
+  const coverageCandidates = [
+    ...candidates,
+    ...(await hydrateCandidateMenus(extraCoverageRestaurants, swiggy, address.id))
+  ];
   const ranked = rankRestaurants(candidates, {
     budget: budgetPerPerson,
     discoveryMode: "balanced",
@@ -204,7 +226,7 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
     requiresNonVegOption: Number(request.nonVegCount || 0) > 0,
     matchTypes: new Map()
   }).slice(0, 3);
-  const options = await Promise.all(
+  const baseOptions = await Promise.all(
     ranked.map((restaurant) =>
       optionFromRestaurant(restaurant, swiggy, totalBudget, headcount, {
         addressId: address.id,
@@ -221,20 +243,57 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
   );
   const officeIntent = extractMealIntent(request.query || "office lunch");
   const addOns = await complementaryProducts(swiggy, address.id, officeIntent, totalBudget);
-  const aiSummary = await summarizeShortlist(ai, { mode: "office", options });
+  const options = participantPreferences.length
+    ? (
+        await Promise.all(
+          baseOptions.map((option) =>
+            buildParticipantCoveragePlan({
+              option,
+              candidates: coverageCandidates,
+              participants: participantPreferences,
+              headcount,
+              budgetPerPerson,
+              totalBudget,
+              swiggy,
+              addressId: address.id
+            })
+          )
+        )
+      ).sort(compareCoveragePlans)
+    : baseOptions;
+  const aiSummary = await summarizeShortlist(ai, {
+    mode: "office",
+    options: options.map(({ coverage, ...option }) => ({
+      ...option,
+      coverageSummary: coverage
+        ? {
+            totalParticipants: coverage.totalParticipants,
+            satisfiedCount: coverage.satisfiedCount,
+            compromiseCount: coverage.compromiseCount
+          }
+        : undefined
+    }))
+  });
+  const topCoverage = options[0]?.coverage;
+  const coverageSummary = topCoverage
+    ? `${topCoverage.satisfiedCount}/${topCoverage.totalParticipants} requests matched to an available item`
+    : null;
   const run = {
     recommendationId: makeRecommendationId("office"),
     mode: "office",
     address,
     request: { ...request, headcount, budgetPerPerson, totalBudget, dietaryRules, dietMode, avoidCuisines },
     options: options.map((option) => ({ ...option, addOns: addOns.slice(0, 2) })),
-    summary: aiSummary.text,
+    addOns,
+    summary: coverageSummary ? `${coverageSummary}. ${aiSummary.text}` : aiSummary.text,
     transparency: {
       dataSource: swiggy.mode,
       moodInput: request.query || "office lunch",
       intentTags,
       searchedRestaurants: restaurants.map((restaurant) => restaurant.name),
       candidateRestaurants: candidates.map((restaurant) => restaurant.name),
+      searchCoverage: buildSearchCoverage(candidates, swiggy.mode),
+      participantCoverage: topCoverage || undefined,
       ranking: ranked.map((restaurant) => ({
         restaurantName: restaurant.name,
         cuisine: restaurant.cuisine,
@@ -253,6 +312,275 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
   return run;
 }
 
+async function buildParticipantCoveragePlan({
+  option,
+  candidates,
+  participants,
+  headcount,
+  budgetPerPerson,
+  totalBudget,
+  swiggy,
+  addressId
+}) {
+  const primaryRestaurant = candidates.find((candidate) => candidate.id === option.restaurantId);
+  const nearbyRestaurants = [
+    primaryRestaurant,
+    ...candidates.filter((candidate) => candidate.id !== option.restaurantId)
+  ].filter(Boolean);
+  const assignments = [];
+
+  for (const participant of participants) {
+    const exactFood = findParticipantFoodMatch(nearbyRestaurants, participant, budgetPerPerson);
+    if (exactFood) {
+      assignments.push({
+        participantId: participant.participantId,
+        request: participant.mood || "No specific craving",
+        status: "satisfied",
+        source: "food",
+        restaurantId: exactFood.restaurant.id,
+        restaurantName: exactFood.restaurant.name,
+        item: exactFood.item,
+        note:
+          exactFood.restaurant.id === option.restaurantId
+            ? `Matched at ${exactFood.restaurant.name}`
+            : `Matched through a disclosed split from ${exactFood.restaurant.name}`
+      });
+      continue;
+    }
+
+    const instamartMatch = await findParticipantInstamartMatch(
+      swiggy,
+      addressId,
+      participant,
+      budgetPerPerson
+    );
+    if (instamartMatch) {
+      assignments.push({
+        participantId: participant.participantId,
+        request: participant.mood || "No specific craving",
+        status: "satisfied",
+        source: "instamart",
+        product: instamartMatch,
+        note: `${instamartMatch.name} is available through a separate Instamart fulfilment`
+      });
+      continue;
+    }
+
+    const fallback = findCompatibleFallback(primaryRestaurant?.items || [], participant, budgetPerPerson);
+    assignments.push({
+      participantId: participant.participantId,
+      request: participant.mood || "No specific craving",
+      status: "compromise",
+      source: fallback ? "food" : "unavailable",
+      restaurantId: fallback ? primaryRestaurant.id : undefined,
+      restaurantName: fallback ? primaryRestaurant.name : undefined,
+      item: fallback || undefined,
+      note: fallback
+        ? `No nearby Food or Instamart result matched “${participant.mood}”; ${fallback.name} is only a dietary-safe fallback`
+        : `No nearby Food or Instamart result can safely satisfy this request`
+    });
+  }
+
+  const unanswered = Math.max(0, headcount - participants.length);
+  const defaultItem = option.items[0];
+  for (let index = 0; index < unanswered && defaultItem; index += 1) {
+    assignments.push({
+      participantId: `Awaiting response ${index + 1}`,
+      request: "No response received",
+      status: "unanswered",
+      source: "food",
+      restaurantId: option.restaurantId,
+      restaurantName: option.restaurantName,
+      item: defaultItem,
+      note: "A default serving is reserved; the manager should review this before approval"
+    });
+  }
+
+  const foodItems = groupFoodAssignments(assignments);
+  const instamartItems = groupInstamartAssignments(assignments);
+  const foodSources = uniqueFoodSources(foodItems);
+  const foodTotal = foodItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const instamartTotal = instamartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const compromiseCount = assignments.filter((assignment) => assignment.status === "compromise").length;
+  const satisfiedCount = assignments.filter((assignment) => assignment.status === "satisfied").length;
+  const withinBudget = foodTotal + instamartTotal <= totalBudget;
+  const splitOrder = foodSources.length > 1;
+  const usesInstamart = instamartItems.length > 0;
+
+  return {
+    ...option,
+    optionId: `${option.optionId}_coverage`,
+    cuisine: splitOrder ? `${option.cuisine} · split fulfilment` : option.cuisine,
+    items: foodItems,
+    instamartItems,
+    foodSources,
+    splitOrder,
+    usesInstamart,
+    foodTotal,
+    instamartTotal,
+    estimatedTotal: foodTotal + instamartTotal,
+    matchType:
+      compromiseCount > 0
+        ? "compromise"
+        : splitOrder || usesInstamart
+          ? "full_coverage_split"
+          : "full_coverage",
+    coverage: {
+      totalParticipants: assignments.length,
+      satisfiedCount,
+      compromiseCount,
+      unansweredCount: assignments.filter((assignment) => assignment.status === "unanswered").length,
+      withinBudget,
+      participants: assignments.map(({ item, product, ...assignment }) => ({
+        ...assignment,
+        matchedItem: item?.name || product?.name || null
+      }))
+    },
+    reasons: [
+      `${satisfiedCount}/${assignments.length} participant requests matched`,
+      splitOrder ? `${foodSources.length} restaurants are required` : `One restaurant covers the Food order`,
+      usesInstamart ? `Instamart supplies ${instamartItems.map((item) => item.name).join(", ")}` : null
+    ].filter(Boolean),
+    tradeoffs: [
+      compromiseCount ? `${compromiseCount} participant request${compromiseCount === 1 ? "" : "s"} need a disclosed compromise` : null,
+      splitOrder ? "Multiple Food fulfilments are required" : null,
+      usesInstamart ? "Instamart is a separate fulfilment" : null,
+      withinBudget ? "Within the group budget ceiling" : "Above the group budget ceiling"
+    ].filter(Boolean)
+  };
+}
+
+function compareCoveragePlans(a, b) {
+  return (
+    (b.coverage?.satisfiedCount || 0) - (a.coverage?.satisfiedCount || 0) ||
+    (a.coverage?.compromiseCount || 0) - (b.coverage?.compromiseCount || 0) ||
+    Number(a.estimatedTotal || 0) - Number(b.estimatedTotal || 0) ||
+    Number(b.score || 0) - Number(a.score || 0)
+  );
+}
+
+function findParticipantFoodMatch(restaurants, participant, budgetPerPerson) {
+  for (const restaurant of restaurants) {
+    const item = (restaurant.items || []).find(
+      (candidate) =>
+        Number(candidate.price || 0) <= budgetPerPerson &&
+        participantItemCompatible(candidate, participant) &&
+        participantCravingMatches(candidate, participant.mood)
+    );
+    if (item) return { restaurant, item };
+  }
+  return null;
+}
+
+async function findParticipantInstamartMatch(swiggy, addressId, participant, budgetPerPerson) {
+  const mood = String(participant.mood || "").trim();
+  if (!mood) return null;
+  const queries = [extractMealIntent(mood).exactQuery, ...expandIntentTokens(mood)]
+    .filter(Boolean)
+    .flatMap((query) => [query, String(query).replace(/s$/i, "")]);
+  for (const query of [...new Set(queries)]) {
+    const products = await swiggy.searchProducts({ addressId, query });
+    const match = (products || []).find(
+      (product) =>
+        Number(product.price || 0) <= budgetPerPerson &&
+        participantCravingMatches(product, mood) &&
+        participantProductCompatible(product, participant)
+    );
+    if (match) return match;
+  }
+  return null;
+}
+
+function participantCravingMatches(item, mood) {
+  const normalizedMood = String(mood || "").trim();
+  if (!normalizedMood) return true;
+  const intent = extractMealIntent(normalizedMood);
+  const attributeSet = new Set(intent.attributes || []);
+  const wanted = new Set(
+    intent.primaryDish
+      ? [intent.primaryDish]
+      : (intent.tokens || []).filter(
+          (token) =>
+            !attributeSet.has(token) &&
+            !["office", "lunch", "meal", "team", "something", "anything"].includes(token)
+        )
+  );
+  if (!wanted.size) {
+    for (const token of intent.attributes) wanted.add(token);
+  }
+  const itemText = [item.name, ...(item.tags || [])].join(" ").toLowerCase().replaceAll("-", " ");
+  return [...wanted].some((token) => {
+    const normalized = String(token).replaceAll("-", " ");
+    return itemText.includes(normalized) || itemText.includes(normalized.replace(/s$/i, ""));
+  });
+}
+
+function participantItemCompatible(item, participant) {
+  return filterCompatibleItems([item], {
+    dietMode: participant.dietMode,
+    dietaryRules: participant.dietaryRules || [],
+    allergies: participant.allergies || []
+  }).length > 0;
+}
+
+function participantProductCompatible(product, participant) {
+  const text = [product.name, ...(product.tags || [])].join(" ").toLowerCase();
+  return !(participant.allergies || []).some((allergy) => text.includes(String(allergy).toLowerCase()));
+}
+
+function findCompatibleFallback(items, participant, budgetPerPerson) {
+  return items.find(
+    (item) => Number(item.price || 0) <= budgetPerPerson && participantItemCompatible(item, participant)
+  );
+}
+
+function groupFoodAssignments(assignments) {
+  const grouped = new Map();
+  for (const assignment of assignments) {
+    if (!assignment.item || !assignment.restaurantId) continue;
+    const key = `${assignment.restaurantId}:${assignment.item.itemId}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.quantity += 1;
+    } else {
+      grouped.set(key, {
+        ...assignment.item,
+        quantity: 1,
+        sourceType: "food",
+        restaurantId: assignment.restaurantId,
+        restaurantName: assignment.restaurantName
+      });
+    }
+  }
+  return [...grouped.values()];
+}
+
+function groupInstamartAssignments(assignments) {
+  const grouped = new Map();
+  for (const assignment of assignments) {
+    if (!assignment.product) continue;
+    const existing = grouped.get(assignment.product.productId);
+    if (existing) {
+      existing.quantity += 1;
+    } else {
+      grouped.set(assignment.product.productId, {
+        ...assignment.product,
+        quantity: 1,
+        sourceType: "instamart",
+        separateFulfilment: true
+      });
+    }
+  }
+  return [...grouped.values()];
+}
+
+function uniqueFoodSources(items) {
+  return [...new Map(items.map((item) => [item.restaurantId, {
+    restaurantId: item.restaurantId,
+    restaurantName: item.restaurantName
+  }])).values()];
+}
+
 export async function buildConfirmedCart({ recommendation, optionId, addOnProductIds = [], swiggy, confirmed }) {
   if (!confirmed) {
     const error = new Error("Explicit confirmation is required before cart build");
@@ -265,24 +593,49 @@ export async function buildConfirmedCart({ recommendation, optionId, addOnProduc
     error.status = 404;
     throw error;
   }
-  const cart = await swiggy.buildFoodCart({
-    restaurantId: option.restaurantId,
-    addressId: recommendation.address?.id,
-    items: option.items.map((item) => ({ itemId: item.itemId, quantity: item.quantity }))
-  });
+  const foodGroups = new Map();
+  for (const item of option.items || []) {
+    const restaurantId = item.restaurantId || option.restaurantId;
+    const restaurantName = item.restaurantName || option.restaurantName;
+    if (!foodGroups.has(restaurantId)) foodGroups.set(restaurantId, { restaurantId, restaurantName, items: [] });
+    foodGroups.get(restaurantId).items.push({ itemId: item.itemId, quantity: item.quantity });
+  }
+  const foodCarts = [];
+  for (const group of foodGroups.values()) {
+    const built = await swiggy.buildFoodCart({
+      restaurantId: group.restaurantId,
+      addressId: recommendation.address?.id,
+      items: group.items
+    });
+    foodCarts.push({
+      ...built,
+      restaurantId: group.restaurantId,
+      restaurant: built.restaurant || group.restaurantName,
+      fulfilment: "Swiggy Food"
+    });
+  }
+  const cart = foodCarts[0] || { restaurant: null, items: [], total: 0 };
   const requestedAddOns = new Set(normalizeList(addOnProductIds));
-  const instamartItems = (recommendation.addOns || []).filter((item) => requestedAddOns.has(item.productId));
+  const plannedInstamartItems = option.instamartItems || [];
+  const optionalInstamartItems = (recommendation.addOns || []).filter((item) => requestedAddOns.has(item.productId));
+  const instamartItems = [...plannedInstamartItems, ...optionalInstamartItems].filter(
+    (item, index, all) => all.findIndex((candidate) => candidate.productId === item.productId) === index
+  );
+  const foodTotal = foodCarts.reduce((sum, foodCart) => sum + Number(foodCart.total || 0), 0);
   return {
     ...cart,
+    total: foodTotal,
     foodCart: {
       restaurant: cart.restaurant,
       items: cart.items,
-      total: cart.total,
+      total: foodTotal,
       fulfilment: "Swiggy Food"
     },
+    foodCarts,
+    splitOrder: foodCarts.length > 1,
     instamartCartPreview: {
       items: instamartItems,
-      total: instamartItems.reduce((sum, item) => sum + item.price, 0),
+      total: instamartItems.reduce((sum, item) => sum + item.price * Number(item.quantity || 1), 0),
       fulfilment: "Instamart",
       separateFulfilment: true,
       mutationApplied: false,

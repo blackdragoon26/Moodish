@@ -199,21 +199,20 @@
           </div>
 
           <section class="enterprise-flow" aria-label="How Moodish Enterprise works">
-            <article><span>1</span><div><strong>Manager sets policy</strong><small>Headcount, budget per person, vibe, delivery need, and decision method.</small></div></article>
+            <article><span>1</span><div><strong>Manager sets policy</strong><small>Headcount, budget per person, delivery need, and decision method.</small></div></article>
             <article><span>2</span><div><strong>Employees answer privately</strong><small>A web link or workplace app collects cravings, diet rules, and allergies.</small></div></article>
             <article><span>3</span><div><strong>Moodish consolidates</strong><small>One restaurant first; a split is disclosed only when hard constraints require it.</small></div></article>
             <article><span>4</span><div><strong>Creator confirms the cart</strong><small>The manager approves a plan; the Swiggy-connected creator confirms the final mutation.</small></div></article>
           </section>
 
-          <div class="group-grid">
+          <div id="groupSetupGrid" class="group-grid">
             <form id="office" class="surface group-create">
-              <div class="surface-head"><span>01</span><div><h3>Define lunch policy</h3><p>Set the commercial limits and the experience you want for the team.</p></div></div>
+              <div class="surface-head"><span>01</span><div><h3>Define lunch policy</h3><p>Set the headcount, budget, and how the final decision is made.</p></div></div>
               <input name="creatorId" id="creatorId" type="hidden" />
               <div class="two-col">
                 <label>People <input name="headcount" type="number" min="2" max="100" value="6" /></label>
                 <label>Budget each <input name="budgetPerPerson" type="number" min="120" max="2000" value="350" /></label>
               </div>
-              <label>Overall vibe <input name="vibe" value="easy, satisfying team lunch" /></label>
               <label>Decision
                 <select name="approvalMode">
                   <option value="manager_decides">Manager decides</option>
@@ -227,12 +226,16 @@
             <section id="groupBoard" class="surface group-board">
               <div class="surface-head"><span>02</span><div><h3>Invite employees privately</h3><p id="groupStatus">Launch a lunch to create the private response link.</p></div></div>
               <div id="groupProgress" class="progress-track"><span></span></div>
-              <div class="group-actions">
+              <div id="groupShareActions" class="group-actions">
                 <button id="copyInvite" class="outline-button" type="button" disabled>Copy invite</button>
                 <button id="copyInviteCode" class="outline-button" type="button" disabled>Copy team code</button>
                 <button id="fillDemoTeam" class="outline-button" type="button" disabled>Simulate 3 teammates</button>
               </div>
               <p id="groupInviteCode" class="invite-code hidden"></p>
+              <section id="managerInputReview" class="manager-input-review hidden">
+                <div class="review-heading"><strong>Incoming preferences</strong><small>Visible only to the host and assigned managers</small></div>
+                <div id="managerInputs"></div>
+              </section>
               <form id="groupPreference" class="preference-form hidden">
                 <input name="sessionId" type="hidden" />
                 <div class="two-col">
@@ -249,8 +252,8 @@
                 <button type="submit">Submit privately</button>
               </form>
               <div id="groupControls" class="group-actions hidden">
-                <button id="rankGroup" type="button">Close & rank</button>
-                <button id="selectGroup" class="outline-button" type="button">Approve selected</button>
+                <button id="rankGroup" type="button">Close responses & build plans</button>
+                <button id="selectGroup" class="outline-button" type="button">Approve this plan</button>
                 <button id="voteGroup" class="outline-button" type="button">Vote selected</button>
               </div>
             </section>
@@ -258,6 +261,7 @@
 
           <section id="groupResults" class="surface group-results hidden">
             <div class="surface-head"><span>03</span><div><h3>Approve the enterprise plan</h3><p>Coverage, budget, quantities, and trade-offs are visible before any cart change.</p></div></div>
+            <div id="groupNextStep" class="group-next-step"></div>
             <div id="groupOptions" class="options"></div>
             <button id="confirmGroupCart" type="button" disabled>Creator: confirm final cart</button>
           </section>

@@ -125,3 +125,79 @@ test("team voting supports one vote per participant and manager selection", asyn
   assert.equal(selected.selectedOptionId, optionId);
   assert.equal(selected.state, "awaiting_creator_confirmation");
 });
+
+test("group coverage uses Instamart for fruit and carries it into final cart preview", async () => {
+  const tools = createTools();
+  const created = await tools.create_group_meal_session({
+    creatorId: "coverage-manager",
+    headcount: 2,
+    budgetPerPerson: 400
+  });
+  await tools.submit_group_preferences({
+    sessionId: created.sessionId,
+    invitePasscode: created.invitePasscode,
+    participantId: "fruit-person",
+    dietMode: "veg",
+    mood: "fruits"
+  });
+  await tools.submit_group_preferences({
+    sessionId: created.sessionId,
+    invitePasscode: created.invitePasscode,
+    participantId: "chicken-person",
+    dietMode: "non_veg",
+    mood: "spicy chicken"
+  });
+
+  const ranked = await tools.rank_group_meal({ sessionId: created.sessionId, actorId: "coverage-manager" });
+  const top = ranked.recommendation.options[0];
+  const fruitCoverage = top.coverage.participants.find((participant) => participant.participantId === "fruit-person");
+  assert.equal(top.coverage.satisfiedCount, 2);
+  assert.equal(top.coverage.compromiseCount, 0);
+  assert.equal(fruitCoverage.source, "instamart");
+  assert.match(fruitCoverage.matchedItem, /fruit/i);
+  assert.ok(top.instamartItems.some((item) => /fruit/i.test(item.name)));
+
+  const selected = await tools.select_group_option({
+    sessionId: created.sessionId,
+    actorId: "coverage-manager",
+    optionId: top.optionId
+  });
+  assert.equal(selected.state, "awaiting_creator_confirmation");
+  const confirmed = await tools.confirm_group_cart({
+    sessionId: created.sessionId,
+    actorId: "coverage-manager",
+    confirmed: true
+  });
+  assert.ok(confirmed.cart.instamartCartPreview.items.some((item) => /fruit/i.test(item.name)));
+});
+
+test("group planner discloses a split order when different restaurants are needed for exact coverage", async () => {
+  const tools = createTools();
+  const created = await tools.create_group_meal_session({
+    creatorId: "split-manager",
+    headcount: 2,
+    budgetPerPerson: 400
+  });
+  await tools.submit_group_preferences({
+    sessionId: created.sessionId,
+    invitePasscode: created.invitePasscode,
+    participantId: "pizza-person",
+    dietMode: "veg",
+    mood: "pizza"
+  });
+  await tools.submit_group_preferences({
+    sessionId: created.sessionId,
+    invitePasscode: created.invitePasscode,
+    participantId: "chicken-person",
+    dietMode: "non_veg",
+    mood: "chicken"
+  });
+
+  const ranked = await tools.rank_group_meal({ sessionId: created.sessionId, actorId: "split-manager" });
+  const top = ranked.recommendation.options[0];
+  assert.equal(top.coverage.satisfiedCount, 2);
+  assert.equal(top.coverage.compromiseCount, 0);
+  assert.equal(top.splitOrder, true);
+  assert.equal(top.foodSources.length, 2);
+  assert.match(top.tradeoffs.join(" "), /multiple food fulfilments/i);
+});
