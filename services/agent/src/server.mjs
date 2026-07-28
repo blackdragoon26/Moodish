@@ -213,6 +213,7 @@ export async function handleAgentRequest(req, res) {
       if (req.method === "POST") {
         const body = { ...(await readJson(req)), sessionId };
         const actions = {
+          access: "verify_group_invite_access",
           preferences: "submit_group_preferences",
           rank: "rank_group_meal",
           vote: "vote_group_option",
@@ -222,6 +223,9 @@ export async function handleAgentRequest(req, res) {
         };
         const toolName = actions[action];
         if (toolName) {
+          if (["preferences", "vote"].includes(action)) {
+            body.bypassInvitePasscode = Boolean(optionalGroupIdentity(req, sessionId));
+          }
           if (["rank", "select", "confirm-cart", "cancel"].includes(action)) {
             body.actorId = requireGroupIdentity(req, sessionId).actorId;
           }

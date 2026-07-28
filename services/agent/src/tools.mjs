@@ -22,6 +22,7 @@ import {
   lockAndRankGroupSession,
   selectGroupOption,
   submitGroupPreference,
+  verifyGroupInviteAccess,
   voteGroupOption
 } from "./group-service.mjs";
 
@@ -135,6 +136,9 @@ export function createTools(runtime = createToolRuntime()) {
     },
     async submit_group_preferences(args = {}) {
       return submitGroupPreference(args);
+    },
+    async verify_group_invite_access(args = {}) {
+      return verifyGroupInviteAccess(args);
     },
     async rank_group_meal(args = {}) {
       return lockAndRankGroupSession(args, runtime);

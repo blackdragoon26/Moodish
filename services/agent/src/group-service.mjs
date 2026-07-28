@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { makeRecommendationId, normalizeList, nowIso } from "./contracts.mjs";
 import { getGroupSession, logAudit, saveGroupSession } from "./memory.mjs";
 import { buildConfirmedCart, planOfficeLunch } from "./recommender.mjs";
@@ -19,12 +20,16 @@ const APPROVAL_MODES = new Set(["manager_decides", "team_vote", "automatic"]);
 export async function createGroupSession(args = {}) {
   const now = nowIso();
   const creatorId = required(args.creatorId, "creatorId");
+  const invitePasscode = createInvitePasscode();
+  const invitePasscodeSalt = crypto.randomBytes(16).toString("hex");
   const session = {
     sessionId: makeRecommendationId("group"),
     platform: PLATFORMS.has(args.platform) ? args.platform : "web",
     workspaceId: String(args.workspaceId || "web"),
     channelId: String(args.channelId || "private"),
     creatorId,
+    invitePasscodeHash: hashInvitePasscode(invitePasscode, invitePasscodeSalt),
+    invitePasscodeSalt,
     coManagerIds: unique(args.coManagerIds),
     headcount: bounded(args.headcount, 2, 500, 6),
     responseDeadline: args.responseDeadline || new Date(Date.now() + 30 * 60_000).toISOString(),
@@ -50,11 +55,12 @@ export async function createGroupSession(args = {}) {
     platform: session.platform,
     workspaceId: session.workspaceId
   });
-  return privateSessionView(session);
+  return { ...privateSessionView(session), invitePasscode };
 }
 
 export async function submitGroupPreference(args = {}) {
   const session = await requireSession(args.sessionId);
+  requireInvitePasscode(session, args.invitePasscode, args.bypassInvitePasscode);
   assertState(session, "collecting");
   expireIfNeeded(session);
   assertState(session, "collecting");
@@ -128,6 +134,7 @@ export async function lockAndRankGroupSession(args = {}, runtime) {
 
 export async function voteGroupOption(args = {}) {
   const session = await requireSession(args.sessionId);
+  requireInvitePasscode(session, args.invitePasscode, args.bypassInvitePasscode);
   assertState(session, "voting");
   const participantId = required(args.participantId, "participantId");
   const optionId = validOption(session, args.optionId);
@@ -183,6 +190,12 @@ export async function getGroupSessionView(args = {}) {
   return publicSessionView(session);
 }
 
+export async function verifyGroupInviteAccess(args = {}) {
+  const session = await requireSession(args.sessionId);
+  requireInvitePasscode(session, args.invitePasscode, false);
+  return publicSessionView(session);
+}
+
 export async function cancelGroupSession(args = {}) {
   const session = await requireSession(args.sessionId);
   requireManager(session, args.actorId);
@@ -209,6 +222,7 @@ export function publicSessionView(session) {
     vibe: session.vibe,
     servingStyle: session.servingStyle,
     approvalMode: session.approvalMode,
+    invitePasscodeRequired: true,
     aggregate: {
       vegCount: aggregate.vegCount,
       nonVegCount: aggregate.nonVegCount,
@@ -352,6 +366,32 @@ function normalizeDietMode(value) {
 
 function safeActor(value) {
   return `participant:${String(value).length}`;
+}
+
+function createInvitePasscode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from(crypto.randomBytes(8), (byte) => alphabet[byte % alphabet.length]).join("");
+}
+
+function hashInvitePasscode(passcode, salt) {
+  return crypto.scryptSync(String(passcode).trim().toUpperCase(), salt, 32).toString("hex");
+}
+
+function requireInvitePasscode(session, passcode, bypass) {
+  if (bypass === true) return;
+  const supplied = String(passcode || "").trim().toUpperCase();
+  if (!supplied) {
+    const error = new Error("Team passcode is required");
+    error.status = 401;
+    throw error;
+  }
+  const expected = Buffer.from(session.invitePasscodeHash || "", "hex");
+  const actual = Buffer.from(hashInvitePasscode(supplied, session.invitePasscodeSalt), "hex");
+  if (!expected.length || expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
+    const error = new Error("Incorrect team passcode");
+    error.status = 403;
+    throw error;
+  }
 }
 
 export { STATES as GROUP_SESSION_STATES };

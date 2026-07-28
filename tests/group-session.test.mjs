@@ -13,6 +13,7 @@ test("group session keeps private submissions out of public participant view", a
   });
   const publicView = await tools.submit_group_preferences({
     sessionId: created.sessionId,
+    invitePasscode: created.invitePasscode,
     participantId: "person-1",
     dietMode: "veg",
     dietaryRules: "jain",
@@ -36,6 +37,7 @@ test("automatic group ranking still requires creator cart confirmation", async (
   });
   await tools.submit_group_preferences({
     sessionId: created.sessionId,
+    invitePasscode: created.invitePasscode,
     participantId: "p1",
     dietMode: "veg",
     mood: "pizza"
@@ -69,8 +71,20 @@ test("mixed-diet group plan reserves both veg and non-veg portions", async () =>
     budgetPerPerson: 400,
     vibe: "spicy Chinese"
   });
-  await tools.submit_group_preferences({ sessionId: session.sessionId, participantId: "veg-person", dietMode: "veg", mood: "noodles" });
-  await tools.submit_group_preferences({ sessionId: session.sessionId, participantId: "nonveg-person", dietMode: "non_veg", mood: "chicken" });
+  await tools.submit_group_preferences({
+    sessionId: session.sessionId,
+    invitePasscode: session.invitePasscode,
+    participantId: "veg-person",
+    dietMode: "veg",
+    mood: "noodles"
+  });
+  await tools.submit_group_preferences({
+    sessionId: session.sessionId,
+    invitePasscode: session.invitePasscode,
+    participantId: "nonveg-person",
+    dietMode: "non_veg",
+    mood: "chicken"
+  });
   const ranked = await tools.rank_group_meal({ sessionId: session.sessionId, actorId: "mixed-manager" });
   const tags = ranked.recommendation.options[0].items.map((item) => item.tags);
   assert.ok(tags.some((itemTags) => itemTags.includes("non-veg")));
@@ -85,11 +99,26 @@ test("team voting supports one vote per participant and manager selection", asyn
     headcount: 2,
     approvalMode: "team_vote"
   });
-  await tools.submit_group_preferences({ sessionId: created.sessionId, participantId: "p1", mood: "office lunch" });
+  await tools.submit_group_preferences({
+    sessionId: created.sessionId,
+    invitePasscode: created.invitePasscode,
+    participantId: "p1",
+    mood: "office lunch"
+  });
   const ranked = await tools.rank_group_meal({ sessionId: created.sessionId, actorId: "creator-vote" });
   const optionId = ranked.recommendation.options[0].optionId;
-  await tools.vote_group_option({ sessionId: created.sessionId, participantId: "p1", optionId });
-  await tools.vote_group_option({ sessionId: created.sessionId, participantId: "p1", optionId });
+  await tools.vote_group_option({
+    sessionId: created.sessionId,
+    invitePasscode: created.invitePasscode,
+    participantId: "p1",
+    optionId
+  });
+  await tools.vote_group_option({
+    sessionId: created.sessionId,
+    invitePasscode: created.invitePasscode,
+    participantId: "p1",
+    optionId
+  });
   const selected = await tools.select_group_option({ sessionId: created.sessionId, actorId: "creator-vote" });
 
   assert.equal(selected.voteCounts[optionId], 1);

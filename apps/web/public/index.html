@@ -50,6 +50,12 @@
           <h1 id="participantTitle">Tell Moodish what works for you.</h1>
           <p id="participantSessionSummary" class="participant-summary">Loading the lunch brief…</p>
           <div id="participantStage" class="participant-stage"></div>
+          <form id="participantAccessForm" class="preference-form hidden">
+            <label>Team passcode
+              <input name="invitePasscode" required maxlength="8" autocomplete="one-time-code" placeholder="8-character code" />
+            </label>
+            <button type="submit">Unlock private response</button>
+          </form>
           <form id="participantPreferenceForm" class="preference-form hidden">
             <label>Your name <input name="participantId" required autocomplete="name" placeholder="e.g. Sankalp" /></label>
             <div class="choice-field">
@@ -223,8 +229,10 @@
               <div id="groupProgress" class="progress-track"><span></span></div>
               <div class="group-actions">
                 <button id="copyInvite" class="outline-button" type="button" disabled>Copy invite</button>
+                <button id="copyInviteCode" class="outline-button" type="button" disabled>Copy team code</button>
                 <button id="fillDemoTeam" class="outline-button" type="button" disabled>Simulate 3 teammates</button>
               </div>
+              <p id="groupInviteCode" class="invite-code hidden"></p>
               <form id="groupPreference" class="preference-form hidden">
                 <input name="sessionId" type="hidden" />
                 <div class="two-col">

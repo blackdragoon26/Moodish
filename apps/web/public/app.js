@@ -6,12 +6,17 @@ let selectedOptionId = null;
 let selectedAddOnIds = new Set();
 let currentGroupSession = null;
 let currentGroupAccessToken = null;
+let currentGroupInvitePasscode = null;
+let groupPollTimer = null;
+let groupPollBusy = false;
 let selectedGroupOptionId = null;
 let mealMemory = [];
 let participantSession = null;
 let participantSelectedOptionId = null;
 let participantSubmitted = false;
 let participantVoted = false;
+let participantInvitePasscode = "";
+let participantAccessGranted = false;
 let selectedDiscoveryMode = "balanced";
 
 async function api(path, options = {}) {
@@ -391,13 +396,16 @@ $("#office").addEventListener("submit", async (event) => {
     const session = await api("/api/group-sessions", { method: "POST", body: JSON.stringify(formJson(event.currentTarget)) });
     currentGroupSession = session;
     currentGroupAccessToken = session.accessToken;
+    currentGroupInvitePasscode = session.invitePasscode;
     selectedGroupOptionId = null;
     $("#groupPreference [name=sessionId]").value = session.sessionId;
     $("#groupPreference").classList.remove("hidden");
     $("#groupControls").classList.remove("hidden");
     $("#copyInvite").disabled = false;
+    $("#copyInviteCode").disabled = false;
     $("#fillDemoTeam").disabled = false;
     renderGroup(session);
+    startGroupPolling();
   } catch (error) {
     $("#groupStatus").textContent = `Could not launch enterprise lunch: ${error.message}`;
   }
@@ -430,6 +438,12 @@ $("#copyInvite").addEventListener("click", async () => {
   const invite = `${location.origin}/?group=${encodeURIComponent(currentGroupSession.sessionId)}&action=preferences`;
   await navigator.clipboard.writeText(invite);
   $("#copyInvite").textContent = "Private invite copied";
+});
+
+$("#copyInviteCode").addEventListener("click", async () => {
+  if (!currentGroupInvitePasscode) return;
+  await navigator.clipboard.writeText(currentGroupInvitePasscode);
+  $("#copyInviteCode").textContent = "Team code copied";
 });
 
 $("#rankGroup").addEventListener("click", async () => {
@@ -465,11 +479,40 @@ async function groupApi(path, payload) {
   });
 }
 
+function startGroupPolling() {
+  if (groupPollTimer) window.clearInterval(groupPollTimer);
+  groupPollTimer = window.setInterval(refreshManagerGroupSession, 2500);
+}
+
+async function refreshManagerGroupSession() {
+  if (!currentGroupSession || !currentGroupAccessToken || groupPollBusy) return;
+  if (["cart_built", "cancelled", "expired"].includes(currentGroupSession.state)) {
+    window.clearInterval(groupPollTimer);
+    groupPollTimer = null;
+    return;
+  }
+  groupPollBusy = true;
+  try {
+    currentGroupSession = await api(`/api/group-sessions/${currentGroupSession.sessionId}`, {
+      headers: { authorization: `Bearer ${currentGroupAccessToken}` }
+    });
+    renderGroup(currentGroupSession);
+  } catch (error) {
+    console.warn("Group dashboard refresh failed", error);
+  } finally {
+    groupPollBusy = false;
+  }
+}
+
 function renderGroup(session) {
   const count = session.responseCount || 0;
   const percent = Math.min(100, Math.round((count / session.headcount) * 100));
   $("#groupStatus").textContent = `${count} of ${session.headcount} responses · ${session.state.replaceAll("_", " ")}`;
   $("#groupProgress span").style.width = `${percent}%`;
+  $("#groupInviteCode").classList.toggle("hidden", !currentGroupInvitePasscode);
+  $("#groupInviteCode").textContent = currentGroupInvitePasscode
+    ? `Team passcode · ${currentGroupInvitePasscode} · share it separately from the invite URL`
+    : "";
   $("#rankGroup").disabled = session.state !== "collecting";
   $("#selectGroup").disabled = !["awaiting_manager", "voting"].includes(session.state) || !selectedGroupOptionId;
   $("#voteGroup").disabled = session.state !== "voting" || !selectedGroupOptionId;
@@ -491,6 +534,7 @@ async function openParticipantInvite(sessionId) {
   $("#participantGate").classList.remove("hidden");
   try {
     participantSession = await api(`/api/group-sessions/${encodeURIComponent(sessionId)}`);
+    participantAccessGranted = !participantSession.invitePasscodeRequired;
     renderParticipantSession();
   } catch (error) {
     $("#participantSessionSummary").textContent = "This invite is unavailable.";
@@ -504,6 +548,13 @@ function renderParticipantSession() {
   $("#participantSessionSummary").textContent = `${session.vibe} · up to ₹${session.budgetPerPerson} per person · ${collected}`;
   const collecting = session.state === "collecting";
   const voting = session.state === "voting" && (session.options || []).length > 0;
+  $("#participantAccessForm").classList.toggle("hidden", participantAccessGranted);
+  if (!participantAccessGranted) {
+    $("#participantPreferenceForm").classList.add("hidden");
+    $("#participantVote").classList.add("hidden");
+    $("#participantStage").innerHTML = `<div class="stage-message"><strong>Enter the team passcode to participate.</strong><span>The invite URL can show safe lunch progress, but it cannot submit preferences or votes by itself.</span></div>`;
+    return;
+  }
   $("#participantPreferenceForm").classList.toggle("hidden", !collecting || participantSubmitted);
   $("#participantVote").classList.toggle("hidden", !voting);
 
@@ -540,12 +591,28 @@ function renderParticipantSession() {
   }
 }
 
+$("#participantAccessForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const passcode = String(formJson(event.currentTarget).invitePasscode || "").trim().toUpperCase();
+  try {
+    participantSession = await api(`/api/group-sessions/${participantSession.sessionId}/access`, {
+      method: "POST",
+      body: JSON.stringify({ invitePasscode: passcode })
+    });
+    participantInvitePasscode = passcode;
+    participantAccessGranted = true;
+    renderParticipantSession();
+  } catch (error) {
+    $("#participantStage").innerHTML = `<div class="stage-message error"><strong>That team passcode did not work.</strong><span>${escapeHtml(error.message)}</span></div>`;
+  }
+});
+
 $("#participantPreferenceForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = formJson(event.currentTarget);
   participantSession = await api(`/api/group-sessions/${participantSession.sessionId}/preferences`, {
     method: "POST",
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ ...payload, invitePasscode: participantInvitePasscode })
   });
   participantSubmitted = true;
   window.localStorage.setItem(`moodish-participant:${participantSession.sessionId}`, payload.participantId);
@@ -571,7 +638,7 @@ $("#participantVoteButton").addEventListener("click", async () => {
   }
   participantSession = await api(`/api/group-sessions/${participantSession.sessionId}/vote`, {
     method: "POST",
-    body: JSON.stringify({ participantId, optionId: participantSelectedOptionId })
+    body: JSON.stringify({ participantId, optionId: participantSelectedOptionId, invitePasscode: participantInvitePasscode })
   });
   participantVoted = true;
   renderParticipantSession();

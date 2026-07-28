@@ -30,7 +30,7 @@ export function platformCommandToSession(platform, payload, dashboardBase) {
         blocks: [
           {
             type: "section",
-            text: { type: "mrkdwn", text: `*Moodish group meal*\n${session.vibe}` }
+            text: { type: "mrkdwn", text: `*Moodish group meal*\n${session.vibe}\nTeam code: \`${session.invitePasscode}\`` }
           },
           {
             type: "actions",
@@ -65,7 +65,7 @@ export function platformCommandToSession(platform, payload, dashboardBase) {
       response: (session) => ({
         type: 4,
         data: {
-          content: `Moodish group meal started for “${session.vibe}”. Submit preferences privately: ${dashboardBase}/?group=${encodeURIComponent(session.sessionId)}&action=preferences\nManager dashboard: ${dashboardBase}/api/platforms/discord/oauth/start?sessionId=${encodeURIComponent(session.sessionId)}`,
+          content: `Moodish group meal started for “${session.vibe}”. Team code: ${session.invitePasscode}\nSubmit preferences privately: ${dashboardBase}/?group=${encodeURIComponent(session.sessionId)}&action=preferences\nManager dashboard: ${dashboardBase}/api/platforms/discord/oauth/start?sessionId=${encodeURIComponent(session.sessionId)}`,
           flags: 0
         }
       })
@@ -89,7 +89,10 @@ export function platformCommandToSession(platform, payload, dashboardBase) {
           content: {
             type: "AdaptiveCard",
             version: "1.5",
-            body: [{ type: "TextBlock", text: "Submit preferences privately, then review the manager dashboard." }],
+            body: [
+              { type: "TextBlock", text: "Submit preferences privately, then review the manager dashboard." },
+              { type: "TextBlock", text: `Team code: ${session.invitePasscode}`, weight: "Bolder" }
+            ],
             actions: [
               {
                 type: "Action.OpenUrl",
