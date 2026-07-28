@@ -13,6 +13,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
   const addresses = await swiggy.getAddresses();
   const address = pickAddress(addresses, request.addressLabel, request.addressId);
   const intent = extractMealIntent([mood, request.query].filter(Boolean).join(" "));
+  const effectiveAddOnKind = request.addOnIntent || inferAddOnIntent(intent);
   const discovery = await discoverPersonalCandidates({ swiggy, addressId: address.id, intent, dietMode });
   const intentTags = expandIntentTokens(intent.tokens.join(" "));
   const candidates = await hydrateCandidateMenus(discovery.restaurants, swiggy, address.id);
@@ -25,6 +26,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
     intentTags,
     avoidCuisines: tasteProfile.weeklyCuisineHistory || [],
     likedCuisines: tasteProfile.likedCuisines || [],
+    preferredRestaurantId: request.preferredRestaurantId,
     headcount: 1,
     matchTypes: discovery.matchTypes
   }).slice(0, 3);
@@ -36,21 +38,40 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
         dietaryRules,
         allergies,
         dietMode,
-        requestedAddOnKind: request.addOnIntent,
+        requestedAddOnKind: effectiveAddOnKind,
+        addOnPreferences: request.addOnPreferences || [],
         matchType: discovery.matchTypes.get(restaurant.id) || "broad"
       })
     )
   );
-  const addOnSatisfiedByRestaurant = optionHasRequestedAddOn(options[0], request.addOnIntent);
+  const explicitAddOnRequest = isExplicitAddOnRequest(effectiveAddOnKind);
+  const addOnSatisfiedByRestaurant = explicitAddOnRequest
+    ? optionHasRequestedAddOn(options[0], effectiveAddOnKind, request.addOnPreferences)
+    : optionHasAccompaniment(options[0]);
+  const remainingBudget = Math.max(0, budget - (options[0]?.estimatedTotal || 0));
   const addOns = request.includeInstamartAddOns && !addOnSatisfiedByRestaurant
     ? await complementaryProducts(
         swiggy,
         address.id,
         intent,
-        Math.max(0, budget - (options[0]?.estimatedTotal || 0)),
-        request.addOnIntent
+        remainingBudget,
+        effectiveAddOnKind,
+        request.addOnPreferences
       )
     : [];
+  const addOnResolution = await resolveAddOnResolution({
+    swiggy,
+    addressId: address.id,
+    option: options[0],
+    intent,
+    budget,
+    remainingBudget,
+    requestedAddOnKind: effectiveAddOnKind,
+    addOnPreferences: request.addOnPreferences || [],
+    includeAddOns: request.includeInstamartAddOns,
+    addOnSatisfiedByRestaurant,
+    addOns
+  });
   const matchNotice =
     intent.hasExplicitDish && !discovery.exactMatch
       ? `No exact ${intent.primaryDish} match was available; these are clearly labelled similar alternatives.`
@@ -62,6 +83,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
     address,
     request: {
       ...request,
+      addOnIntent: effectiveAddOnKind,
       maxBudget: budget,
       budget,
       dietMode,
@@ -72,6 +94,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
     },
     options,
     addOns,
+    addOnResolution,
     summary: matchNotice ? `${matchNotice} ${aiSummary.text}` : aiSummary.text,
     transparency: {
       dataSource: swiggy.mode,
@@ -82,6 +105,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
       fallbackQueries: discovery.fallbackQueries,
       searchedRestaurants: discovery.searchedRestaurants,
       candidateRestaurants: candidates.map((restaurant) => restaurant.name),
+      searchCoverage: buildSearchCoverage(candidates, swiggy.mode),
       ranking: ranked.map((restaurant) => ({
         restaurantName: restaurant.name,
         cuisine: restaurant.cuisine,
@@ -108,7 +132,19 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
   return run;
 }
 
-function optionHasRequestedAddOn(option, requestedAddOnKind) {
+function isExplicitAddOnRequest(requestedAddOnKind) {
+  return ["beverage", "dessert", "side", "complete_meal"].includes(requestedAddOnKind);
+}
+
+function inferAddOnIntent(intent) {
+  const tokens = new Set([...(intent.tokens || []), ...(intent.attributes || [])]);
+  if ([...tokens].some((token) => ["beverage", "drink", "cola", "soda", "juice", "shake"].includes(token))) return "beverage";
+  if ([...tokens].some((token) => ["dessert", "sweet"].includes(token))) return "dessert";
+  if ([...tokens].some((token) => ["side", "starter", "fries"].includes(token))) return "side";
+  return "none";
+}
+
+function optionHasRequestedAddOn(option, requestedAddOnKind, preferences = []) {
   const tagsByKind = {
     beverage: ["beverage", "drink", "coffee", "juice"],
     dessert: ["dessert", "sweet"],
@@ -117,7 +153,17 @@ function optionHasRequestedAddOn(option, requestedAddOnKind) {
   };
   const wanted = tagsByKind[requestedAddOnKind];
   if (!wanted || !option?.items?.length) return false;
-  return option.items.slice(1).some((item) => item.tags?.some((tag) => wanted.includes(tag)));
+  return option.items
+    .slice(1)
+    .some((item) => item.tags?.some((tag) => wanted.includes(tag)) && matchesAddOnPreferences(item, preferences));
+}
+
+function optionHasAccompaniment(option) {
+  return option?.items?.slice(1).some((item) =>
+    item.tags?.some((tag) =>
+      ["side", "beverage", "drink", "coffee", "juice", "bread", "fries", "dessert", "sweet", "cooling"].includes(tag)
+    )
+  );
 }
 
 export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
@@ -344,6 +390,10 @@ function scoreRestaurant(restaurant, context) {
   const discoveryAdjustment = scoreDiscoveryPreference(restaurant, context);
   score += discoveryAdjustment;
   if (discoveryAdjustment) adjustments.push({ reason: `discovery-${context.discoveryMode}`, value: discoveryAdjustment });
+  if (context.preferredRestaurantId && restaurant.id === context.preferredRestaurantId) {
+    score += 25;
+    adjustments.push({ reason: "preserve-active-plan-restaurant", value: 25 });
+  }
   if (context.headcount > 1 && restaurant.tags.includes("office-friendly")) score += 8;
   return { score: Number(score.toFixed(2)), adjustments };
 }
@@ -394,7 +444,12 @@ function pickItems(items, budget, headcount, context = {}) {
       ];
     }
   }
-  const main = sorted.find((item) => item.price <= perPersonBudget) || [...sorted].sort((a, b) => a.price - b.price)[0];
+  const mainCandidates = sorted.filter((item) => !isAccompanimentOnly(item, context));
+  const main =
+    mainCandidates.find((item) => item.price <= perPersonBudget) ||
+    [...mainCandidates].sort((a, b) => a.price - b.price)[0] ||
+    sorted.find((item) => item.price <= perPersonBudget) ||
+    [...sorted].sort((a, b) => a.price - b.price)[0];
   const quantity = Math.max(1, headcount);
   const remaining = perPersonBudget - main.price;
   const requestedAddOnTags = {
@@ -408,7 +463,8 @@ function pickItems(items, budget, headcount, context = {}) {
       (item) =>
         item.itemId !== main.itemId &&
         item.price <= remaining &&
-        item.tags.some((tag) => requestedAddOnTags.includes(tag))
+        item.tags.some((tag) => requestedAddOnTags.includes(tag)) &&
+        matchesAddOnPreferences(item, context.addOnPreferences)
     );
     return [{ ...main, quantity }, ...(requestedAddOn ? [{ ...requestedAddOn, quantity }] : [])];
   }
@@ -432,9 +488,22 @@ function hasDietCoverage(items, context = {}) {
 }
 
 function hasCompatibleItem(items, context = {}) {
-  return filterCompatibleItems(items, context).some(
-    (item) => item.price <= Math.max(context.budget, context.budget / Math.max(context.headcount || 1, 1))
+  return filterCompatibleItems(items, context).some((item) => {
+    const withinBudget = item.price <= Math.max(context.budget, context.budget / Math.max(context.headcount || 1, 1));
+    return withinBudget && !isAccompanimentOnly(item, context);
+  });
+}
+
+function isAccompanimentOnly(item, context = {}) {
+  const accompanimentTags = ["beverage", "drink", "coffee", "juice", "side", "bread", "fries", "cooling"];
+  const isAccompaniment = item.tags?.some((tag) => accompanimentTags.includes(tag));
+  if (!isAccompaniment) return false;
+  const itemText = [item.name, ...(item.tags || [])].join(" ").toLowerCase();
+  const accompanimentIntentTags = ["beverage", "drink", "coffee", "juice", "side", "bread", "fries", "cooling", "cola", "soda"];
+  const explicitlyRequested = (context.intentTags || []).some(
+    (tag) => accompanimentIntentTags.includes(tag) && itemText.includes(tag)
   );
+  return !explicitlyRequested;
 }
 
 function filterCompatibleItems(items, context = {}) {
@@ -537,11 +606,19 @@ function scoreDiscoveryPreference(restaurant, context) {
   return liked ? 1 : 0;
 }
 
-async function complementaryProducts(swiggy, addressId, intent, remainingBudget, requestedAddOnKind = "none") {
+async function complementaryProducts(
+  swiggy,
+  addressId,
+  intent,
+  remainingBudget,
+  requestedAddOnKind = "none",
+  addOnPreferences = []
+) {
   if (remainingBudget <= 0) return [];
-  const query = pairingQuery(intent, requestedAddOnKind);
+  const query = pairingQuery(intent, requestedAddOnKind, addOnPreferences);
   const products = await swiggy.searchProducts({ addressId, query });
   return (products || [])
+    .filter((product) => matchesAddOnPreferences(product, addOnPreferences))
     .filter((product) => product.price <= remainingBudget)
     .slice(0, 3)
     .map((product) => ({
@@ -552,9 +629,11 @@ async function complementaryProducts(swiggy, addressId, intent, remainingBudget,
     }));
 }
 
-function pairingQuery(intent, requestedAddOnKind = "none") {
+function pairingQuery(intent, requestedAddOnKind = "none", addOnPreferences = []) {
   const tokens = new Set([intent.primaryDish, ...intent.tokens, ...intent.attributes].filter(Boolean));
   const cuisine = intent.cuisines.join(" ").toLowerCase();
+  if (requestedAddOnKind === "beverage" && addOnPreferences.includes("sugar-free")) return "zero sugar";
+  if (requestedAddOnKind === "beverage" && addOnPreferences.includes("fizzy")) return "sparkling";
   if (requestedAddOnKind === "dessert") return "dessert";
   if (requestedAddOnKind === "side") return "side";
   if ([...tokens].some((token) => ["chinese", "chowmein", "noodles", "momos"].includes(token)) || cuisine.includes("chinese")) {
@@ -579,9 +658,97 @@ function pairingReason(query) {
     italian: "Sparkling water keeps a creamy Italian meal fresh",
     cooling: "A cooling drink softens the heat",
     fruit: "Fresh fruit keeps a lighter meal complete",
-    beverage: "An easy drink to complete the meal"
+    beverage: "An easy drink to complete the meal",
+    "zero sugar": "A fizzy zero-sugar drink completes the meal without adding sweetness",
+    sparkling: "A fizzy drink adds a crisp finish to the meal"
   };
   return reasons[query] || reasons.beverage;
+}
+
+function matchesAddOnPreferences(item, preferences = []) {
+  if (!preferences.length) return true;
+  const text = [item.name, ...(item.tags || [])].join(" ").toLowerCase();
+  if (preferences.includes("sugar-free") && !/(sugar[\s-]?free|zero sugar|no sugar)/.test(text)) return false;
+  if (preferences.includes("fizzy") && !/(fizzy|sparkling|soda|cola|carbonated)/.test(text)) return false;
+  if (preferences.includes("cold") && !/(cold|chilled|cola|soda|juice|water|shake)/.test(text)) return false;
+  return true;
+}
+
+async function resolveAddOnResolution({
+  swiggy,
+  addressId,
+  option,
+  intent,
+  budget,
+  remainingBudget,
+  requestedAddOnKind,
+  addOnPreferences,
+  includeAddOns,
+  addOnSatisfiedByRestaurant,
+  addOns
+}) {
+  if (includeAddOns === false || requestedAddOnKind === "remove_addons") return undefined;
+  const explicitRequest = isExplicitAddOnRequest(requestedAddOnKind);
+  const restaurantName = option?.restaurantName || "the selected restaurant";
+  if (addOnSatisfiedByRestaurant) {
+    return {
+      status: "restaurant_match",
+      source: "food",
+      message: explicitRequest
+        ? `I checked ${restaurantName} first and added the matching accompaniment from the same restaurant.`
+        : undefined
+    };
+  }
+  if (addOns[0]) {
+    return {
+      status: "instamart_match",
+      source: "instamart",
+      message: explicitRequest
+        ? `${restaurantName} did not have the requested match, so I selected ${addOns[0].name} from Instamart for your separate cart preview.`
+        : undefined
+    };
+  }
+  const query = pairingQuery(intent, requestedAddOnKind, addOnPreferences);
+  const available = (await swiggy.searchProducts({ addressId, query }))
+    .filter((product) => matchesAddOnPreferences(product, addOnPreferences))
+    .sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+  const candidate = available[0];
+  if (candidate && Number(candidate.price) > remainingBudget) {
+    const requiredBudget = Number(option?.estimatedTotal || 0) + Number(candidate.price);
+    return {
+      status: "budget_blocked",
+      source: "instamart",
+      candidate,
+      requiredBudget,
+      shortfall: requiredBudget - budget,
+      message: explicitRequest
+        ? `I checked ${restaurantName} first, then found ${candidate.name} on Instamart—but it needs ₹${requiredBudget - budget} more than your ₹${budget} ceiling. Raise the cap to ₹${requiredBudget}, or keep the meal as-is.`
+        : `A good accompaniment is available—${candidate.name} from Instamart—but it needs ₹${requiredBudget - budget} more than your ₹${budget} ceiling. Raise the cap to ₹${requiredBudget}, or keep the meal as-is.`
+    };
+  }
+  return {
+    status: "unavailable",
+    message: explicitRequest
+      ? `I checked ${restaurantName} first and then Instamart, but no matching accompaniment is currently available near this address.`
+      : undefined
+  };
+}
+
+function buildSearchCoverage(candidates = [], mode) {
+  const distances = candidates.map((candidate) => Number(candidate.distanceKm)).filter((distance) => distance > 0);
+  const maxReturnedDistanceKm = distances.length ? Math.max(...distances) : null;
+  return {
+    basis: "returned_candidates",
+    candidateCount: candidates.length,
+    maxReturnedDistanceKm,
+    label:
+      maxReturnedDistanceKm === null
+        ? "Searching availability around your selected address"
+        : mode === "fixture"
+          ? `Demo availability around the fixture address · returned candidates up to ${maxReturnedDistanceKm} km away`
+          : `Swiggy availability around your selected address · returned candidates up to ${maxReturnedDistanceKm} km away`,
+    note: "This reports the furthest returned candidate, not an invented fixed Swiggy search radius."
+  };
 }
 
 function demoDisclosure() {

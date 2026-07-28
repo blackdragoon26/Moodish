@@ -228,11 +228,12 @@ function renderRecommendation(run) {
   currentRecommendation = run;
   selectedOptionId = run.options[0]?.optionId || null;
   selectedAddOnIds =
-    run.request?.addOnIntent && run.request.addOnIntent !== "none" && run.request.addOnIntent !== "remove_addons" && run.addOns?.[0]
-      ? new Set([run.addOns[0].productId])
-      : new Set();
+    run.request?.includeInstamartAddOns !== false && run.addOns?.[0] ? new Set([run.addOns[0].productId]) : new Set();
   $("#recommendationDeck").classList.remove("hidden");
   $("#summary").textContent = run.summary;
+  const coverage = run.transparency?.searchCoverage;
+  $("#searchCoverage").textContent = coverage?.label || "Searching availability around your selected address";
+  $("#searchCoverage").title = coverage?.note || "";
   $("#traceOutput").textContent = JSON.stringify(run.transparency || {}, null, 2);
   $("#confirmCart").disabled = !selectedOptionId;
   $("#options").innerHTML = run.options.map((option, index) => optionCard(option, index, selectedOptionId)).join("");

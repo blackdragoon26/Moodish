@@ -82,3 +82,47 @@ test("explicit beverage request uses the selected restaurant before Instamart", 
   assert.equal(result.recommendation.addOns.length, 0);
   assert.equal(result.recommendation.transparency.instamart.restaurantFirstSatisfied, true);
 });
+
+test("follow-up add-on preserves the restaurant and explains a budget shortfall", async () => {
+  const tools = createTools();
+  const first = await continueMealConversation(
+    { message: "light but satisfying, veg, under ₹250" },
+    tools
+  );
+  const edited = await continueMealConversation(
+    { message: "add something fizzy sugar free", state: first.state },
+    tools
+  );
+
+  assert.equal(edited.recommendation.options[0].restaurantId, first.recommendation.options[0].restaurantId);
+  assert.equal(edited.recommendation.addOnResolution.status, "budget_blocked");
+  assert.equal(edited.recommendation.addOnResolution.candidate.name, "Zero Sugar Cola");
+  assert.equal(edited.recommendation.addOnResolution.requiredBudget, 294);
+  assert.match(edited.reply, new RegExp(`checked ${first.recommendation.options[0].restaurantName} first`, "i"));
+  assert.deepEqual(edited.quickReplies, ["Raise budget to ₹294", "Keep the meal only"]);
+});
+
+test("recommendation reports returned distance coverage without inventing a fixed radius", async () => {
+  const result = await continueMealConversation(
+    { message: "spicy Chinese, veg, under ₹450" },
+    createTools()
+  );
+
+  const coverage = result.recommendation.transparency.searchCoverage;
+  assert.equal(coverage.basis, "returned_candidates");
+  assert.ok(coverage.maxReturnedDistanceKm > 0);
+  assert.match(coverage.label, /returned candidates up to/i);
+  assert.match(coverage.note, /not an invented fixed Swiggy search radius/i);
+});
+
+test("a normal meal plan attempts a budget-safe accompaniment by default", async () => {
+  const result = await continueMealConversation(
+    { message: "low calorie but satisfying, veg, under ₹400" },
+    createTools()
+  );
+
+  const sameRestaurantAccompaniment = result.recommendation.options[0].items.length > 1;
+  const instamartAccompaniment = result.recommendation.addOns.length > 0;
+  assert.equal(sameRestaurantAccompaniment || instamartAccompaniment, true);
+  assert.match(result.reply, /Search coverage:/);
+});

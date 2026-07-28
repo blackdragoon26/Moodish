@@ -47,6 +47,8 @@ export async function continueMealConversation(args = {}, tools) {
     discoveryMode: state.discoveryMode,
     includeInstamartAddOns: state.includeInstamartAddOns,
     addOnIntent: state.addOnIntent,
+    addOnPreferences: state.addOnPreferences,
+    preferredRestaurantId: state.activeRestaurantId,
     addressId: args.addressId,
     userIdHash: args.userIdHash,
     aiApiKey: args.aiApiKey,
@@ -58,10 +60,21 @@ export async function continueMealConversation(args = {}, tools) {
     addOnIntent: state.addOnIntent,
     trace: semanticResult?.trace
   };
+  state.activeRestaurantId = recommendation.options[0]?.restaurantId || state.activeRestaurantId;
+  state.activeRestaurantName = recommendation.options[0]?.restaurantName || state.activeRestaurantName;
+  const addOnResolution = recommendation.addOnResolution;
+  const resolutionQuickReplies =
+    addOnResolution?.status === "budget_blocked" && addOnResolution.requiredBudget
+      ? [`Raise budget to ₹${addOnResolution.requiredBudget}`, "Keep the meal only"]
+      : [];
+  const coverageMessage = recommendation.transparency.searchCoverage?.label
+    ? `Search coverage: ${recommendation.transparency.searchCoverage.label}.`
+    : "";
   return {
     status: "complete",
     state,
-    reply: recommendation.summary,
+    reply: [recommendation.summary, addOnResolution?.message, coverageMessage].filter(Boolean).join(" "),
+    quickReplies: resolutionQuickReplies,
     recommendation
   };
 }
@@ -77,6 +90,9 @@ export function extractState(message, previous = {}) {
     discoveryMode: normalizeDiscoveryMode(previous),
     includeInstamartAddOns: previous.includeInstamartAddOns ?? true,
     addOnIntent: previous.addOnIntent || "none",
+    addOnPreferences: [...(previous.addOnPreferences || [])],
+    activeRestaurantId: previous.activeRestaurantId,
+    activeRestaurantName: previous.activeRestaurantName,
     dietExplicit: Boolean(previous.dietExplicit),
     budgetExplicit: Boolean(previous.budgetExplicit)
   };
@@ -119,14 +135,28 @@ export function extractState(message, previous = {}) {
   if (/\b(familiar|usual|good old|comfort)\b/.test(text)) next.discoveryMode = "comfort";
   if (/\b(absolutely new|something new|surprise me|adventurous|explore)\b/.test(text)) next.discoveryMode = "explore";
   if (/\b(mix|balanced)\b/.test(text)) next.discoveryMode = "balanced";
-  if (/\b(no add[\s-]?ons?|food only)\b/.test(text)) next.includeInstamartAddOns = false;
-  if (/\b(no add[\s-]?ons?|food only|remove (?:the )?(?:drink|dessert|side))\b/.test(text)) next.addOnIntent = "remove_addons";
-  if (/\b(beverage|drink|cold ?drink|cola|soda|juice|shake)\b/.test(text)) next.addOnIntent = "beverage";
+  if (/\b(no add[\s-]?ons?|food only|keep (?:the )?meal only)\b/.test(text)) next.includeInstamartAddOns = false;
+  if (/\b(no add[\s-]?ons?|food only|keep (?:the )?meal only|remove (?:the )?(?:drink|dessert|side))\b/.test(text)) {
+    next.addOnIntent = "remove_addons";
+  }
+  if (/\b(beverage|drink|cold ?drink|cola|soda|juice|shake|fizzy|sparkling|carbonated)\b/.test(text)) {
+    next.addOnIntent = "beverage";
+  }
   else if (/\b(dessert|sweet dish|something sweet)\b/.test(text)) next.addOnIntent = "dessert";
   else if (/\b(side|starter|fries)\b/.test(text)) next.addOnIntent = "side";
   else if (/\b(add[\s-]?ons?|complete meal|make it complete)\b/.test(text)) next.addOnIntent = "complete_meal";
   if (next.addOnIntent !== "none" && next.addOnIntent !== "remove_addons") next.includeInstamartAddOns = true;
   if (next.addOnIntent === "remove_addons") next.includeInstamartAddOns = false;
+  if (/\b(sugar[\s-]?free|zero sugar|no sugar)\b/.test(text) && !next.addOnPreferences.includes("sugar-free")) {
+    next.addOnPreferences.push("sugar-free");
+  }
+  if (/\b(fizzy|sparkling|carbonated)\b/.test(text) && !next.addOnPreferences.includes("fizzy")) {
+    next.addOnPreferences.push("fizzy");
+  }
+  if (/\b(cold|chilled)\b/.test(text) && !next.addOnPreferences.includes("cold")) {
+    next.addOnPreferences.push("cold");
+  }
+  if (next.addOnIntent === "remove_addons") next.addOnPreferences = [];
 
   if (!previous.mood) {
     const stripped = text
@@ -163,6 +193,21 @@ function mergeSemanticState(deterministic, semantic, previous) {
   if (["beverage", "dessert", "side", "complete_meal", "remove_addons"].includes(semantic.addOnIntent)) {
     next.addOnIntent = semantic.addOnIntent;
     next.includeInstamartAddOns = semantic.addOnIntent !== "remove_addons";
+  }
+  if (next.addOnIntent !== "none" && Array.isArray(semantic.attributes)) {
+    const preferences = semantic.attributes
+      .map((attribute) => String(attribute).toLowerCase())
+      .filter((attribute) => ["sugar-free", "zero-sugar", "fizzy", "sparkling", "cold", "chilled"].includes(attribute))
+      .map((attribute) =>
+        attribute === "zero-sugar"
+          ? "sugar-free"
+          : attribute === "sparkling"
+            ? "fizzy"
+            : attribute === "chilled"
+              ? "cold"
+              : attribute
+      );
+    next.addOnPreferences = [...new Set([...next.addOnPreferences, ...preferences])];
   }
   return next;
 }
