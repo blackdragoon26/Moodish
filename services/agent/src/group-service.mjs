@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { makeRecommendationId, normalizeList, nowIso } from "./contracts.mjs";
-import { getGroupSession, logAudit, saveGroupSession } from "./memory.mjs";
+import { getGroupSession, logAudit, recordMealHistory, saveGroupSession } from "./memory.mjs";
 import { buildConfirmedCart, planOfficeLunch } from "./recommender.mjs";
 
 const STATES = new Set([
@@ -173,8 +173,38 @@ export async function confirmGroupCart(args = {}, runtime) {
   session.cart = await buildConfirmedCart({
     recommendation: session.recommendation,
     optionId: session.selectedOptionId,
+    addOnProductIds: args.addOnProductIds || [],
     swiggy: runtime.swiggy,
     confirmed: true
+  });
+  const selectedOption =
+    session.recommendation.options.find((option) => option.optionId === session.selectedOptionId) ||
+    session.recommendation.options[0];
+  const selectedAddOnIds = new Set(normalizeList(args.addOnProductIds));
+  const selectedGroupAddOns = (selectedOption?.groupAddOns || []).filter((item) =>
+    selectedAddOnIds.has(item.productId)
+  );
+  session.mealMemoryEntry = await recordMealHistory({
+    userIdHash: session.creatorId,
+    recommendationId: session.recommendation.recommendationId,
+    restaurantName:
+      selectedOption?.foodSources?.map((source) => source.restaurantName).join(" + ") ||
+      selectedOption?.restaurantName,
+    cuisine: selectedOption?.cuisine,
+    items: selectedOption?.items?.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      restaurantName: item.restaurantName
+    })) || [],
+    addOns: [
+      ...(selectedOption?.instamartItems || []),
+      ...selectedGroupAddOns
+    ].map((item) => ({ name: item.name, price: item.price, quantity: item.quantity || 1 })),
+    foodTotal: session.cart.foodCart.total,
+    instamartTotal: session.cart.instamartCartPreview.total,
+    dataSource: session.recommendation.transparency?.dataSource || "fixture",
+    groupSessionId: session.sessionId,
+    headcount: session.headcount
   });
   session.state = "cart_built";
   session.updatedAt = nowIso();
@@ -251,7 +281,8 @@ function privateSessionView(session) {
     coManagerIds: session.coManagerIds,
     submissions: Object.values(session.submissions),
     recommendation: session.recommendation,
-    cart: session.cart
+    cart: session.cart,
+    mealMemoryEntry: session.mealMemoryEntry
   };
 }
 

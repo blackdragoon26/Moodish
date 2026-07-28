@@ -50,6 +50,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-weight: 950;
   letter-spacing: -.09em;
 }
+.login-art::after {
+  content: "";
+  position: absolute;
+  width: 34rem;
+  height: 34rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,174,120,.24), rgba(239,91,54,.08) 42%, transparent 70%);
+  filter: blur(3px);
+  animation: ambient-orbit 14s ease-in-out infinite alternate;
+}
 .floating-card {
   position: absolute;
   padding: 15px 20px;
@@ -61,9 +71,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
   backdrop-filter: blur(15px);
   font-weight: 750;
 }
-.card-one { top: 27%; left: 16%; transform: rotate(-4deg); }
-.card-two { top: 48%; right: 12%; transform: rotate(5deg); }
-.card-three { bottom: 20%; left: 28%; transform: rotate(-2deg); }
+.card-one { top: 27%; left: 16%; --card-rotation: -4deg; animation: card-drift 6.5s ease-in-out infinite; }
+.card-two { top: 48%; right: 12%; --card-rotation: 5deg; animation: card-drift 7.8s ease-in-out -2.2s infinite; }
+.card-three { bottom: 20%; left: 28%; --card-rotation: -2deg; animation: card-drift 7.1s ease-in-out -4s infinite; }
 .login-card {
   display: flex;
   flex-direction: column;
@@ -122,6 +132,18 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .provider-mark { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 8px; background: rgba(0,0,0,.06); }
 .unavailable { opacity: .48; }
 .fine-print { max-width: 430px; margin: 18px 0 0; color: #988e86; font-size: 12px; line-height: 1.55; }
+
+@keyframes ambient-orbit {
+  from { transform: translate(-28%, -20%) scale(.85); }
+  to { transform: translate(72%, 85%) scale(1.15); }
+}
+@keyframes card-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(var(--card-rotation)); }
+  50% { transform: translate3d(0, -12px, 0) rotate(calc(var(--card-rotation) + 1.5deg)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-art::after, .floating-card { animation: none !important; }
+}
 
 .participant-gate { min-height: 100vh; background: linear-gradient(150deg, #f8f3eb 0%, #fffdf8 55%, #f8e7dd 130%); }
 .participant-topbar { display: flex; align-items: center; justify-content: space-between; min-height: 72px; padding: 0 30px; border-bottom: 1px solid var(--line); }
@@ -355,6 +377,15 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 .coverage-person.compromise > div:nth-child(2) span { color: #a44025; }
 .coverage-person.unanswered { border: 1px dashed #c8bcae; }
 .coverage-person p { grid-column: 1 / -1; margin: 2px 0 0; color: var(--muted); font-size: 9px; line-height: 1.4; }
+.group-addon-panel { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(260px, 1.2fr); gap: 18px; margin: 18px 0; padding: 18px; border-radius: 16px; color: #fff; background: var(--plum); }
+.group-addon-panel h4 { margin: 0 0 6px; font-family: Georgia, serif; font-size: 24px; font-weight: 500; }
+.group-addon-panel > div > small { color: #cfc3cf; line-height: 1.45; }
+#groupAddOnOptions { display: grid; gap: 7px; }
+#groupAddOnOptions button { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border: 1px solid rgba(255,255,255,.14); border-radius: 11px; color: #fff; background: rgba(255,255,255,.06); text-align: left; cursor: pointer; }
+#groupAddOnOptions button.selected { border-color: #f7a388; background: rgba(239,91,54,.24); box-shadow: 0 0 0 2px rgba(239,91,54,.18); }
+#groupAddOnOptions button span { display: grid; gap: 3px; }
+#groupAddOnOptions button small { color: #cfc3cf; font-size: 9px; }
+#groupAddOnOptions button b { white-space: nowrap; font-size: 11px; }
 .channel-section { margin-top: 40px; background: var(--plum); color: #fff; }
 .channel-section h3 { margin: 0; font-family: Georgia, serif; font-size: 31px; font-weight: 500; }
 .channel-copy { max-width: 700px; margin: 8px 0 0; color: #cfc3cf; line-height: 1.5; }
@@ -449,4 +480,5 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
   .participant-shell { padding: 24px 12px 60px; }
   .participant-card { padding: 24px 18px; border-radius: 20px; }
   .login-card { width: min(100% - 36px, 540px); }.brand-large { margin-bottom: 40px; }
+  .group-addon-panel { grid-template-columns: 1fr; }
 }

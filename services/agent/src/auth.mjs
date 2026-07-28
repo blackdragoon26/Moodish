@@ -6,7 +6,8 @@ const googleFlows = new Map();
 export function authConfiguration() {
   return {
     google: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
-    swiggy: true,
+    swiggy: process.env.SWIGGY_OAUTH_ENABLED === "true",
+    swiggyAccessUrl: "https://mcp.swiggy.com/builders/access/",
     demo: (process.env.SWIGGY_MODE || "fixture") === "fixture"
   };
 }

@@ -83,7 +83,7 @@ TOKEN_ENCRYPTION_KEY=a-long-random-secret
 GROUP_SESSION_SIGNING_KEY=a-different-long-random-secret
 ```
 
-Google login additionally needs `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Swiggy login uses the MCP OAuth 2.1 + PKCE flow. Fixture deployments expose clearly labelled demo access so reviewers can test without pretending that an OAuth provider is connected.
+Google login additionally needs `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Swiggy login uses the MCP OAuth 2.1 + PKCE flow and remains disabled until Swiggy has whitelisted the deployed client and redirect URI; set `SWIGGY_OAUTH_ENABLED=true` only after that approval. Fixture deployments expose clearly labelled demo access so reviewers can test without pretending that an OAuth provider is connected.
 
 Collaboration webhooks require platform signing credentials, and manager dashboard access requires the matching Slack, Discord, or Microsoft OAuth client credentials listed in `.env.example`. All three adapters use the same group-session service, reject unsigned requests, and bind private dashboard access to the platform identity that created or manages the session.
 

@@ -10,6 +10,7 @@ let currentGroupInvitePasscode = null;
 let groupPollTimer = null;
 let groupPollBusy = false;
 let selectedGroupOptionId = null;
+let selectedGroupAddOnIds = new Set();
 let mealMemory = [];
 let participantSession = null;
 let participantSelectedOptionId = null;
@@ -79,6 +80,16 @@ function configureLogin(config, health) {
       $("#loginNote").textContent = "Google login is ready in code; add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on Render to switch it on.";
     };
     $("#loginNote").textContent = "Google needs OAuth credentials; Swiggy uses approved MCP access. Demo access is available for review.";
+  }
+  if (!config.swiggy) {
+    $("#swiggyLogin").classList.add("unavailable");
+    $("#swiggyLogin").href = config.swiggyAccessUrl || "https://mcp.swiggy.com/builders/access/";
+    $("#swiggyLogin").target = "_blank";
+    $("#swiggyLogin").rel = "noreferrer";
+    $("#swiggyLogin").innerHTML = '<span class="provider-mark">S</span> Swiggy access pending';
+    $("#swiggyLogin").title = "This deployed OAuth client must be whitelisted by Swiggy before sign-in can work";
+    $("#loginNote").innerHTML =
+      'Swiggy has not whitelisted this deployed client yet. Request production access for <strong>Moodish</strong> with redirect URI <strong>https://moodish.onrender.com/api/auth/swiggy/callback</strong>.';
   }
 }
 
@@ -431,6 +442,7 @@ $("#office").addEventListener("submit", async (event) => {
     currentGroupAccessToken = session.accessToken;
     currentGroupInvitePasscode = session.invitePasscode;
     selectedGroupOptionId = null;
+    selectedGroupAddOnIds = new Set();
     $("#groupPreference [name=sessionId]").value = session.sessionId;
     $("#groupPreference").classList.remove("hidden");
     $("#groupControls").classList.remove("hidden");
@@ -508,8 +520,21 @@ $("#voteGroup").addEventListener("click", async () => {
 });
 
 $("#confirmGroupCart").addEventListener("click", async () => {
-  if (!window.confirm("Confirm the creator-owned food cart? No order will be placed.")) return;
-  currentGroupSession = await groupApi(`/api/group-sessions/${currentGroupSession.sessionId}/confirm-cart`, { confirmed: true });
+  if (!window.confirm("Prepare every selected Food and Instamart cart preview? No order will be placed.")) return;
+  currentGroupSession = await groupApi(`/api/group-sessions/${currentGroupSession.sessionId}/confirm-cart`, {
+    confirmed: true,
+    addOnProductIds: [...selectedGroupAddOnIds]
+  });
+  if (currentGroupSession.mealMemoryEntry) {
+    mealMemory = [
+      currentGroupSession.mealMemoryEntry,
+      ...mealMemory.filter(
+        (item) => item.recommendationId !== currentGroupSession.mealMemoryEntry.recommendationId
+      )
+    ].slice(0, 6);
+    renderMealMemory();
+    renderRailNudge();
+  }
   renderGroup(currentGroupSession);
 });
 
@@ -587,9 +612,12 @@ function renderGroup(session) {
   $("#groupOptions").querySelectorAll(".option-card").forEach((card) => {
     card.addEventListener("click", () => {
       selectedGroupOptionId = card.dataset.option;
+      selectedGroupAddOnIds = new Set();
       renderGroup(currentGroupSession);
     });
   });
+  const selectedPlan = options.find((option) => option.optionId === selectedGroupOptionId) || options[0];
+  renderGroupAddOns(selectedPlan, session);
   const nextStep = {
     collecting:
       count >= session.headcount
@@ -598,9 +626,35 @@ function renderGroup(session) {
     awaiting_manager: "Review who gets what below, select a plan, then click “Approve this plan”.",
     voting: "Finalists are ready for the team vote. The manager can still approve a selected plan.",
     awaiting_creator_confirmation: "Plan approved. The session creator can now review every Food and Instamart fulfilment and confirm the cart previews.",
-    cart_built: "Cart previews prepared. Checkout remains safely disabled."
+    cart_built: `Cart previews prepared and saved to your meal memory.${
+      session.cart?.instamartCartPreview?.items?.length
+        ? ` Instamart includes ${session.cart.instamartCartPreview.items.map((item) => `${item.quantity || 1}× ${item.name}`).join(", ")}.`
+        : ""
+    } Checkout remains safely disabled.`
   }[session.state] || `Session is ${session.state.replaceAll("_", " ")}.`;
   $("#groupNextStep").textContent = nextStep;
+}
+
+function renderGroupAddOns(option, session) {
+  const addOns = option?.groupAddOns || [];
+  const canChoose = ["awaiting_manager", "voting", "awaiting_creator_confirmation"].includes(session.state);
+  $("#groupAddOnPanel").classList.toggle("hidden", !addOns.length || !canChoose);
+  $("#groupAddOnOptions").innerHTML = addOns
+    .map(
+      (item) => `<button type="button" class="${selectedGroupAddOnIds.has(item.productId) ? "selected" : ""}" data-group-addon="${item.productId}">
+        <span><strong>${escapeHtml(item.name)}</strong><small>${item.quantity} for the team · separate Instamart fulfilment</small></span>
+        <b>+ ₹${item.groupTotal}</b>
+      </button>`
+    )
+    .join("");
+  $("#groupAddOnOptions").querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => {
+      const productId = button.dataset.groupAddon;
+      selectedGroupAddOnIds =
+        selectedGroupAddOnIds.has(productId) ? new Set() : new Set([productId]);
+      renderGroupAddOns(option, session);
+    });
+  });
 }
 
 function renderManagerInputs(submissions) {

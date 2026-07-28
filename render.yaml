@@ -12,6 +12,8 @@ services:
         value: 22
       - key: SWIGGY_MODE
         value: fixture
+      - key: SWIGGY_OAUTH_ENABLED
+        value: "false"
       - key: AI_PROVIDER
         value: mock
       - key: OPENROUTER_MODEL

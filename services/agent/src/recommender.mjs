@@ -243,7 +243,7 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
   );
   const officeIntent = extractMealIntent(request.query || "office lunch");
   const addOns = await complementaryProducts(swiggy, address.id, officeIntent, totalBudget);
-  const options = participantPreferences.length
+  const coverageOptions = participantPreferences.length
     ? (
         await Promise.all(
           baseOptions.map((option) =>
@@ -261,6 +261,18 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
         )
       ).sort(compareCoveragePlans)
     : baseOptions;
+  const options = coverageOptions.map((option) => ({
+    ...option,
+    groupAddOns: addOns
+      .map((item) => ({
+        ...item,
+        quantity: headcount,
+        groupTotal: Number(item.price || 0) * headcount,
+        suggestionLabel: `${headcount} for the team`
+      }))
+      .filter((item) => Number(option.estimatedTotal || 0) + item.groupTotal <= totalBudget)
+      .slice(0, 3)
+  }));
   const aiSummary = await summarizeShortlist(ai, {
     mode: "office",
     options: options.map(({ coverage, ...option }) => ({
@@ -617,7 +629,10 @@ export async function buildConfirmedCart({ recommendation, optionId, addOnProduc
   const cart = foodCarts[0] || { restaurant: null, items: [], total: 0 };
   const requestedAddOns = new Set(normalizeList(addOnProductIds));
   const plannedInstamartItems = option.instamartItems || [];
-  const optionalInstamartItems = (recommendation.addOns || []).filter((item) => requestedAddOns.has(item.productId));
+  const optionalInstamartItems = [
+    ...(option.groupAddOns || []),
+    ...(recommendation.addOns || [])
+  ].filter((item) => requestedAddOns.has(item.productId));
   const instamartItems = [...plannedInstamartItems, ...optionalInstamartItems].filter(
     (item, index, all) => all.findIndex((candidate) => candidate.productId === item.productId) === index
   );

@@ -76,6 +76,11 @@ export async function handleAgentRequest(req, res) {
       return redirect(res, "/?login=google", { "set-cookie": issueAuthCookie(user) });
     }
     if (req.method === "GET" && url.pathname === "/api/auth/swiggy/start") {
+      if (!authConfiguration().swiggy) {
+        const error = new Error("Swiggy production OAuth access is pending whitelist approval for this deployed client");
+        error.status = 503;
+        throw error;
+      }
       const sessionId = `auth_${crypto.randomUUID()}`;
       const started = await startSwiggyOAuth({
         sessionId,

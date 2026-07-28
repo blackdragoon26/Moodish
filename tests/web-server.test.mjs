@@ -14,6 +14,7 @@ test("web server serves UI and API from one port", async () => {
     assert.match(html, /id="participantAccessForm"/);
     assert.match(html, /id="copyInviteCode"/);
     assert.match(html, /id="managerInputReview"/);
+    assert.match(html, /id="groupAddOnPanel"/);
     assert.doesNotMatch(html, /Overall vibe/);
     assert.match(html, /Good old favourite/);
     assert.match(html, /Absolutely new/);
@@ -44,8 +45,15 @@ test("web bootstrap combines health, auth configuration and current session with
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("cache-control"), "no-store");
     assert.equal(body.health.ok, true);
-    assert.equal(body.config.swiggy, true);
+    assert.equal(body.config.swiggy, false);
+    assert.match(body.config.swiggyAccessUrl, /mcp\.swiggy\.com\/builders\/access/);
     assert.equal(body.user, null);
+
+    const swiggyLogin = await fetch(`http://127.0.0.1:${port}/api/auth/swiggy/start`, {
+      redirect: "manual"
+    });
+    assert.equal(swiggyLogin.status, 503);
+    assert.match((await swiggyLogin.json()).error, /whitelist approval/i);
   } finally {
     server.close();
   }

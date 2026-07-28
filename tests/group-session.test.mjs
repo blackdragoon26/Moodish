@@ -166,9 +166,14 @@ test("group coverage uses Instamart for fruit and carries it into final cart pre
   const confirmed = await tools.confirm_group_cart({
     sessionId: created.sessionId,
     actorId: "coverage-manager",
+    addOnProductIds: [top.groupAddOns[0].productId],
     confirmed: true
   });
   assert.ok(confirmed.cart.instamartCartPreview.items.some((item) => /fruit/i.test(item.name)));
+  assert.ok(confirmed.cart.instamartCartPreview.items.some((item) => item.quantity === 2));
+  assert.equal(confirmed.mealMemoryEntry.groupSessionId, created.sessionId);
+  assert.equal(confirmed.mealMemoryEntry.headcount, 2);
+  assert.ok(confirmed.mealMemoryEntry.addOns.length >= 2);
 });
 
 test("group planner discloses a split order when different restaurants are needed for exact coverage", async () => {
