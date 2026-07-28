@@ -52,3 +52,33 @@ test("gulab jamun and ice cream craving returns the genuine combo", async () => 
   assert.match(result.recommendation.options[0].items[0].name, /Gulab Jamun.*Ice Cream/i);
   assert.equal(result.recommendation.options[0].matchType, "exact");
 });
+
+test("explicit beverage edit keeps the restaurant first and falls back to Instamart", async () => {
+  const tools = createTools();
+  const first = await continueMealConversation(
+    { message: "spicy Chinese, non-veg, under ₹450" },
+    tools
+  );
+  const edited = await continueMealConversation(
+    { message: "hmm not bad, add some beverage too", state: first.state },
+    tools
+  );
+
+  assert.equal(edited.state.addOnIntent, "beverage");
+  assert.equal(edited.recommendation.options[0].restaurantName, "Wok & Fizz");
+  assert.deepEqual(edited.recommendation.options[0].items.map((item) => item.name), ["Smoky Chicken Hakka Noodles"]);
+  assert.match(edited.recommendation.addOns[0].name, /cola/i);
+  assert.equal(edited.recommendation.transparency.instamart.restaurantFirstSatisfied, false);
+});
+
+test("explicit beverage request uses the selected restaurant before Instamart", async () => {
+  const result = await continueMealConversation(
+    { message: "dosa and a beverage, veg, under ₹400" },
+    createTools()
+  );
+
+  assert.equal(result.recommendation.options[0].restaurantName, "Dosa District");
+  assert.match(result.recommendation.options[0].items[1].name, /coffee/i);
+  assert.equal(result.recommendation.addOns.length, 0);
+  assert.equal(result.recommendation.transparency.instamart.restaurantFirstSatisfied, true);
+});

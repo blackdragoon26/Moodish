@@ -36,12 +36,20 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
         dietaryRules,
         allergies,
         dietMode,
+        requestedAddOnKind: request.addOnIntent,
         matchType: discovery.matchTypes.get(restaurant.id) || "broad"
       })
     )
   );
-  const addOns = request.includeInstamartAddOns
-    ? await complementaryProducts(swiggy, address.id, intent, Math.max(0, budget - (options[0]?.estimatedTotal || 0)))
+  const addOnSatisfiedByRestaurant = optionHasRequestedAddOn(options[0], request.addOnIntent);
+  const addOns = request.includeInstamartAddOns && !addOnSatisfiedByRestaurant
+    ? await complementaryProducts(
+        swiggy,
+        address.id,
+        intent,
+        Math.max(0, budget - (options[0]?.estimatedTotal || 0)),
+        request.addOnIntent
+      )
     : [];
   const matchNotice =
     intent.hasExplicitDish && !discovery.exactMatch
@@ -85,6 +93,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
         requested: Boolean(request.includeInstamartAddOns),
         dataSource: swiggy.mode,
         count: addOns.length,
+        restaurantFirstSatisfied: addOnSatisfiedByRestaurant,
         separateFulfilment: true
       },
       ai: aiSummary.trace
@@ -97,6 +106,18 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
     }
   };
   return run;
+}
+
+function optionHasRequestedAddOn(option, requestedAddOnKind) {
+  const tagsByKind = {
+    beverage: ["beverage", "drink", "coffee", "juice"],
+    dessert: ["dessert", "sweet"],
+    side: ["side", "starter", "fries", "bread"],
+    complete_meal: ["side", "beverage", "bread", "fries", "dessert"]
+  };
+  const wanted = tagsByKind[requestedAddOnKind];
+  if (!wanted || !option?.items?.length) return false;
+  return option.items.slice(1).some((item) => item.tags?.some((tag) => wanted.includes(tag)));
 }
 
 export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
@@ -376,6 +397,21 @@ function pickItems(items, budget, headcount, context = {}) {
   const main = sorted.find((item) => item.price <= perPersonBudget) || [...sorted].sort((a, b) => a.price - b.price)[0];
   const quantity = Math.max(1, headcount);
   const remaining = perPersonBudget - main.price;
+  const requestedAddOnTags = {
+    beverage: ["beverage", "drink", "coffee", "juice"],
+    dessert: ["dessert", "sweet"],
+    side: ["side", "starter", "fries", "bread"],
+    complete_meal: ["side", "beverage", "bread", "fries", "dessert"]
+  }[context.requestedAddOnKind];
+  if (requestedAddOnTags) {
+    const requestedAddOn = sorted.find(
+      (item) =>
+        item.itemId !== main.itemId &&
+        item.price <= remaining &&
+        item.tags.some((tag) => requestedAddOnTags.includes(tag))
+    );
+    return [{ ...main, quantity }, ...(requestedAddOn ? [{ ...requestedAddOn, quantity }] : [])];
+  }
   const side = sorted.find(
     (item) =>
       item.itemId !== main.itemId &&
@@ -501,9 +537,9 @@ function scoreDiscoveryPreference(restaurant, context) {
   return liked ? 1 : 0;
 }
 
-async function complementaryProducts(swiggy, addressId, intent, remainingBudget) {
-  if (remainingBudget < 50) return [];
-  const query = pairingQuery(intent);
+async function complementaryProducts(swiggy, addressId, intent, remainingBudget, requestedAddOnKind = "none") {
+  if (remainingBudget <= 0) return [];
+  const query = pairingQuery(intent, requestedAddOnKind);
   const products = await swiggy.searchProducts({ addressId, query });
   return (products || [])
     .filter((product) => product.price <= remainingBudget)
@@ -516,9 +552,11 @@ async function complementaryProducts(swiggy, addressId, intent, remainingBudget)
     }));
 }
 
-function pairingQuery(intent) {
+function pairingQuery(intent, requestedAddOnKind = "none") {
   const tokens = new Set([intent.primaryDish, ...intent.tokens, ...intent.attributes].filter(Boolean));
   const cuisine = intent.cuisines.join(" ").toLowerCase();
+  if (requestedAddOnKind === "dessert") return "dessert";
+  if (requestedAddOnKind === "side") return "side";
   if ([...tokens].some((token) => ["chinese", "chowmein", "noodles", "momos"].includes(token)) || cuisine.includes("chinese")) {
     return "cold-drink";
   }

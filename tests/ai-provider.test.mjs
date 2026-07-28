@@ -93,6 +93,57 @@ test("openrouter provider supports request scoped key and model overrides", asyn
   restoreEnv("OPENROUTER_MODEL", oldModel);
 });
 
+test("openrouter provider extracts semantic meal edits with a strict schema", async () => {
+  const oldProvider = process.env.AI_PROVIDER;
+  const oldKey = process.env.OPENROUTER_API_KEY;
+  process.env.AI_PROVIDER = "openrouter";
+  process.env.OPENROUTER_API_KEY = "test-key";
+  const semanticIntent = {
+    intentKind: "modify_plan",
+    mood: "",
+    dietMode: "unknown",
+    dietExplicit: false,
+    maxBudget: 0,
+    budgetExplicit: false,
+    dietaryRules: [],
+    allergies: [],
+    discoveryMode: "unspecified",
+    addOnIntent: "beverage",
+    requestedDishes: [],
+    attributes: ["cold"],
+    cuisines: [],
+    acknowledgement: "Good call—the meal deserves a sip-sidekick.",
+    followUp: ""
+  };
+  let requestBody;
+  const provider = createAiProvider({
+    fetchImpl: async (_url, init) => {
+      requestBody = JSON.parse(init.body);
+      return {
+        ok: true,
+        async json() {
+          return { choices: [{ message: { content: JSON.stringify(semanticIntent) } }] };
+        }
+      };
+    }
+  });
+
+  const result = await provider.interpretMealMessage({
+    message: "hmm not bad, add a beverage too",
+    previous: { mood: "spicy Chinese", maxBudget: 450 }
+  });
+
+  assert.equal(result.intent.intentKind, "modify_plan");
+  assert.equal(result.intent.addOnIntent, "beverage");
+  assert.equal(result.trace.task, "semantic_meal_intent");
+  assert.equal(requestBody.response_format.type, "json_schema");
+  assert.equal(requestBody.response_format.json_schema.strict, true);
+  assert.equal(requestBody.provider.require_parameters, true);
+
+  restoreEnv("AI_PROVIDER", oldProvider);
+  restoreEnv("OPENROUTER_API_KEY", oldKey);
+});
+
 test("openrouter provider returns relevant error when inference hangs", async () => {
   const oldProvider = process.env.AI_PROVIDER;
   const oldKey = process.env.OPENROUTER_API_KEY;

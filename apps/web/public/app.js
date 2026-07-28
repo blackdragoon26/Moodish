@@ -187,10 +187,50 @@ $("#quickReplies").addEventListener("click", (event) => {
   $("#chatComposer").requestSubmit();
 });
 
+const SpeechRecognitionApi = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (SpeechRecognitionApi) {
+  const voiceButton = $("#voiceInput");
+  const recognition = new SpeechRecognitionApi();
+  recognition.lang = navigator.language || "en-IN";
+  recognition.interimResults = true;
+  recognition.continuous = false;
+  voiceButton.classList.remove("hidden");
+  voiceButton.addEventListener("click", () => {
+    if (voiceButton.classList.contains("listening")) recognition.stop();
+    else recognition.start();
+  });
+  recognition.onstart = () => {
+    voiceButton.classList.add("listening");
+    voiceButton.textContent = "■";
+    $("#composerHint").textContent = "Listening… say the dish, mood, budget, or the change you want.";
+  };
+  recognition.onresult = (event) => {
+    const transcript = [...event.results].map((result) => result[0]?.transcript || "").join(" ").trim();
+    if (transcript) $("#chatInput").value = transcript;
+  };
+  recognition.onerror = (event) => {
+    $("#composerHint").textContent =
+      event.error === "not-allowed"
+        ? "Microphone access was blocked. You can still type your craving."
+        : "I missed that bite—try the microphone again or type it.";
+  };
+  recognition.onend = () => {
+    voiceButton.classList.remove("listening");
+    voiceButton.textContent = "🎙";
+    if (!$("#composerHint").textContent.includes("blocked") && !$("#composerHint").textContent.includes("missed")) {
+      $("#composerHint").textContent = "Voice captured. Edit it if needed, then send.";
+    }
+    $("#chatInput").focus();
+  };
+}
+
 function renderRecommendation(run) {
   currentRecommendation = run;
   selectedOptionId = run.options[0]?.optionId || null;
-  selectedAddOnIds = new Set();
+  selectedAddOnIds =
+    run.request?.addOnIntent && run.request.addOnIntent !== "none" && run.request.addOnIntent !== "remove_addons" && run.addOns?.[0]
+      ? new Set([run.addOns[0].productId])
+      : new Set();
   $("#recommendationDeck").classList.remove("hidden");
   $("#summary").textContent = run.summary;
   $("#traceOutput").textContent = JSON.stringify(run.transparency || {}, null, 2);

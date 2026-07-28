@@ -4,7 +4,25 @@ export async function continueMealConversation(args = {}, tools) {
   const message = String(args.message || "").trim();
   if (!message) throw badRequest("Tell Moodish what you feel like eating.");
   const previous = args.state && typeof args.state === "object" ? args.state : {};
-  const state = extractState(message, previous);
+  const deterministicState = extractState(message, previous);
+  let semanticResult = null;
+  try {
+    semanticResult = await tools.interpret_meal_message?.({
+      message,
+      previous,
+      aiApiKey: args.aiApiKey,
+      aiModel: args.aiModel
+    });
+  } catch (error) {
+    semanticResult = {
+      intent: null,
+      trace: {
+        status: "fallback",
+        note: `Semantic AI was unavailable, so deterministic extraction was used: ${error.message}`
+      }
+    };
+  }
+  const state = mergeSemanticState(deterministicState, semanticResult?.intent, previous);
   const missing = [];
   if (!state.mood) missing.push("mood");
   if (!state.dietExplicit) missing.push("diet");
@@ -15,7 +33,7 @@ export async function continueMealConversation(args = {}, tools) {
       status: "needs_input",
       state,
       missing,
-      reply: followUp(missing),
+      reply: [semanticResult?.intent?.acknowledgement, followUp(missing)].filter(Boolean).join(" "),
       quickReplies: quickReplies(missing)
     };
   }
@@ -28,11 +46,18 @@ export async function continueMealConversation(args = {}, tools) {
     allergies: state.allergies,
     discoveryMode: state.discoveryMode,
     includeInstamartAddOns: state.includeInstamartAddOns,
+    addOnIntent: state.addOnIntent,
     addressId: args.addressId,
     userIdHash: args.userIdHash,
     aiApiKey: args.aiApiKey,
     aiModel: args.aiModel
   });
+  recommendation.transparency.conversation = {
+    source: semanticResult?.intent ? "ai_structured" : "deterministic_fallback",
+    intentKind: semanticResult?.intent?.intentKind || "new_plan",
+    addOnIntent: state.addOnIntent,
+    trace: semanticResult?.trace
+  };
   return {
     status: "complete",
     state,
@@ -51,6 +76,7 @@ export function extractState(message, previous = {}) {
     maxBudget: previous.maxBudget || 350,
     discoveryMode: normalizeDiscoveryMode(previous),
     includeInstamartAddOns: previous.includeInstamartAddOns ?? true,
+    addOnIntent: previous.addOnIntent || "none",
     dietExplicit: Boolean(previous.dietExplicit),
     budgetExplicit: Boolean(previous.budgetExplicit)
   };
@@ -94,7 +120,13 @@ export function extractState(message, previous = {}) {
   if (/\b(absolutely new|something new|surprise me|adventurous|explore)\b/.test(text)) next.discoveryMode = "explore";
   if (/\b(mix|balanced)\b/.test(text)) next.discoveryMode = "balanced";
   if (/\b(no add[\s-]?ons?|food only)\b/.test(text)) next.includeInstamartAddOns = false;
-  if (/\b(add[\s-]?ons?|drink|cold ?drink|dessert|complete meal)\b/.test(text)) next.includeInstamartAddOns = true;
+  if (/\b(no add[\s-]?ons?|food only|remove (?:the )?(?:drink|dessert|side))\b/.test(text)) next.addOnIntent = "remove_addons";
+  if (/\b(beverage|drink|cold ?drink|cola|soda|juice|shake)\b/.test(text)) next.addOnIntent = "beverage";
+  else if (/\b(dessert|sweet dish|something sweet)\b/.test(text)) next.addOnIntent = "dessert";
+  else if (/\b(side|starter|fries)\b/.test(text)) next.addOnIntent = "side";
+  else if (/\b(add[\s-]?ons?|complete meal|make it complete)\b/.test(text)) next.addOnIntent = "complete_meal";
+  if (next.addOnIntent !== "none" && next.addOnIntent !== "remove_addons") next.includeInstamartAddOns = true;
+  if (next.addOnIntent === "remove_addons") next.includeInstamartAddOns = false;
 
   if (!previous.mood) {
     const stripped = text
@@ -102,6 +134,35 @@ export function extractState(message, previous = {}) {
       .replace(/\b(veg only|vegetarian|pure veg|non[\s-]?veg|both|anything|no restrictions?|none)\b/g, "")
       .trim();
     if (stripped && !/^(hi|hello|hey)$/.test(stripped)) next.mood = stripped;
+  }
+  return next;
+}
+
+function mergeSemanticState(deterministic, semantic, previous) {
+  if (!semantic || typeof semantic !== "object") return deterministic;
+  const next = { ...deterministic };
+  if (semantic.intentKind === "new_plan" && semantic.mood) next.mood = semantic.mood;
+  if (!previous.mood && semantic.mood) next.mood = semantic.mood;
+  if (semantic.dietExplicit && ["veg", "non_veg", "both"].includes(semantic.dietMode)) {
+    next.dietMode = semantic.dietMode;
+    next.dietExplicit = true;
+  }
+  if (semantic.budgetExplicit && Number(semantic.maxBudget) > 0) {
+    next.maxBudget = Number(semantic.maxBudget);
+    next.budgetExplicit = true;
+  }
+  if (Array.isArray(semantic.dietaryRules)) {
+    next.dietaryRules = [...new Set([...next.dietaryRules, ...semantic.dietaryRules.map(String)])];
+  }
+  if (Array.isArray(semantic.allergies)) {
+    next.allergies = [...new Set([...next.allergies, ...semantic.allergies.map(String)])];
+  }
+  if (["comfort", "balanced", "explore"].includes(semantic.discoveryMode)) {
+    next.discoveryMode = semantic.discoveryMode;
+  }
+  if (["beverage", "dessert", "side", "complete_meal", "remove_addons"].includes(semantic.addOnIntent)) {
+    next.addOnIntent = semantic.addOnIntent;
+    next.includeInstamartAddOns = semantic.addOnIntent !== "remove_addons";
   }
   return next;
 }

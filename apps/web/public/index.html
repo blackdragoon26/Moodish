@@ -143,9 +143,10 @@
 
           <form id="chatComposer" class="composer">
             <textarea id="chatInput" rows="1" placeholder="I’m craving..." aria-label="Describe what you want to eat"></textarea>
+            <button id="voiceInput" class="voice-input hidden" type="button" aria-label="Speak your craving" title="Speak your craving">🎙</button>
             <button id="sendChat" type="submit" aria-label="Send">↑</button>
           </form>
-          <p class="composer-hint">Moodish defaults discovery to balanced and suggests sensible add-ons. You can override either in your message.</p>
+          <p id="composerHint" class="composer-hint">Moodish defaults discovery to balanced and suggests sensible add-ons. You can override either in your message.</p>
 
           <section id="recommendationDeck" class="recommendation-deck hidden">
             <div class="deck-head">
@@ -272,7 +273,7 @@
             <h2>From a mood to a guarded cart.</h2>
             <p>This page documents what Moodish does today, which calls are conditional, and which capabilities are deliberately not implemented.</p>
             <div class="truth-strip">
-              <span>Deterministic ranking</span><span>AI summary only</span><span>Food cart needs confirmation</span><span>Checkout disabled</span>
+              <span>AI semantic intent</span><span>Deterministic ranking</span><span>Food cart needs confirmation</span><span>Checkout disabled</span>
             </div>
           </header>
 
@@ -314,14 +315,14 @@
               </section>
 
               <section id="docs-ai" class="docs-section">
-                <div class="docs-heading"><div><span>03</span><h3>AI boundary</h3></div><p>The language model does not select Swiggy tools, apply dietary filters or set scores. It receives already-ranked options and writes one concise sentence.</p></div>
+                <div class="docs-heading"><div><span>03</span><h3>AI boundary</h3></div><p>The language model extracts structured craving semantics, recognises edits to an active plan, and writes friendly copy. It does not select Swiggy tools, apply dietary filters, mutate carts or set ranking scores.</p></div>
                 <figure class="docs-diagram">
-                  <img src="/assets/docs/ai-boundary.png" alt="Diagram showing deterministic Moodish logic and the limited AI summarization boundary" />
+                  <img src="/assets/docs/ai-boundary.png" alt="Diagram showing AI semantic interpretation and the deterministic Moodish safety boundary" />
                   <figcaption><a href="/assets/docs/ai-boundary.excalidraw" download>Download editable Excalidraw source</a></figcaption>
                 </figure>
                 <div class="truth-boundary">
                   <strong>Output guard</strong>
-                  <p>If the AI summary does not lead with the actual top-ranked restaurant, Moodish replaces it with deterministic text. Current request, dietary rules and availability always outrank profile history or discovery preference.</p>
+                  <p>AI intent is schema-constrained and then validated; a deterministic extractor remains available during provider failure. If the AI summary contradicts ranking, Moodish replaces it. Current request, dietary rules and availability always outrank model phrasing, profile history or discovery preference.</p>
                 </div>
               </section>
 

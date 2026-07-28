@@ -33,6 +33,14 @@ export function createToolRuntime() {
 
 export function createTools(runtime = createToolRuntime()) {
   return {
+    async interpret_meal_message(args = {}) {
+      const provider = aiForRequest(args, runtime.ai);
+      if (typeof provider.interpretMealMessage !== "function") return null;
+      return provider.interpretMealMessage({
+        message: String(args.message || ""),
+        previous: args.previous && typeof args.previous === "object" ? args.previous : {}
+      });
+    },
     async plan_personal_meal(args = {}) {
       const userIdHash = args.userIdHash || DEFAULT_USER_HASH;
       return instrumentToolCall({ tool: "plan_personal_meal", userIdHash }, async () => {

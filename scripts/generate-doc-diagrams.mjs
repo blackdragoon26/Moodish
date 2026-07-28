@@ -28,9 +28,9 @@ const diagrams = [
     nodes: [
       box("person", 40, 280, 180, 105, "Person\nmood + limits", palette.orangeSoft),
       box("surfaces", 285, 160, 230, 345, "PRODUCT SURFACES\n\nSolo chat\nEnterprise web\nSlack · Teams · Discord\nMoodish MCP", palette.cream),
-      box("agent", 595, 160, 265, 345, "MOODISH AGENT\n\nConversation state\nIntent extraction\nHard constraints\nDeterministic ranking\nCart confirmation", palette.sage),
+      box("agent", 595, 160, 265, 345, "MOODISH AGENT\n\nConversation state\nValidated intent\nHard constraints\nDeterministic ranking\nCart confirmation", palette.sage),
       box("swiggy", 950, 75, 240, 205, "SWIGGY GATEWAY\n\nOAuth 2.1 + PKCE\nFood MCP\nInstamart MCP", palette.blue),
-      box("ai", 950, 345, 240, 150, "AI PROVIDER\n\nOne-sentence summary\nCannot change ranking", palette.purple),
+      box("ai", 950, 345, 240, 150, "AI PROVIDER\n\nSemantic intent + tone\nCannot change ranking", palette.purple),
       box("memory", 610, 15, 235, 115, "PERSISTENCE\nPostgres prod · memory local", palette.cream),
       box("cart", 610, 540, 235, 105, "CART BOUNDARY\nFood write · IM preview", palette.orangeSoft)
     ],
@@ -83,22 +83,25 @@ const diagrams = [
     height: 760,
     nodes: [
       box("input", 55, 270, 200, 120, "Natural language\n“chewy chaap,\nveg, under ₹400”", palette.orangeSoft),
-      box("extract", 335, 95, 270, 240, "DETERMINISTIC INPUT\n\nConversation state\nRegex hard fields\nDish / texture tags\nExplicit input wins", palette.sage),
+      box("extract", 335, 95, 270, 240, "AI SEMANTIC LAYER\n\nStrict JSON schema\nCraving meaning\nPlan-edit detection\nWarm acknowledgement", palette.purple),
+      box("fallback", 335, 430, 270, 145, "SAFE FALLBACK\n\nRegex hard fields\nPrevious state merge\nProvider outage path", palette.cream),
       box("rank", 690, 95, 290, 240, "DETERMINISTIC ENGINE\n\nAvailability + diet\nDish relevance\nBudget ceiling\nDistance + rating\nDiscovery tie-break", palette.sage),
       box("summary", 1065, 95, 270, 240, "OPTIONAL AI\n\nReceives top options\nWrites one sentence\nNo hidden profile\nNo tool execution", palette.purple),
       box("guard", 1065, 430, 270, 145, "OUTPUT GUARD\n\nTop restaurant must lead\nElse deterministic text", palette.orangeSoft),
       box("result", 690, 430, 290, 145, "USER RESULT\n\nRanked cards\nExact / alternative labels\nTrace + data source", palette.blue)
     ],
     edges: [
-      edge("input", "extract"),
+      edge("input", "extract", "message + state"),
+      edge("input", "fallback", "fallback"),
       edge("extract", "rank", "structured intent"),
+      edge("fallback", "rank", "validated fields"),
       edge("rank", "summary", "top options"),
       edge("summary", "guard", "sentence"),
       edge("guard", "result", "safe copy"),
       edge("rank", "result", "ranking")
     ],
     notes: [
-      note(325, 620, 1010, "Current implementation does not let an LLM choose Swiggy tools or scores. AI is a presentation layer after deterministic recommendation logic.")
+      note(325, 620, 1010, "AI understands language and writes friendly copy. Deterministic code still validates hard fields, chooses Swiggy operations, applies constraints, ranks candidates and gates every cart write.")
     ]
   },
   {
