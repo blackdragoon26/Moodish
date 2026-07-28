@@ -89,8 +89,8 @@
           <span>Moodish</span>
         </a>
         <div class="topbar-actions">
-          <span id="demoBadge" class="demo-badge hidden">Demo catalogue</span>
-          <span id="healthText" class="health-text">Connecting</span>
+          <button class="top-nav-link" data-view="docs" type="button">Docs</button>
+          <span id="dataModeBadge" class="demo-badge">Connecting</span>
           <button id="userMenu" class="user-chip" type="button"><span id="userInitial">M</span><strong id="userName">Member</strong></button>
           <button id="logout" class="text-button" type="button">Sign out</button>
         </div>
@@ -101,6 +101,7 @@
           <p class="rail-label">Plan</p>
           <button class="rail-link active" data-view="solo" type="button"><span>✦</span> My meal</button>
           <button class="rail-link" data-view="group" type="button"><span>◎</span> Moodish Enterprise</button>
+          <button class="rail-link" data-view="docs" type="button"><span>↗</span> Product docs</button>
           <section class="rail-dynamic">
             <p class="rail-label">Right now</p>
             <p id="railNudge" class="rail-nudge">Loading your meal rhythm…</p>
@@ -130,7 +131,7 @@
 
           <div id="chatThread" class="chat-thread" aria-live="polite">
             <article class="message assistant">
-              <div class="avatar">M</div>
+              <div class="avatar"><img src="/assets/moodish-logo.png" alt="" /></div>
               <div class="bubble">
                 <strong>Hey, I’m Moodish.</strong>
                 <p>Tell me what you feel like eating. Try “chewy smoky chaap” or give me everything at once: “spicy Chinese, non-veg, under ₹450.”</p>
@@ -153,10 +154,16 @@
           <section id="recommendationDeck" class="recommendation-deck hidden">
             <div class="deck-head">
               <div><p class="kicker">Your plan</p><h3 id="summary">Here’s what fits.</h3></div>
-              <button id="confirmCart" class="outline-button" type="button" disabled>Review selected carts</button>
             </div>
             <div id="options" class="options"></div>
             <div id="pairings" class="pairings hidden"></div>
+            <div id="cartReviewBar" class="cart-review-bar">
+              <div>
+                <span class="cart-icon" aria-hidden="true">🛒</span>
+                <div><strong id="cartReviewLabel">Review Food cart</strong><small>Nothing changes until you approve this preview.</small></div>
+              </div>
+              <button id="confirmCart" type="button" disabled><span id="cartReviewTotal">₹0</span><span>Review cart →</span></button>
+            </div>
           </section>
           <pre id="cartOutput" class="cart-output hidden"></pre>
         </section>
@@ -261,6 +268,132 @@
               <p>The channel receives safe progress plus a private preference link. The manager button uses Slack identity to protect approval access.</p>
             </details>
           </section>
+        </section>
+
+        <section id="docsView" class="view docs-view hidden">
+          <header class="docs-hero">
+            <p class="kicker">Product + engineering reference</p>
+            <h2>From a mood to a guarded cart.</h2>
+            <p>This page documents what Moodish does today, which calls are conditional, and which capabilities are deliberately not implemented.</p>
+            <div class="truth-strip">
+              <span>Deterministic ranking</span><span>AI summary only</span><span>Food cart needs confirmation</span><span>Checkout disabled</span>
+            </div>
+          </header>
+
+          <div class="docs-layout">
+            <nav class="docs-toc" aria-label="Documentation sections">
+              <strong>On this page</strong>
+              <a href="#docs-system">System</a>
+              <a href="#docs-journeys">User flows</a>
+              <a href="#docs-ai">AI boundary</a>
+              <a href="#docs-swiggy">Swiggy calls</a>
+              <a href="#docs-ranking">Ranking + memory</a>
+              <a href="#docs-gaps">Not implemented</a>
+            </nav>
+
+            <div class="docs-content">
+              <section id="docs-system" class="docs-section">
+                <div class="docs-heading"><div><span>01</span><h3>System boundary</h3></div><p>The web experience, workplace adapters and Moodish MCP share one agent service. Fixture and live data are normalized before the same ranking engine.</p></div>
+                <figure class="docs-diagram">
+                  <img src="/assets/docs/system-overview.png" alt="Moodish system overview diagram" />
+                  <figcaption><a href="/assets/docs/system-overview.excalidraw" download>Download editable Excalidraw source</a></figcaption>
+                </figure>
+                <div class="truth-grid">
+                  <article><strong>Product surfaces</strong><p>Solo chat, enterprise dashboard, private participant link, Slack/Teams/Discord adapters and Moodish MCP tools.</p></article>
+                  <article><strong>Agent core</strong><p>Conversation state, intent extraction, hard constraints, ranking, recommendation trace and confirmation gates.</p></article>
+                  <article><strong>Persistence</strong><p>PostgreSQL when <code>DATABASE_URL</code> is configured; process-memory fallback for local fixture runs. Stores profiles, confirmed plans and group sessions.</p></article>
+                </div>
+              </section>
+
+              <section id="docs-journeys" class="docs-section">
+                <div class="docs-heading"><div><span>02</span><h3>User journeys</h3></div><p>Solo asks only for missing hard fields. Enterprise gathers sensitive constraints privately and exposes aggregate coverage to the manager.</p></div>
+                <figure class="docs-diagram">
+                  <img src="/assets/docs/user-journeys.png" alt="Solo and enterprise Moodish user journey diagram" />
+                  <figcaption><a href="/assets/docs/user-journeys.excalidraw" download>Download editable Excalidraw source</a></figcaption>
+                </figure>
+                <div class="call-sequence">
+                  <code>solo</code><span>mood → clarify diet/budget → discover → rank → select → optional Instamart preview → explicit Food cart confirmation</span>
+                  <code>enterprise</code><span>policy → private preferences → lock → rank → manager/vote/automatic → creator confirms Food cart</span>
+                </div>
+              </section>
+
+              <section id="docs-ai" class="docs-section">
+                <div class="docs-heading"><div><span>03</span><h3>AI boundary</h3></div><p>The language model does not select Swiggy tools, apply dietary filters or set scores. It receives already-ranked options and writes one concise sentence.</p></div>
+                <figure class="docs-diagram">
+                  <img src="/assets/docs/ai-boundary.png" alt="Diagram showing deterministic Moodish logic and the limited AI summarization boundary" />
+                  <figcaption><a href="/assets/docs/ai-boundary.excalidraw" download>Download editable Excalidraw source</a></figcaption>
+                </figure>
+                <div class="truth-boundary">
+                  <strong>Output guard</strong>
+                  <p>If the AI summary does not lead with the actual top-ranked restaurant, Moodish replaces it with deterministic text. Current request, dietary rules and availability always outrank profile history or discovery preference.</p>
+                </div>
+              </section>
+
+              <section id="docs-swiggy" class="docs-section">
+                <div class="docs-heading"><div><span>04</span><h3>Swiggy OAuth + MCP calls</h3></div><p>These names and argument shapes are taken from the current gateway implementation. Every applicable discovery and cart call carries the selected <code>addressId</code>.</p></div>
+                <figure class="docs-diagram">
+                  <img src="/assets/docs/swiggy-call-lifecycle.png" alt="Detailed Swiggy OAuth and MCP call lifecycle diagram" />
+                  <figcaption><a href="/assets/docs/swiggy-call-lifecycle.excalidraw" download>Download editable Excalidraw source</a></figcaption>
+                </figure>
+
+                <div class="docs-table-wrap">
+                  <table class="docs-table">
+                    <thead><tr><th>When</th><th>Server / tool</th><th>Arguments sent</th><th>Effect</th></tr></thead>
+                    <tbody>
+                      <tr><td>First Swiggy connect</td><td><code>POST /auth/register</code></td><td>redirect URIs, client metadata</td><td>Dynamic Client Registration</td></tr>
+                      <tr><td>OTP consent</td><td><code>GET /auth/authorize</code></td><td><code>client_id</code>, redirect, state, PKCE challenge</td><td>User authorization</td></tr>
+                      <tr><td>Callback</td><td><code>POST /auth/token</code></td><td>authorization code, verifier, redirect</td><td>Encrypted access-token session</td></tr>
+                      <tr><td>Start planning</td><td><code>food · get_addresses</code></td><td><code>{}</code></td><td>Read saved delivery addresses</td></tr>
+                      <tr><td>Explicit dish</td><td><code>food · search_menu</code></td><td><code>{ addressId, query, vegFilter }</code></td><td>Exact dish search; may run again for a labelled alternative</td></tr>
+                      <tr><td>Vague mood / cuisine</td><td><code>food · search_restaurants</code></td><td><code>{ addressId, query }</code></td><td>Restaurant discovery; a broad empty query is a last candidate-pool fallback</td></tr>
+                      <tr><td>Candidate hydration</td><td><code>food · get_restaurant_menu</code></td><td><code>{ restaurantId, addressId }</code></td><td>Read menu and current availability</td></tr>
+                      <tr><td>Optional pairings</td><td><code>im · search_products</code></td><td><code>{ addressId, query }</code></td><td>Read Instamart products; no cart write</td></tr>
+                      <tr><td>After explicit approval</td><td><code>food · update_food_cart</code></td><td><code>{ restaurantId, addressId, items: [{ itemId, quantity }] }</code></td><td>Mutates Food cart only</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <pre class="code-block"><code>POST https://mcp.swiggy.com/food
+Authorization: Bearer &lt;encrypted-session-token&gt;
+
+{
+  "jsonrpc": "2.0",
+  "method": "tools/call",
+  "params": {
+    "name": "search_menu",
+    "arguments": { "addressId": "...", "query": "chaap", "vegFilter": 1 }
+  }
+}</code></pre>
+                <p class="docs-note">Transport retries rate limits, 5xx responses and transient upstream failures up to four attempts. Expired or invalid OAuth sessions require reconnection.</p>
+              </section>
+
+              <section id="docs-ranking" class="docs-section">
+                <div class="docs-heading"><div><span>05</span><h3>Ranking, pairings and memory</h3></div><p>Recommendation quality is ordered by hard constraints first. Profile history is deliberately weak context.</p></div>
+                <ol class="ranking-list">
+                  <li><b>Hard filters</b><span>availability, veg/non-veg, dietary rules and allergies</span></li>
+                  <li><b>Craving</b><span>exact dish, texture, flavour, preparation and cuisine relevance</span></li>
+                  <li><b>Commercial fit</b><span>maximum budget as a ceiling, then distance/delivery suitability and rating</span></li>
+                  <li><b>Tie-break</b><span>comfort, balanced or explore—never allowed to override a dish match</span></li>
+                </ol>
+                <div class="truth-grid">
+                  <article><strong>Pairings</strong><p>Context rules create search queries such as Chinese → chilled drink, biryani → raita and spicy food → cooling drink. Results must be available and fit remaining budget.</p></article>
+                  <article><strong>Meal memory</strong><p>Stores confirmed Food items plus selected Instamart preview items and totals. It is not proof that a Swiggy order was placed or delivered.</p></article>
+                  <article><strong>Separation</strong><p>Food and Instamart remain different fulfilment flows. Today only the Food cart has a mutation tool in Moodish.</p></article>
+                </div>
+              </section>
+
+              <section id="docs-gaps" class="docs-section docs-gaps">
+                <div class="docs-heading"><div><span>06</span><h3>Deliberately not claimed</h3></div><p>A capability is not presented as live until its schema and authenticated staging journey pass.</p></div>
+                <ul>
+                  <li>Swiggy checkout or order placement</li>
+                  <li>Swiggy completed order-history ingestion</li>
+                  <li>Instamart cart mutation</li>
+                  <li>Full pagination traversal</li>
+                  <li>Variant and restaurant add-on resolution</li>
+                  <li>Payment selection or delivery scheduling</li>
+                </ul>
+              </section>
+            </div>
+          </div>
         </section>
       </main>
     </div>

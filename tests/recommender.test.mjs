@@ -192,7 +192,9 @@ test("confirmed cart carries safety metadata and disables checkout", async () =>
 
 test("selected Instamart pairings are carried into a separate cart preview", async () => {
   const tools = createTools();
+  const userIdHash = "instamart-memory-user";
   const run = await tools.plan_personal_meal({
+    userIdHash,
     mood: "spicy Chinese noodles with a cold drink",
     maxBudget: 500,
     dietMode: "both",
@@ -203,6 +205,7 @@ test("selected Instamart pairings are carried into a separate cart preview", asy
   assert.ok(selectedAddOn);
 
   const cart = await tools.build_confirmed_cart({
+    userIdHash,
     recommendationId: run.recommendationId,
     optionId: run.options[0].optionId,
     addOnProductIds: [selectedAddOn.productId, "not-a-real-product"],
@@ -216,6 +219,9 @@ test("selected Instamart pairings are carried into a separate cart preview", asy
   assert.equal(cart.instamartCartPreview.separateFulfilment, true);
   assert.equal(cart.instamartCartPreview.mutationApplied, false);
   assert.equal(cart.checkoutBlocked, true);
+  const history = await getMealHistory(userIdHash);
+  assert.equal(history[0].addOns[0].name, selectedAddOn.name);
+  assert.equal(history[0].instamartTotal, selectedAddOn.price);
 });
 
 test("confirmed personal carts become user-scoped meal context", async () => {

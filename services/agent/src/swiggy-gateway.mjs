@@ -399,14 +399,15 @@ function fixtureGateway() {
       const q = query.toLowerCase();
       return fixtureProducts.filter((product) => !q || product.tags.some((tag) => tag.includes(q)) || product.name.toLowerCase().includes(q));
     },
-    async buildFoodCart({ restaurantId, items }) {
-      const menu = await this.getRestaurantMenu({ restaurantId });
+    async buildFoodCart({ restaurantId, addressId, items }) {
+      const menu = await this.getRestaurantMenu({ restaurantId, addressId });
       const cartItems = items.map((wanted) => {
         const item = menu.items.find((candidate) => candidate.itemId === wanted.itemId);
         return { ...item, quantity: wanted.quantity || 1 };
       });
       return {
         cartId: `cart_${restaurantId}`,
+        addressId,
         restaurant: menu.restaurant.name,
         items: cartItems,
         total: cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0),

@@ -51,6 +51,20 @@ test("Swiggy OAuth uses PKCE/DCR and live gateway propagates addressId", async (
         }
       });
     }
+    if (body.params.name === "update_food_cart") {
+      assert.equal(body.params.arguments.addressId, "address-live");
+      assert.equal(body.params.arguments.restaurantId, "restaurant-live");
+      return jsonResponse({
+        jsonrpc: "2.0",
+        result: {
+          structuredContent: {
+            restaurant: "Live Chaap House",
+            items: [{ itemId: "dish-live", name: "Live Soya Chaap", quantity: 1, price: 299 }],
+            total: 299
+          }
+        }
+      });
+    }
     return jsonResponse({ jsonrpc: "2.0", result: { structuredContent: {} } });
   };
 
@@ -66,10 +80,16 @@ test("Swiggy OAuth uses PKCE/DCR and live gateway propagates addressId", async (
     const gateway = createSwiggyGateway();
     const addresses = await gateway.getAddresses();
     const items = await gateway.searchMenu({ addressId: addresses[0].id, query: "chaap" });
+    await gateway.buildFoodCart({
+      restaurantId: "restaurant-live",
+      addressId: addresses[0].id,
+      items: [{ itemId: "dish-live", quantity: 1 }]
+    });
     assert.equal(addresses[0].id, "address-live");
     assert.equal(items[0].restaurant.name, "Live Chaap House");
     assert.equal(items[0].tags.includes("veg"), true);
     assert.ok(calls.some((call) => call.url.endsWith("/food")));
+    assert.ok(calls.some((call) => JSON.parse(call.init.body || "{}")?.params?.name === "update_food_cart"));
   } finally {
     globalThis.fetch = previousFetch;
     if (previousMode === undefined) delete process.env.SWIGGY_MODE;

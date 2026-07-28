@@ -192,6 +192,7 @@ export async function buildConfirmedCart({ recommendation, optionId, addOnProduc
   }
   const cart = await swiggy.buildFoodCart({
     restaurantId: option.restaurantId,
+    addressId: recommendation.address?.id,
     items: option.items.map((item) => ({ itemId: item.itemId, quantity: item.quantity }))
   });
   const requestedAddOns = new Set(normalizeList(addOnProductIds));

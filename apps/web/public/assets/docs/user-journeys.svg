@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="760" viewBox="0 0 1500 760" role="img" aria-labelledby="title desc">
+  <title id="title">Solo and enterprise user journeys</title>
+  <desc id="desc">Editable source is provided as an Excalidraw scene beside this exported image.</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2a1c20"/></marker><filter id="rough"><feTurbulence baseFrequency=".008" numOctaves="2" seed="7" result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="1.1"/></filter></defs>
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <text x="35" y="35" font-family="Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="3" fill="#ef5b36">SOLO</text><g filter="url(#rough)">
+    <rect x="130" y="55" width="190" height="105" rx="18" fill="#fffaf1" stroke="#2a1c20" stroke-width="2"/>
+    <text x="225" y="100.85" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Sign in</text><text x="225" y="126.5" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">Google / Swiggy</text>
+  </g><g filter="url(#rough)">
+    <rect x="380" y="55" width="190" height="105" rx="18" fill="#ffe1d5" stroke="#2a1c20" stroke-width="2"/>
+    <text x="475" y="100.85" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Say the mood</text><text x="475" y="126.5" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">or full request</text>
+  </g><g filter="url(#rough)">
+    <rect x="630" y="55" width="190" height="105" rx="18" fill="#fffaf1" stroke="#2a1c20" stroke-width="2"/>
+    <text x="725" y="88.025" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Answer only</text><text x="725" y="113.67500000000001" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">missing hard</text><text x="725" y="139.32500000000002" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">fields</text>
+  </g><g filter="url(#rough)">
+    <rect x="880" y="55" width="190" height="105" rx="18" fill="#dfeadb" stroke="#2a1c20" stroke-width="2"/>
+    <text x="975" y="100.85" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Compare ranked</text><text x="975" y="126.5" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">meal plans</text>
+  </g><g filter="url(#rough)">
+    <rect x="1130" y="55" width="190" height="105" rx="18" fill="#dceaf8" stroke="#2a1c20" stroke-width="2"/>
+    <text x="1225" y="100.85" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Select pairings</text><text x="1225" y="126.5" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">optional IM</text>
+  </g><g filter="url(#rough)">
+    <rect x="1325" y="55" width="145" height="105" rx="18" fill="#ffe1d5" stroke="#2a1c20" stroke-width="2"/>
+    <text x="1397.5" y="100.85" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Review</text><text x="1397.5" y="126.5" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">cart previews</text>
+  </g><text x="35" y="285" font-family="Arial, sans-serif" font-size="22" font-weight="700" letter-spacing="3" fill="#ef5b36">ENTERPRISE</text><g filter="url(#rough)">
+    <rect x="130" y="305" width="190" height="110" rx="18" fill="#fffaf1" stroke="#2a1c20" stroke-width="2"/>
+    <text x="225" y="353.35" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Manager sets</text><text x="225" y="379" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">policy + mode</text>
+  </g><g filter="url(#rough)">
+    <rect x="380" y="305" width="190" height="110" rx="18" fill="#ffe1d5" stroke="#2a1c20" stroke-width="2"/>
+    <text x="475" y="353.35" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Private link</text><text x="475" y="379" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">collects needs</text>
+  </g><g filter="url(#rough)">
+    <rect x="630" y="305" width="190" height="110" rx="18" fill="#dfeadb" stroke="#2a1c20" stroke-width="2"/>
+    <text x="725" y="353.35" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Close collection</text><text x="725" y="379" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">rank plans</text>
+  </g><g filter="url(#rough)">
+    <rect x="880" y="305" width="190" height="110" rx="18" fill="#dceaf8" stroke="#2a1c20" stroke-width="2"/>
+    <text x="975" y="353.35" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Manager decides</text><text x="975" y="379" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">or team votes</text>
+  </g><g filter="url(#rough)">
+    <rect x="1130" y="305" width="190" height="110" rx="18" fill="#ffe1d5" stroke="#2a1c20" stroke-width="2"/>
+    <text x="1225" y="353.35" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Creator confirms</text><text x="1225" y="379" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">Food cart</text>
+  </g><g filter="url(#rough)">
+    <rect x="1325" y="305" width="145" height="110" rx="18" fill="#f7d9d5" stroke="#2a1c20" stroke-width="2"/>
+    <text x="1397.5" y="353.35" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="700" fill="#2a1c20">Checkout</text><text x="1397.5" y="379" text-anchor="middle" font-family="Arial, sans-serif" font-size="19" font-weight="400" fill="#2a1c20">still blocked</text>
+  </g><g filter="url(#rough)">
+    <rect x="130" y="515" width="590" height="90" rx="8" fill="#fffaf1" stroke="#2a1c20" stroke-width="2"/>
+    <text x="425" y="541.55" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#2a1c20">Private participant submissions contain cravings, dietary</text><text x="425" y="565.8499999999999" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#2a1c20">rules and allergies. Public surfaces receive only</text><text x="425" y="590.15" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#2a1c20">aggregate coverage.</text>
+  </g><g filter="url(#rough)">
+    <rect x="800" y="515" width="590" height="90" rx="8" fill="#fffaf1" stroke="#2a1c20" stroke-width="2"/>
+    <text x="1095" y="553.7" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#2a1c20">One restaurant is preferred first. Split orders are a</text><text x="1095" y="578" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="400" fill="#2a1c20">disclosed fallback, not a hidden optimization.</text>
+  </g>
+  <path d="M 320 107.5 L 380 107.5" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/><path d="M 570 107.5 L 630 107.5" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/><path d="M 820 107.5 L 880 107.5" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/><path d="M 1070 107.5 L 1130 107.5" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/><path d="M 1320 107.5 L 1325 107.5" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/><path d="M 320 360 L 380 360" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/><path d="M 570 360 L 630 360" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/><path d="M 820 360 L 880 360" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/><path d="M 1070 360 L 1130 360" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/><path d="M 1320 360 L 1325 360" fill="none" stroke="#2a1c20" stroke-width="2.8" marker-end="url(#arrow)"/>
+</svg>

@@ -61,8 +61,8 @@ async function boot() {
 }
 
 function configureLogin(config, health) {
-  $("#healthText").textContent = health.swiggyMode === "fixture" ? "Demo availability" : "Live availability";
-  $("#demoBadge").classList.toggle("hidden", health.swiggyMode !== "fixture");
+  $("#dataModeBadge").textContent = health.swiggyMode === "fixture" ? "Demo data" : "Live Swiggy";
+  $("#dataModeBadge").classList.toggle("live", health.swiggyMode !== "fixture");
   $("#demoLogin").classList.toggle("hidden", !config.demo);
   if (!config.google) {
     $("#googleLogin").classList.add("unavailable");
@@ -91,7 +91,9 @@ function enterProduct(user, history = []) {
     const previous = mealMemory[0];
     appendMessage(
       "assistant",
-      `I remember your last confirmed plan: ${previous.items?.map((item) => item.name).join(", ") || previous.restaurantName}. I’ll use that only as a light preference signal—today’s craving still comes first.`
+      `I remember your last confirmed plan: ${previous.items?.map((item) => item.name).join(", ") || previous.restaurantName}${
+        previous.addOns?.length ? ` with ${previous.addOns.map((item) => item.name).join(", ")} from Instamart` : ""
+      }. I’ll use that only as a light preference signal—today’s craving still comes first.`
     );
   }
 }
@@ -107,7 +109,7 @@ $("#logout").addEventListener("click", async () => {
   window.location.reload();
 });
 
-document.querySelectorAll(".rail-link").forEach((button) => {
+document.querySelectorAll("[data-view]").forEach((button) => {
   button.addEventListener("click", () => {
     showProductView(button.dataset.view);
   });
@@ -117,6 +119,8 @@ function showProductView(view) {
   document.querySelectorAll(".rail-link").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
   $("#soloView").classList.toggle("hidden", view !== "solo");
   $("#groupView").classList.toggle("hidden", view !== "group");
+  $("#docsView").classList.toggle("hidden", view !== "docs");
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 $("#railPromptList").addEventListener("click", (event) => {
@@ -156,7 +160,7 @@ function appendMessage(role, text, isError = false) {
   article.className = `message ${role}${isError ? " error" : ""}`;
   article.innerHTML =
     role === "assistant"
-      ? `<div class="avatar">M</div><div class="bubble"><p>${escapeHtml(text)}</p></div>`
+      ? `<div class="avatar"><img src="/assets/moodish-logo.png" alt="" /></div><div class="bubble"><p>${escapeHtml(text)}</p></div>`
       : `<div class="bubble"><p>${escapeHtml(text)}</p></div>`;
   $("#chatThread").appendChild(article);
   article.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -169,7 +173,7 @@ function setChatBusy(busy) {
     const thinking = document.createElement("article");
     thinking.id = "thinking";
     thinking.className = "message assistant";
-    thinking.innerHTML = `<div class="avatar">M</div><div class="bubble typing"><i></i><i></i><i></i></div>`;
+    thinking.innerHTML = `<div class="avatar"><img src="/assets/moodish-logo.png" alt="" /></div><div class="bubble typing"><i></i><i></i><i></i></div>`;
     $("#chatThread").appendChild(thinking);
   } else {
     $("#thinking")?.remove();
@@ -203,6 +207,7 @@ function renderRecommendation(run) {
     });
   });
   renderPairings(run.addOns || []);
+  renderCartReview();
   $("#recommendationDeck").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -212,6 +217,7 @@ function renderRecommendationSelection() {
     card.classList.toggle("selected", selected);
     card.querySelector(".select-pill").textContent = selected ? "Chosen" : "Choose";
   });
+  renderCartReview();
 }
 
 function optionCard(option, index, selectedId) {
@@ -262,8 +268,19 @@ function renderPairings(items) {
       if (selectedAddOnIds.has(card.dataset.productId)) selectedAddOnIds.delete(card.dataset.productId);
       else selectedAddOnIds.add(card.dataset.productId);
       renderPairings(items);
+      renderCartReview();
     });
   });
+}
+
+function renderCartReview() {
+  const option = currentRecommendation?.options?.find((item) => item.optionId === selectedOptionId);
+  const selectedPairings = (currentRecommendation?.addOns || []).filter((item) => selectedAddOnIds.has(item.productId));
+  const instamartTotal = selectedPairings.reduce((sum, item) => sum + Number(item.price || 0), 0);
+  const foodTotal = Number(option?.estimatedTotal || 0);
+  $("#confirmCart").disabled = !option;
+  $("#cartReviewLabel").textContent = selectedPairings.length ? "Review Food + Instamart carts" : "Review Food cart";
+  $("#cartReviewTotal").textContent = `₹${foodTotal + instamartTotal}`;
 }
 
 $("#confirmCart").addEventListener("click", async () => {
@@ -502,7 +519,12 @@ function renderMealMemory() {
         .map(
           (meal) => `<article>
             <strong>${escapeHtml(meal.items?.[0]?.name || meal.restaurantName || "Meal plan")}</strong>
-            <small>${escapeHtml(meal.restaurantName || meal.cuisine || "")}${meal.foodTotal ? ` · ₹${meal.foodTotal}` : ""}</small>
+            <small>${escapeHtml(meal.restaurantName || meal.cuisine || "")}${meal.foodTotal ? ` · Food ₹${meal.foodTotal}` : ""}</small>
+            ${
+              meal.addOns?.length
+                ? `<small class="memory-addon">+ ${escapeHtml(meal.addOns.map((item) => item.name).join(", "))} · Instamart ₹${meal.instamartTotal || 0}</small>`
+                : ""
+            }
           </article>`
         )
         .join("")
