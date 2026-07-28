@@ -20,6 +20,29 @@ let participantInvitePasscode = "";
 let participantAccessGranted = false;
 let selectedDiscoveryMode = "balanced";
 
+function applyTheme(theme) {
+  const resolved = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = resolved;
+  window.localStorage.setItem("moodish-theme", resolved);
+  document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+    const nextTheme = resolved === "dark" ? "light" : "dark";
+    button.setAttribute("aria-label", `Switch to ${nextTheme} mode`);
+    button.querySelector("[data-theme-icon]").textContent = resolved === "dark" ? "☀" : "◐";
+    button.querySelector("[data-theme-label]").textContent =
+      button.classList.contains("compact")
+        ? resolved === "dark" ? "Light" : "Dark"
+        : resolved === "dark" ? "Light mode" : "Dark mode";
+  });
+}
+
+const savedTheme = window.localStorage.getItem("moodish-theme");
+applyTheme(savedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+  button.addEventListener("click", () => {
+    applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+  });
+});
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     credentials: "same-origin",

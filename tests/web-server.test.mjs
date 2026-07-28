@@ -15,6 +15,9 @@ test("web server serves UI and API from one port", async () => {
     assert.match(html, /id="copyInviteCode"/);
     assert.match(html, /id="managerInputReview"/);
     assert.match(html, /id="groupAddOnPanel"/);
+    assert.match(html, /https:\/\/mcp\.swiggy\.com\/builders\//);
+    assert.match(html, /Built for Swiggy Food \+ Instamart/);
+    assert.match(html, /data-theme-toggle/);
     assert.doesNotMatch(html, /Overall vibe/);
     assert.match(html, /Good old favourite/);
     assert.match(html, /Absolutely new/);
