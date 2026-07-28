@@ -161,6 +161,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .topbar-actions { display: flex; align-items: center; gap: 12px; }
 .demo-badge { padding: 6px 9px; border-radius: 999px; color: #7a351f; background: #ffe0d1; font-size: 11px; font-weight: 900; }
 .demo-badge.live { color: #315c43; background: #e3eee4; }
+.top-nav-link { border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; font-weight: 850; }
+.top-nav-link:hover { color: var(--ink); }
 .user-chip { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--ink); }
 .user-chip span { display: grid; place-items: center; width: 31px; height: 31px; border-radius: 50%; color: #fff; background: var(--plum); }
 .text-button { border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; font-weight: 800; }
