@@ -48,7 +48,7 @@ export async function continueMealConversation(args = {}, tools) {
     includeInstamartAddOns: state.includeInstamartAddOns,
     addOnIntent: state.addOnIntent,
     addOnPreferences: state.addOnPreferences,
-    preferredRestaurantId: state.activeRestaurantId,
+    preferredRestaurantId: state.moodChanged ? undefined : state.activeRestaurantId,
     addressId: args.addressId,
     userIdHash: args.userIdHash,
     aiApiKey: args.aiApiKey,
@@ -73,7 +73,7 @@ export async function continueMealConversation(args = {}, tools) {
   return {
     status: "complete",
     state,
-    reply: [recommendation.summary, addOnResolution?.message, coverageMessage].filter(Boolean).join(" "),
+    reply: [recommendation.summary, addOnResolution?.message, coverageMessage].filter(Boolean).join("\n\n"),
     quickReplies: resolutionQuickReplies,
     recommendation
   };
@@ -93,6 +93,7 @@ export function extractState(message, previous = {}) {
     addOnPreferences: [...(previous.addOnPreferences || [])],
     activeRestaurantId: previous.activeRestaurantId,
     activeRestaurantName: previous.activeRestaurantName,
+    moodChanged: false,
     dietExplicit: Boolean(previous.dietExplicit),
     budgetExplicit: Boolean(previous.budgetExplicit)
   };
@@ -162,8 +163,12 @@ export function extractState(message, previous = {}) {
     const stripped = text
       .replace(/(?:₹|rs\.?|rupees?|under|below|upto|up to|max(?:imum)?(?: budget)?|budget(?: is| of)?)\s*₹?\s*\d{2,4}/g, "")
       .replace(/\b(veg only|vegetarian|pure veg|non[\s-]?veg|both|anything|no restrictions?|none)\b/g, "")
+      .replace(/^[,\s]+|[,\s]+$/g, "")
       .trim();
     if (stripped && !/^(hi|hello|hey)$/.test(stripped)) next.mood = stripped;
+  } else if (isMoodRevision(text, next.addOnIntent)) {
+    next.mood = text;
+    next.moodChanged = true;
   }
   return next;
 }
@@ -171,7 +176,10 @@ export function extractState(message, previous = {}) {
 function mergeSemanticState(deterministic, semantic, previous) {
   if (!semantic || typeof semantic !== "object") return deterministic;
   const next = { ...deterministic };
-  if (semantic.intentKind === "new_plan" && semantic.mood) next.mood = semantic.mood;
+  if (["new_plan", "modify_plan"].includes(semantic.intentKind) && semantic.mood) {
+    next.mood = semantic.mood;
+    next.moodChanged = semantic.mood !== previous.mood;
+  }
   if (!previous.mood && semantic.mood) next.mood = semantic.mood;
   if (semantic.dietExplicit && ["veg", "non_veg", "both"].includes(semantic.dietMode)) {
     next.dietMode = semantic.dietMode;
@@ -210,6 +218,24 @@ function mergeSemanticState(deterministic, semantic, previous) {
     next.addOnPreferences = [...new Set([...next.addOnPreferences, ...preferences])];
   }
   return next;
+}
+
+function isMoodRevision(text, addOnIntent) {
+  const addOnOnly =
+    addOnIntent !== "none" &&
+    /\b(add|include|with|plus|also|too|alongside|give me)\b/.test(text) &&
+    !/\b(instead|rather|actually|change|different|now)\b/.test(text);
+  if (addOnOnly) return false;
+  const withoutBudget = text
+    .replace(/(?:₹|rs\.?|rupees?|under|below|upto|up to|max(?:imum)?(?: budget)?|budget(?: is| of)?)\s*₹?\s*\d{2,4}/g, "")
+    .replace(/\b(veg only|vegetarian|pure veg|non[\s-]?veg|both|vegan|jain|no restrictions?|no allergies)\b/g, "")
+    .replace(/\b(something absolutely new|something new|surprise me|good old|balanced|explore)\b/g, "")
+    .replace(/\b(and|or|please|just|okay|ok|yes|no)\b/g, " ")
+    .trim();
+  if (!withoutBudget) return false;
+  return /\b(gourmet|cheap|budget|premium|fancy|simple|homestyle|comfort|spicy|mild|light|heavy|healthy|indulgent|fresh|crispy|chewy|smoky|sweet|savoury|savory|different|instead|rather|craving|want|mood|biryani|burger|chaap|chicken|dosa|fish|momos|noodles|pasta|pizza|ramen|salad|tacos|thai|chinese|italian|punjabi|bengali|mexican|lebanese)\b/.test(
+    withoutBudget
+  );
 }
 
 function followUp(missing) {

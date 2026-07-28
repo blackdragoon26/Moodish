@@ -126,3 +126,41 @@ test("a normal meal plan attempts a budget-safe accompaniment by default", async
   assert.equal(sameRestaurantAccompaniment || instamartAccompaniment, true);
   assert.match(result.reply, /Search coverage:/);
 });
+
+test("later mood revisions replace the active preference and change the shortlist", async () => {
+  const tools = createTools();
+  const exploratory = await continueMealConversation(
+    { message: "something absolutely new, both, under ₹450" },
+    tools
+  );
+  const gourmet = await continueMealConversation(
+    { message: "something gourmet", state: exploratory.state },
+    tools
+  );
+  const value = await continueMealConversation(
+    { message: "cheap and not gourmet", state: gourmet.state },
+    tools
+  );
+
+  assert.equal(gourmet.state.mood, "something gourmet");
+  assert.equal(value.state.mood, "cheap and not gourmet");
+  assert.notEqual(gourmet.recommendation.options[0].restaurantName, exploratory.recommendation.options[0].restaurantName);
+  assert.notEqual(value.recommendation.options[0].restaurantName, gourmet.recommendation.options[0].restaurantName);
+  assert.equal(value.recommendation.options[0].restaurantName, "Budget Punjabi Rasoi");
+});
+
+test("every normal plan includes a beverage from Food or Instamart when budget permits", async () => {
+  const result = await continueMealConversation(
+    { message: "something gourmet, both, under ₹450" },
+    createTools()
+  );
+  const foodItems = result.recommendation.options[0].items.slice(1);
+  const foodBeverage = foodItems.some((item) =>
+    item.tags.some((tag) => ["beverage", "drink", "coffee", "juice"].includes(tag))
+  );
+  const instamartBeverage = result.recommendation.addOns.length > 0;
+
+  assert.equal(foodBeverage || instamartBeverage, true);
+  assert.match(result.recommendation.summary, /\nAlternatives:/);
+  assert.match(result.reply, /\n\nSearch coverage:/);
+});

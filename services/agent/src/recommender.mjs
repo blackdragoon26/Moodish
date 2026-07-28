@@ -13,7 +13,13 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
   const addresses = await swiggy.getAddresses();
   const address = pickAddress(addresses, request.addressLabel, request.addressId);
   const intent = extractMealIntent([mood, request.query].filter(Boolean).join(" "));
-  const effectiveAddOnKind = request.addOnIntent || inferAddOnIntent(intent);
+  const inferredAddOnKind = inferAddOnIntent(intent);
+  const effectiveAddOnKind =
+    request.addOnIntent && request.addOnIntent !== "none"
+      ? request.addOnIntent
+      : inferredAddOnKind !== "none"
+        ? inferredAddOnKind
+        : "beverage";
   const discovery = await discoverPersonalCandidates({ swiggy, addressId: address.id, intent, dietMode });
   const intentTags = expandIntentTokens(intent.tokens.join(" "));
   const candidates = await hydrateCandidateMenus(discovery.restaurants, swiggy, address.id);
@@ -24,6 +30,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
     dietaryRules,
     allergies,
     intentTags,
+    moodText: mood,
     avoidCuisines: tasteProfile.weeklyCuisineHistory || [],
     likedCuisines: tasteProfile.likedCuisines || [],
     preferredRestaurantId: request.preferredRestaurantId,
@@ -77,6 +84,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
       ? `No exact ${intent.primaryDish} match was available; these are clearly labelled similar alternatives.`
       : "";
   const aiSummary = await summarizeShortlist(ai, { mode: "solo", options, matchNotice });
+  const summary = formatPlanSummary(matchNotice ? `${matchNotice} ${aiSummary.text}` : aiSummary.text);
   const run = {
     recommendationId: makeRecommendationId("solo"),
     mode: "solo",
@@ -95,7 +103,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
     options,
     addOns,
     addOnResolution,
-    summary: matchNotice ? `${matchNotice} ${aiSummary.text}` : aiSummary.text,
+    summary,
     transparency: {
       dataSource: swiggy.mode,
       moodInput: mood,
@@ -337,6 +345,13 @@ function deterministicSummary(mode, options) {
   return `${top.restaurantName} is the best ${label} fit: ${top.items.map((item) => item.name).join(", ")} for ₹${top.estimatedTotal}.${alternatives}`;
 }
 
+function formatPlanSummary(value = "") {
+  return String(value)
+    .replace(/\s+Alternatives:/g, "\nAlternatives:")
+    .replace(/\s+No exact/g, "\nNo exact")
+    .trim();
+}
+
 async function candidatePool({ swiggy, addressId, matches, minOptions, allowBroadFallback = true }) {
   if ((matches || []).length >= minOptions) return matches;
   if (!allowBroadFallback) return matches || [];
@@ -393,6 +408,22 @@ function scoreRestaurant(restaurant, context) {
   if (context.preferredRestaurantId && restaurant.id === context.preferredRestaurantId) {
     score += 25;
     adjustments.push({ reason: "preserve-active-plan-restaurant", value: 25 });
+  }
+  const moodText = String(context.moodText || "").toLowerCase();
+  const wantsGourmet = /\bgourmet\b/.test(moodText) && !/\b(?:not|no|less|anything but)\s+gourmet\b/.test(moodText);
+  if (wantsGourmet) {
+    const gourmetAdjustment =
+      (restaurant.tags.includes("novel") ? 14 : 0) +
+      (Number(restaurant.priceBand || 0) >= 340 ? 8 : 0) +
+      (restaurant.rating >= 4.5 ? 4 : 0);
+    score += gourmetAdjustment;
+    if (gourmetAdjustment) adjustments.push({ reason: "mood-gourmet", value: gourmetAdjustment });
+  }
+  if (/\b(cheap|budget|value|affordable)\b/.test(moodText)) {
+    const priceBand = Number(restaurant.priceBand || 0);
+    const budgetAdjustment = priceBand <= 220 ? 24 : priceBand <= 280 ? 10 : priceBand >= 340 ? -12 : 0;
+    score += budgetAdjustment;
+    if (budgetAdjustment) adjustments.push({ reason: "mood-budget-value", value: budgetAdjustment });
   }
   if (context.headcount > 1 && restaurant.tags.includes("office-friendly")) score += 8;
   return { score: Number(score.toFixed(2)), adjustments };

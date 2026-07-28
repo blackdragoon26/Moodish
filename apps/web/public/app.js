@@ -156,10 +156,17 @@ function appendMessage(role, text, isError = false) {
   article.className = `message ${role}${isError ? " error" : ""}`;
   article.innerHTML =
     role === "assistant"
-      ? `<div class="avatar"><img src="/assets/moodish-logo.png" alt="" /></div><div class="bubble"><p>${escapeHtml(text)}</p></div>`
-      : `<div class="bubble"><p>${escapeHtml(text)}</p></div>`;
+      ? `<div class="avatar"><img src="/assets/moodish-logo.png" alt="" /></div><div class="bubble">${formatChatText(text)}</div>`
+      : `<div class="bubble">${formatChatText(text)}</div>`;
   $("#chatThread").appendChild(article);
   article.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function formatChatText(text) {
+  return String(text)
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`)
+    .join("");
 }
 
 function setChatBusy(busy) {

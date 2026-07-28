@@ -210,6 +210,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .bubble { max-width: 650px; padding: 15px 18px; border-radius: 6px 20px 20px 20px; background: rgba(255,255,255,.75); box-shadow: 0 10px 36px rgba(61,42,29,.055); line-height: 1.55; }
 .bubble p { margin: 0; }
+.bubble p + p { margin-top: 12px; }
 .moment-message .bubble { color: #5e5048; background: #fff6ee; }
 .message.user .bubble { color: #fff; border-radius: 20px 6px 20px 20px; background: var(--plum); }
 .message.error .bubble { color: #8a2918; background: #ffe4da; }
@@ -242,7 +243,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   margin-top: 38px; padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: rgba(255,253,248,.8); box-shadow: var(--shadow);
 }
 .deck-head, .option-head, .surface-head, .group-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
-.deck-head h3 { max-width: 610px; margin: 0; font-family: Georgia, serif; font-size: 24px; font-weight: 500; line-height: 1.3; }
+.deck-head h3 { max-width: 610px; margin: 0; font-family: Georgia, serif; font-size: 24px; font-weight: 500; line-height: 1.3; white-space: pre-line; }
 .search-coverage { margin: 10px 0 16px; color: var(--muted); font-size: 13px; }
 .search-coverage::before { content: "⌖"; margin-right: 7px; color: var(--accent); }
 .options { display: grid; gap: 11px; margin-top: 23px; }
