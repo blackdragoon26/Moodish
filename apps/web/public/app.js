@@ -123,14 +123,6 @@ function showProductView(view) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-$("#railPromptList").addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-prompt]");
-  if (!button) return;
-  showProductView("solo");
-  $("#chatInput").value = button.dataset.prompt;
-  $("#chatComposer").requestSubmit();
-});
-
 $("#chatComposer").addEventListener("submit", async (event) => {
   event.preventDefault();
   const input = $("#chatInput");
@@ -187,7 +179,7 @@ function renderQuickReplies(replies) {
 
 $("#quickReplies").addEventListener("click", (event) => {
   if (event.target.tagName !== "BUTTON") return;
-  $("#chatInput").value = event.target.textContent;
+  $("#chatInput").value = event.target.dataset.prompt || event.target.textContent;
   $("#chatComposer").requestSubmit();
 });
 
@@ -540,17 +532,17 @@ function renderRailNudge() {
       : hour < 16
         ? "satisfying lunch, both, under ₹400"
         : "comfort food, both, under ₹450";
-  $("#railNudge").textContent = mealMemory[0]
-    ? `${moment}. Go familiar or make a clean break from your last ${mealMemory[0].cuisine || "meal"}.`
-    : `${moment}. Start with a feeling; Moodish will ask only what is missing.`;
+  $("#momentNudge").textContent = mealMemory[0]
+    ? `It’s ${moment.toLowerCase()}. We can stay familiar or make a clean break from your last ${mealMemory[0].cuisine || "meal"}—what sounds better?`
+    : `It’s ${moment.toLowerCase()}. Start with a feeling and I’ll ask only for anything essential that’s missing.`;
   const prompts = [
     { label: "Plan for right now", prompt: defaultPrompt },
     mealMemory[0]
       ? { label: "Something unlike last time", prompt: `something absolutely new, both, under ₹450, different from ${mealMemory[0].cuisine || mealMemory[0].restaurantName}` }
       : { label: "Surprise me", prompt: "something absolutely new, both, under ₹450" }
   ];
-  $("#railPromptList").innerHTML = prompts
-    .map((item) => `<button type="button" data-prompt="${escapeHtml(item.prompt)}">${escapeHtml(item.label)} <span>→</span></button>`)
+  $("#quickReplies").innerHTML = prompts
+    .map((item) => `<button type="button" data-prompt="${escapeHtml(item.prompt)}">${escapeHtml(item.label)}</button>`)
     .join("");
 }
 

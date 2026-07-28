@@ -102,11 +102,6 @@
           <button class="rail-link active" data-view="solo" type="button"><span>✦</span> My meal</button>
           <button class="rail-link" data-view="group" type="button"><span>◎</span> Moodish Enterprise</button>
           <button class="rail-link" data-view="docs" type="button"><span>↗</span> Product docs</button>
-          <section class="rail-dynamic">
-            <p class="rail-label">Right now</p>
-            <p id="railNudge" class="rail-nudge">Loading your meal rhythm…</p>
-            <div id="railPromptList" class="rail-prompts"></div>
-          </section>
           <section class="rail-memory">
             <div class="rail-section-head"><p class="rail-label">Your meal memory</p><span id="memoryCount">0</span></div>
             <div id="mealMemoryList" class="memory-list"><small>No confirmed meal plans yet.</small></div>
@@ -137,13 +132,15 @@
                 <p>Tell me what you feel like eating. Try “chewy smoky chaap” or give me everything at once: “spicy Chinese, non-veg, under ₹450.”</p>
               </div>
             </article>
+            <article class="message assistant moment-message">
+              <div class="avatar"><img src="/assets/moodish-logo.png" alt="" /></div>
+              <div class="bubble">
+                <p id="momentNudge">I’m checking the time of day so I can make the first question useful.</p>
+              </div>
+            </article>
           </div>
 
-          <div id="quickReplies" class="quick-replies">
-            <button type="button">Chewy and smoky</button>
-            <button type="button">Light but satisfying</button>
-            <button type="button">Spicy comfort food</button>
-          </div>
+          <div id="quickReplies" class="quick-replies"></div>
 
           <form id="chatComposer" class="composer">
             <textarea id="chatInput" rows="1" placeholder="I’m craving..." aria-label="Describe what you want to eat"></textarea>

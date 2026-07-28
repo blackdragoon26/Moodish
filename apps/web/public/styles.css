@@ -176,12 +176,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .rail-link.active { color: var(--ink); background: rgba(255,255,255,.72); box-shadow: 0 8px 30px rgba(53,36,25,.06); }
 .rail-link span { color: var(--accent); }
-.rail-dynamic, .rail-memory { margin-top: 28px; padding: 0 12px; }
-.rail-nudge { margin: 0 0 11px; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.rail-prompts { display: grid; gap: 6px; }
-.rail-prompts button { display: flex; align-items: center; justify-content: space-between; gap: 7px; width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: rgba(255,255,255,.55); text-align: left; cursor: pointer; font-size: 10px; font-weight: 850; }
-.rail-prompts button:hover { border-color: #cbb9aa; background: #fff; }
-.rail-prompts button span { color: var(--accent); }
+.rail-memory { margin-top: 28px; padding: 0 12px; }
 .rail-section-head { display: flex; align-items: baseline; justify-content: space-between; }
 .rail-section-head .rail-label { padding: 0; }
 .rail-section-head > span { color: var(--muted); font-size: 10px; font-weight: 900; }
@@ -212,6 +207,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .avatar img { width: 100%; height: 100%; object-fit: cover; }
 .bubble { max-width: 650px; padding: 15px 18px; border-radius: 6px 20px 20px 20px; background: rgba(255,255,255,.75); box-shadow: 0 10px 36px rgba(61,42,29,.055); line-height: 1.55; }
 .bubble p { margin: 0; }
+.moment-message .bubble { color: #5e5048; background: #fff6ee; }
 .message.user .bubble { color: #fff; border-radius: 20px 6px 20px 20px; background: var(--plum); }
 .message.error .bubble { color: #8a2918; background: #ffe4da; }
 .typing { display: flex; gap: 5px; padding: 19px; }
@@ -371,7 +367,7 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
   .app-shell { grid-template-columns: 1fr; gap: 20px; padding-top: 20px; }
   .docs-view { width: 100%; }
   .rail { position: static; flex-direction: row; min-height: auto; align-items: center; overflow: auto; }
-  .rail-label, .rail-spacer, .rail-note, .developer-panel, .rail-dynamic, .rail-memory { display: none; }
+  .rail-label, .rail-spacer, .rail-note, .developer-panel, .rail-memory { display: none; }
   .rail-link { width: auto; white-space: nowrap; }
   .group-grid, .enterprise-flow { grid-template-columns: 1fr 1fr; }
   .docs-layout { grid-template-columns: 1fr; }.docs-toc { position: static; grid-template-columns: repeat(6, auto); overflow-x: auto; }
