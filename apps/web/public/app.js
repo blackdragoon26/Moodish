@@ -79,10 +79,11 @@ async function boot() {
     } catch (error) {
       lastError = error;
       $("#loginGate").classList.remove("hidden");
+      $("#loginNote").classList.remove("hidden");
       $("#loginNote").textContent =
         attempt < 5
           ? "Moodish is waking up after a service update. Reconnecting automatically…"
-          : "Moodish is taking longer to wake up. We’ll keep reconnecting—there is nothing you need to reset.";
+          : "Moodish is taking longer to wake up. We’ll keep reconnecting. There is nothing you need to reset.";
       await wait(Math.min(5000, 500 * 2 ** attempt));
     }
   }
@@ -100,8 +101,10 @@ function configureLogin(config, health) {
     $("#googleLogin").href = "#";
     $("#googleLogin").onclick = (event) => {
       event.preventDefault();
+      $("#loginNote").classList.remove("hidden");
       $("#loginNote").textContent = "Google login is ready in code; add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on Render to switch it on.";
     };
+    $("#loginNote").classList.remove("hidden");
     $("#loginNote").textContent = "Google needs OAuth credentials; Swiggy uses approved MCP access. Demo access is available for review.";
   }
   if (!config.swiggy) {
@@ -111,8 +114,6 @@ function configureLogin(config, health) {
     $("#swiggyLogin").rel = "noreferrer";
     $("#swiggyLogin").innerHTML = '<span class="provider-mark">S</span> Swiggy access pending';
     $("#swiggyLogin").title = "This deployed OAuth client must be whitelisted by Swiggy before sign-in can work";
-    $("#loginNote").innerHTML =
-      'Swiggy has not whitelisted this deployed client yet. Request production access for <strong>Moodish</strong> with redirect URI <strong>https://moodish.onrender.com/api/auth/swiggy/callback</strong>.';
   }
 }
 
@@ -133,7 +134,7 @@ function enterProduct(user, history = []) {
       "assistant",
       `I remember your last confirmed plan: ${previous.items?.map((item) => item.name).join(", ") || previous.restaurantName}${
         previous.addOns?.length ? ` with ${previous.addOns.map((item) => item.name).join(", ")} from Instamart` : ""
-      }. I’ll use that only as a light preference signal—today’s craving still comes first.`
+      }. I’ll use that only as a light preference signal. Today’s craving still comes first.`
     );
   }
 }
@@ -287,7 +288,7 @@ if (SpeechRecognitionApi) {
     $("#composerHint").textContent =
       event.error === "not-allowed"
         ? "Microphone access was blocked. You can still type your craving."
-        : "I missed that bite—try the microphone again or type it.";
+        : "I missed that bite. Try the microphone again or type it.";
   };
   recognition.onend = () => {
     voiceButton.classList.remove("listening");
@@ -609,7 +610,7 @@ function renderGroup(session) {
   $("#rankGroup").classList.toggle("hidden", session.state !== "collecting");
   $("#rankGroup").textContent =
     session.state === "collecting" && count >= session.headcount
-      ? "All responses in — build meal plans"
+      ? "All responses in: build meal plans"
       : "Close responses & build meal plans";
   $("#selectGroup").disabled = !["awaiting_manager", "voting"].includes(session.state) || !selectedGroupOptionId;
   $("#selectGroup").classList.toggle("hidden", !["awaiting_manager", "voting"].includes(session.state));
@@ -856,7 +857,7 @@ function renderRailNudge() {
         ? "satisfying lunch, both, under ₹400"
         : "comfort food, both, under ₹450";
   $("#momentNudge").textContent = mealMemory[0]
-    ? `It’s ${moment.toLowerCase()}. We can stay familiar or make a clean break from your last ${mealMemory[0].cuisine || "meal"}—what sounds better?`
+    ? `It’s ${moment.toLowerCase()}. We can stay familiar or make a clean break from your last ${mealMemory[0].cuisine || "meal"}. What sounds better?`
     : `It’s ${moment.toLowerCase()}. Start with a feeling and I’ll ask only for anything essential that’s missing.`;
   const prompts = [
     { label: "Plan for right now", prompt: defaultPrompt },

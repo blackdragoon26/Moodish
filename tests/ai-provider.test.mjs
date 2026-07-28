@@ -112,7 +112,7 @@ test("openrouter provider extracts semantic meal edits with a strict schema", as
     requestedDishes: [],
     attributes: ["cold"],
     cuisines: [],
-    acknowledgement: "Good call—the meal deserves a sip-sidekick.",
+    acknowledgement: "Good call. The meal deserves a sip-sidekick.",
     followUp: ""
   };
   let requestBody;

@@ -1121,8 +1121,8 @@ async function resolveAddOnResolution({
       requiredBudget,
       shortfall: requiredBudget - budget,
       message: explicitRequest
-        ? `I checked ${restaurantName} first, then found ${candidate.name} on Instamart—but it needs ₹${requiredBudget - budget} more than your ₹${budget} ceiling. Raise the cap to ₹${requiredBudget}, or keep the meal as-is.`
-        : `A good accompaniment is available—${candidate.name} from Instamart—but it needs ₹${requiredBudget - budget} more than your ₹${budget} ceiling. Raise the cap to ₹${requiredBudget}, or keep the meal as-is.`
+        ? `I checked ${restaurantName} first, then found ${candidate.name} on Instamart. It needs ₹${requiredBudget - budget} more than your ₹${budget} ceiling. Raise the cap to ₹${requiredBudget}, or keep the meal as-is.`
+        : `A good accompaniment is available: ${candidate.name} from Instamart. It needs ₹${requiredBudget - budget} more than your ₹${budget} ceiling. Raise the cap to ₹${requiredBudget}, or keep the meal as-is.`
     };
   }
   return {

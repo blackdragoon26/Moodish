@@ -18,6 +18,12 @@ test("web server serves UI and API from one port", async () => {
     assert.match(html, /https:\/\/mcp\.swiggy\.com\/builders\//);
     assert.match(html, /Built for Swiggy Food \+ Instamart/);
     assert.match(html, /data-theme-toggle/);
+    assert.match(html, /href="https:\/\/www\.swiggy\.com\/restaurants"/);
+    assert.match(html, /href="https:\/\/www\.swiggy\.com\/instamart"/);
+    assert.match(html, /src="\/assets\/swiggy\.png"/);
+    assert.match(html, /src="\/assets\/instamart\.png"/);
+    assert.doesNotMatch(html, /One place to plan the meal/);
+    assert.doesNotMatch(html, /\u2014/);
     assert.match(html, /class="mic-icon"/);
     assert.doesNotMatch(html, /🎙|🎤/);
     assert.doesNotMatch(html, /Overall vibe/);
@@ -26,6 +32,10 @@ test("web server serves UI and API from one port", async () => {
     const styles = await fetchText(port, "/styles.css");
     assert.match(styles, /html\[data-theme="dark"\] \.moment-message \.bubble/);
     assert.match(styles, /html\[data-theme="dark"\] \.discovery-choices button\.selected/);
+    const swiggyImage = await fetch(`http://127.0.0.1:${port}/assets/swiggy.png`);
+    assert.equal(swiggyImage.headers.get("content-type"), "image/png");
+    const instamartImage = await fetch(`http://127.0.0.1:${port}/assets/instamart.png`);
+    assert.equal(instamartImage.headers.get("content-type"), "image/png");
     const slackLogo = await fetch(`http://127.0.0.1:${port}/assets/slack.svg`);
     assert.equal(slackLogo.headers.get("content-type"), "image/svg+xml");
 
