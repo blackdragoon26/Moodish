@@ -116,7 +116,11 @@ document.querySelectorAll("[data-view]").forEach((button) => {
 });
 
 function showProductView(view) {
+  const docsButton = $(".top-nav-link");
   document.querySelectorAll(".rail-link").forEach((item) => item.classList.toggle("active", item.dataset.view === view));
+  $(".app-shell").classList.toggle("docs-active", view === "docs");
+  docsButton.dataset.view = view === "docs" ? "solo" : "docs";
+  docsButton.textContent = view === "docs" ? "Back to planner" : "Docs";
   $("#soloView").classList.toggle("hidden", view !== "solo");
   $("#groupView").classList.toggle("hidden", view !== "group");
   $("#docsView").classList.toggle("hidden", view !== "docs");

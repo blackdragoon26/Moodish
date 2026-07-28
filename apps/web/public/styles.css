@@ -168,6 +168,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .text-button { border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; font-weight: 800; }
 
 .app-shell { display: grid; grid-template-columns: 230px minmax(0, 860px); justify-content: center; gap: 64px; min-height: calc(100vh - 72px); padding: 48px 32px 100px; }
+.app-shell.docs-active { grid-template-columns: minmax(0, 1120px); gap: 0; }
+.app-shell.docs-active .rail { display: none; }
+.app-shell.docs-active .docs-view { width: 100%; }
 .rail { position: sticky; top: 32px; display: flex; flex-direction: column; min-height: calc(100vh - 136px); align-self: start; }
 .rail-label { padding-left: 12px; color: #9a8d83; }
 .rail-link {
