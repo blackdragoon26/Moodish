@@ -23,6 +23,7 @@ import {
   demoUser,
   issueAuthCookie,
   readAuthUser,
+  signSessionToken,
   startGoogleOAuth
 } from "./auth.mjs";
 import { continueMealConversation } from "./conversation.mjs";
@@ -44,7 +45,7 @@ export async function handleAgentRequest(req, res) {
       return send(res, 200, healthPayload());
     }
     if (req.method === "GET" && url.pathname === "/api/bootstrap") {
-      const user = readAuthUser(req.headers.cookie);
+      const user = readAuthUser(req.headers.cookie, req.headers.authorization);
       return send(res, 200, {
         config: authConfiguration(),
         user,
@@ -56,7 +57,7 @@ export async function handleAgentRequest(req, res) {
       return send(res, 200, authConfiguration());
     }
     if (req.method === "GET" && url.pathname === "/api/auth/me") {
-      return send(res, 200, { user: readAuthUser(req.headers.cookie) });
+      return send(res, 200, { user: readAuthUser(req.headers.cookie, req.headers.authorization) });
     }
     if (req.method === "POST" && url.pathname === "/api/auth/demo") {
       const user = demoUser();
@@ -66,13 +67,19 @@ export async function handleAgentRequest(req, res) {
       return send(res, 200, { loggedOut: true }, { "set-cookie": clearAuthCookie() });
     }
     if (req.method === "GET" && url.pathname === "/api/auth/google/start") {
-      return redirect(res, startGoogleOAuth(resolvePublicOrigin(req)));
+      return redirect(
+        res,
+        startGoogleOAuth(resolvePublicOrigin(req), { mobile: url.searchParams.get("client") === "mobile" })
+      );
     }
     if (req.method === "GET" && url.pathname === "/api/auth/google/callback") {
-      const user = await completeGoogleOAuth({
+      const { mobile, user } = await completeGoogleOAuth({
         code: url.searchParams.get("code"),
         state: url.searchParams.get("state")
       });
+      if (mobile) {
+        return redirect(res, `moodish://auth-callback?token=${encodeURIComponent(signSessionToken(user))}`);
+      }
       return redirect(res, "/?login=google", { "set-cookie": issueAuthCookie(user) });
     }
     if (req.method === "GET" && url.pathname === "/api/auth/swiggy/start") {
@@ -129,7 +136,7 @@ export async function handleAgentRequest(req, res) {
     }
     if (req.method === "POST" && url.pathname === "/api/planner/chat") {
       const body = await readJson(req);
-      const authUser = readAuthUser(req.headers.cookie);
+      const authUser = readAuthUser(req.headers.cookie, req.headers.authorization);
       return send(
         res,
         200,
@@ -144,7 +151,7 @@ export async function handleAgentRequest(req, res) {
     }
     if (req.method === "POST" && url.pathname === "/api/cart/confirm") {
       const body = await readJson(req);
-      const authUser = readAuthUser(req.headers.cookie);
+      const authUser = readAuthUser(req.headers.cookie, req.headers.authorization);
       return send(
         res,
         200,

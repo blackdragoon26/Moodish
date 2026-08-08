@@ -12,13 +12,13 @@ export function authConfiguration() {
   };
 }
 
-export function startGoogleOAuth(publicOrigin) {
+export function startGoogleOAuth(publicOrigin, { mobile = false } = {}) {
   if (!authConfiguration().google) throw unavailable("Google login needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
   const state = crypto.randomBytes(24).toString("base64url");
   const verifier = crypto.randomBytes(32).toString("base64url");
   const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
   const redirectUri = `${String(publicOrigin || publicUrl()).replace(/\/$/, "")}/api/auth/google/callback`;
-  googleFlows.set(state, { verifier, redirectUri, expiresAt: Date.now() + 10 * 60_000 });
+  googleFlows.set(state, { verifier, redirectUri, mobile: Boolean(mobile), expiresAt: Date.now() + 10 * 60_000 });
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.search = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
@@ -55,22 +55,31 @@ export async function completeGoogleOAuth({ code, state }) {
   });
   if (!profileResponse.ok) throw unavailable("Google profile lookup failed", 502);
   const profile = await profileResponse.json();
+  const mobile = Boolean(googleFlows.get(String(state || ""))?.mobile);
   googleFlows.delete(state);
   return {
-    id: `google:${profile.sub}`,
-    name: profile.name || profile.email?.split("@")[0] || "Google member",
-    email: profile.email,
-    picture: profile.picture,
-    provider: "google"
+    mobile,
+    user: {
+      id: `google:${profile.sub}`,
+      name: profile.name || profile.email?.split("@")[0] || "Google member",
+      email: profile.email,
+      picture: profile.picture,
+      provider: "google"
+    }
   };
 }
 
-export function issueAuthCookie(user) {
+export function signSessionToken(user) {
   const payload = Buffer.from(
     JSON.stringify({ ...user, exp: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60 })
   ).toString("base64url");
   const signature = crypto.createHmac("sha256", runtimeSigningSecret("auth-session")).update(payload).digest("base64url");
-  return `moodish_session=${payload}.${signature}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${
+  return `${payload}.${signature}`;
+}
+
+export function issueAuthCookie(user) {
+  const token = signSessionToken(user);
+  return `moodish_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000${
     process.env.NODE_ENV === "production" ? "; Secure" : ""
   }`;
 }
@@ -79,12 +88,16 @@ export function clearAuthCookie() {
   return `moodish_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}`;
 }
 
-export function readAuthUser(cookieHeader = "") {
-  const token = String(cookieHeader)
+export function readAuthUser(cookieHeader = "", authorizationHeader = "") {
+  const bearerToken = String(authorizationHeader || "").startsWith("Bearer ")
+    ? String(authorizationHeader).slice("Bearer ".length).trim()
+    : null;
+  const cookieToken = String(cookieHeader || "")
     .split(";")
     .map((part) => part.trim())
     .find((part) => part.startsWith("moodish_session="))
     ?.slice("moodish_session=".length);
+  const token = bearerToken || cookieToken;
   if (!token) return null;
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
