@@ -6,3 +6,8 @@ coverage/
 tmp/
 .cache/
 *.log
+
+# Xcode
+apps/ios/**/xcuserdata/
+apps/ios/**/*.xcuserstate
+apps/ios/**/DerivedData/
