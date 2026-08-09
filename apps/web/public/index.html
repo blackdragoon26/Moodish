@@ -11,9 +11,11 @@
   <body>
     <section id="loginGate" class="login-gate hidden" aria-labelledby="loginTitle">
       <div class="login-art" aria-hidden="true">
-        <span class="floating-card card-one">chewy · smoky · ₹400</span>
-        <span class="floating-card card-two">rainy-day biryani</span>
-        <span class="floating-card card-three">lunch for eight</span>
+        <span class="floating-card card-one" data-cloud-card><span data-cloud-text>chewy · smoky · ₹400</span><small data-cloud-lang>English</small></span>
+        <span class="floating-card card-two" data-cloud-card><span data-cloud-text>rainy-day biryani</span><small data-cloud-lang>English</small></span>
+        <span class="floating-card card-three" data-cloud-card><span data-cloud-text>lunch for eight</span><small data-cloud-lang>English</small></span>
+        <span class="floating-card card-four" data-cloud-card><span data-cloud-text>spicy tonight</span><small data-cloud-lang>English</small></span>
+        <span class="floating-card card-five" data-cloud-card><span data-cloud-text>something sweet</span><small data-cloud-lang>English</small></span>
       </div>
       <div class="login-card">
         <a class="brand brand-large" href="/">
@@ -38,6 +40,14 @@
           <button class="theme-toggle" data-theme-toggle type="button" aria-label="Switch colour theme">
             <span data-theme-icon>◐</span><span data-theme-label>Dark mode</span>
           </button>
+        </div>
+        <div class="app-links">
+          <a class="app-link" href="https://github.com/blackdragoon26/Moodish" target="_blank" rel="noreferrer">
+            <span class="app-link-mark">⭳</span> Get the app
+          </a>
+          <a class="app-link" href="https://github.com/blackdragoon26/Moodish" target="_blank" rel="noreferrer">
+            <span class="app-link-mark">⌥</span> View on GitHub
+          </a>
         </div>
         <div class="login-actions">
           <a id="googleLogin" class="login-button google" href="/api/auth/google/start">
@@ -112,6 +122,7 @@
         </a>
         <div class="topbar-actions">
           <a class="top-builders-link" href="https://mcp.swiggy.com/builders/" target="_blank" rel="noreferrer">Swiggy Food + Instamart ↗</a>
+          <a class="top-builders-link" href="https://github.com/blackdragoon26/Moodish" target="_blank" rel="noreferrer">Get the app · GitHub ↗</a>
           <button class="theme-toggle compact" data-theme-toggle type="button" aria-label="Switch colour theme">
             <span data-theme-icon>◐</span><span data-theme-label>Dark</span>
           </button>

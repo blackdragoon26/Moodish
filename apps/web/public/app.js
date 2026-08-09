@@ -36,6 +36,67 @@ function applyTheme(theme) {
   });
 }
 
+const MOOD_CLOUD_PHRASES = [
+  { text: "chewy · smoky · ₹400", lang: "English" },
+  { text: "rainy-day biryani", lang: "English" },
+  { text: "lunch for eight", lang: "English" },
+  { text: "spicy tonight", lang: "English" },
+  { text: "something sweet", lang: "English" },
+  { text: "गरमागरम पकौड़े का मन", lang: "Hindi" },
+  { text: "মিষ্টি খাওয়ার ইচ্ছা", lang: "Bengali" },
+  { text: "वडापाव हवाहवासा", lang: "Marathi" },
+  { text: "కారంగా తినాలని ఉంది", lang: "Telugu" },
+  { text: "சூடான தோசை வேணும்", lang: "Tamil" },
+  { text: "ಬಿಸಿ ಬಿಸಿ ಇಡ್ಲಿ ಬೇಕು", lang: "Kannada" },
+  { text: "ചൂടൻ അപ്പം മതി", lang: "Malayalam" },
+  { text: "થોડું ગળ્યું જોઈએ", lang: "Gujarati" },
+  { text: "ਅੱਜ ਛੋਲੇ ਭਟੂਰੇ ਚਾਹੀਦੇ", lang: "Punjabi" },
+  { text: "ପଖାଳ ଖାଇବାକୁ ମନ", lang: "Odia" },
+  { text: "মাছ খাব লাগিছে", lang: "Assamese" },
+  { text: "کچھ مصالحے دار چاہیے", lang: "Urdu", rtl: true },
+  { text: "मासळी करी जाय", lang: "Konkani" },
+  { text: "मःम खान मन छ", lang: "Nepali" },
+  { text: "लिट्टी चोखा खेबाक मोन अछि", lang: "Maithili" },
+  { text: "मिठाई गरजे", lang: "Sindhi" },
+  { text: "Nga kwah bam jadoh", lang: "Khasi" },
+  { text: "Bai ka duh e", lang: "Mizo" }
+];
+
+function shuffle(list) {
+  const copy = [...list];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function initMoodCloud() {
+  const cards = [...document.querySelectorAll("[data-cloud-card]")];
+  if (!cards.length) return;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let queue = shuffle(MOOD_CLOUD_PHRASES);
+  const nextPhrase = () => {
+    if (!queue.length) queue = shuffle(MOOD_CLOUD_PHRASES);
+    return queue.pop();
+  };
+  const applyPhrase = (card, phrase) => {
+    card.classList.add("cloud-fade-out");
+    window.setTimeout(() => {
+      card.querySelector("[data-cloud-text]").textContent = phrase.text;
+      card.querySelector("[data-cloud-lang]").textContent = phrase.lang;
+      card.setAttribute("dir", phrase.rtl ? "rtl" : "ltr");
+      card.classList.remove("cloud-fade-out");
+    }, 450);
+  };
+  cards.forEach((card, index) => {
+    applyPhrase(card, nextPhrase());
+    if (reduceMotion) return;
+    window.setInterval(() => applyPhrase(card, nextPhrase()), 5200 + index * 900);
+  });
+}
+initMoodCloud();
+
 const savedTheme = window.localStorage.getItem("moodish-theme");
 applyTheme(savedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
 document.querySelectorAll("[data-theme-toggle]").forEach((button) => {

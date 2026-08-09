@@ -80,6 +80,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .floating-card {
   position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   padding: 15px 20px;
   border: 1px solid rgba(255,255,255,.2);
   border-radius: 999px;
@@ -88,10 +92,27 @@ button, a { -webkit-tap-highlight-color: transparent; }
   box-shadow: 0 18px 60px rgba(0,0,0,.2);
   backdrop-filter: blur(15px);
   font-weight: 750;
+  text-align: center;
+  opacity: 1;
+  transition: opacity .45s ease;
+  max-width: min(78vw, 280px);
 }
-.card-one { top: 27%; left: 16%; --card-rotation: -4deg; animation: card-drift 6.5s ease-in-out infinite; }
-.card-two { top: 48%; right: 12%; --card-rotation: 5deg; animation: card-drift 7.8s ease-in-out -2.2s infinite; }
-.card-three { bottom: 20%; left: 28%; --card-rotation: -2deg; animation: card-drift 7.1s ease-in-out -4s infinite; }
+.floating-card.cloud-fade-out { opacity: 0; }
+.floating-card [data-cloud-lang] {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  opacity: .6;
+}
+.card-one { top: 20%; left: 14%; --card-rotation: -4deg; animation: card-drift 6.5s ease-in-out infinite; }
+.card-two { top: 44%; right: 10%; --card-rotation: 5deg; animation: card-drift 7.8s ease-in-out -2.2s infinite; }
+.card-three { bottom: 30%; left: 24%; --card-rotation: -2deg; animation: card-drift 7.1s ease-in-out -4s infinite; }
+.card-four { top: 8%; right: 22%; --card-rotation: 3deg; animation: card-drift 8.4s ease-in-out -1.1s infinite; }
+.card-five { bottom: 10%; right: 30%; --card-rotation: -3deg; animation: card-drift 6.9s ease-in-out -3.3s infinite; }
+@media (max-width: 900px) {
+  .card-four, .card-five { display: none; }
+}
 .login-card {
   display: flex;
   flex-direction: column;
@@ -153,6 +174,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .theme-toggle.compact { min-height: 34px; padding: 0 9px; background: transparent; }
 .top-builders-link { color: var(--muted); text-decoration: none; font-size: 10px; font-weight: 850; }
 .top-builders-link:hover { color: var(--accent-dark); }
+.app-links { display: flex; gap: 9px; max-width: 520px; margin: 0 0 24px; }
+.app-link { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); background: rgba(255,255,255,.55); text-decoration: none; font-size: 12px; font-weight: 850; transition: transform .18s ease, border-color .18s ease; }
+.app-link:hover { transform: translateY(-1px); border-color: var(--accent); color: var(--accent-dark); }
+.app-link-mark { font-size: 13px; }
 .login-actions { display: grid; gap: 10px; max-width: 430px; }
 .login-button {
   display: flex;
