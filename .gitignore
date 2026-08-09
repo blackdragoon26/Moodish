@@ -6,6 +6,8 @@ coverage/
 tmp/
 .cache/
 *.log
+.DS_Store
+.claude/
 
 # Xcode
 apps/ios/**/xcuserdata/

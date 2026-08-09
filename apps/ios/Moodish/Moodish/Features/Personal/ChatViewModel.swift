@@ -14,7 +14,10 @@ final class ChatViewModel {
 
     var messages: [ChatMessage] = []
     var quickReplies: [String] = []
-    var recommendation: RecommendationRun?
+    /// The most recent recommendation, retained even after the deck sheet is
+    /// dismissed so the user can reopen it (e.g. via a "View recommendation"
+    /// button) instead of being stuck until a brand-new chat turn produces one.
+    var lastRecommendation: RecommendationRun?
     var isSending = false
     private var state: JSONValue = .object([:])
 
@@ -35,14 +38,10 @@ final class ChatViewModel {
             messages.append(ChatMessage(role: .assistant, text: response.reply))
             quickReplies = response.quickReplies ?? []
             if let recommendation = response.recommendation {
-                self.recommendation = recommendation
+                self.lastRecommendation = recommendation
             }
         } catch {
             messages.append(ChatMessage(role: .error, text: error.localizedDescription))
         }
-    }
-
-    func dismissRecommendation() {
-        recommendation = nil
     }
 }

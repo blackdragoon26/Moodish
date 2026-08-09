@@ -6,6 +6,7 @@ struct ChatView: View {
     @State private var draft = ""
     @State private var showMealDial = false
     @State private var showMealMemory = false
+    @State private var showRecommendationSheet = false
 
     var body: some View {
         NavigationStack {
@@ -57,15 +58,27 @@ struct ChatView: View {
             }
             .navigationTitle("Moodish")
             .toolbar {
+                if viewModel?.lastRecommendation != nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { showRecommendationSheet = true } label: {
+                            Label("Recommendation", systemImage: "bag.fill")
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showMealMemory = true } label: {
                         Image(systemName: "clock.arrow.circlepath")
                     }
                 }
             }
-            .sheet(item: bindingForRecommendation) { recommendation in
-                RecommendationDeckView(recommendation: recommendation) {
-                    viewModel?.dismissRecommendation()
+            .onChange(of: viewModel?.lastRecommendation?.recommendationId) { _, newId in
+                if newId != nil { showRecommendationSheet = true }
+            }
+            .sheet(isPresented: $showRecommendationSheet) {
+                if let recommendation = viewModel?.lastRecommendation {
+                    RecommendationDeckView(recommendation: recommendation) {
+                        showRecommendationSheet = false
+                    }
                 }
             }
             .sheet(isPresented: $showMealMemory) {
@@ -78,13 +91,6 @@ struct ChatView: View {
                 viewModel = ChatViewModel(api: appState.api)
             }
         }
-    }
-
-    private var bindingForRecommendation: Binding<RecommendationRun?> {
-        Binding(
-            get: { viewModel?.recommendation },
-            set: { if $0 == nil { viewModel?.dismissRecommendation() } }
-        )
     }
 }
 

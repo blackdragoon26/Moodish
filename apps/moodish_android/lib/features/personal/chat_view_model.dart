@@ -17,7 +17,10 @@ class ChatViewModel extends ChangeNotifier {
 
   final List<ChatMessage> messages = [];
   List<String> quickReplies = [];
-  RecommendationRun? recommendation;
+  /// The most recent recommendation, retained even after its screen is
+  /// popped so the user can reopen it (via a "View recommendation" button)
+  /// instead of being stuck until a brand-new chat turn produces one.
+  RecommendationRun? lastRecommendation;
   bool isSending = false;
   dynamic _state = <String, dynamic>{};
 
@@ -33,17 +36,12 @@ class ChatViewModel extends ChangeNotifier {
       _state = response.state;
       messages.add(ChatMessage(ChatRole.assistant, response.reply));
       quickReplies = response.quickReplies;
-      if (response.recommendation != null) recommendation = response.recommendation;
+      if (response.recommendation != null) lastRecommendation = response.recommendation;
     } on ApiException catch (error) {
       messages.add(ChatMessage(ChatRole.error, error.message));
     } finally {
       isSending = false;
       notifyListeners();
     }
-  }
-
-  void dismissRecommendation() {
-    recommendation = null;
-    notifyListeners();
   }
 }

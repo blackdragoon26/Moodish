@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
+import '../../core/models/recommendation_models.dart';
 import 'chat_view_model.dart';
 import 'meal_dial_sheet.dart';
 import 'meal_memory_sheet.dart';
@@ -18,6 +19,7 @@ class _ChatScreenState extends State<ChatScreen> {
   late final ChatViewModel _viewModel;
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
+  String? _lastOpenedRecommendationId;
 
   @override
   void initState() {
@@ -29,13 +31,10 @@ class _ChatScreenState extends State<ChatScreen> {
   void _onChanged() {
     if (!mounted) return;
     setState(() {});
-    if (_viewModel.recommendation != null) {
-      final recommendation = _viewModel.recommendation!;
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => RecommendationDeckScreen(recommendation: recommendation)));
-        _viewModel.dismissRecommendation();
-      });
+    final recommendation = _viewModel.lastRecommendation;
+    if (recommendation != null && recommendation.recommendationId != _lastOpenedRecommendationId) {
+      _lastOpenedRecommendationId = recommendation.recommendationId;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openRecommendation(recommendation));
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -43,6 +42,10 @@ class _ChatScreenState extends State<ChatScreen> {
             duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
       }
     });
+  }
+
+  void _openRecommendation(RecommendationRun recommendation) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecommendationDeckScreen(recommendation: recommendation)));
   }
 
   @override
@@ -66,6 +69,12 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         title: const Text('Moodish'),
         actions: [
+          if (_viewModel.lastRecommendation != null)
+            IconButton(
+              icon: const Icon(Icons.shopping_bag_outlined),
+              tooltip: 'View recommendation',
+              onPressed: () => _openRecommendation(_viewModel.lastRecommendation!),
+            ),
           IconButton(
             icon: const Icon(Icons.history),
             onPressed: () => showModalBottomSheet(

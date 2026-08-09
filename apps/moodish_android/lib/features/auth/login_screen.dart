@@ -29,6 +29,18 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset('assets/moodish-logo.png', width: 42, height: 42, fit: BoxFit.cover),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Moodish', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+                ],
+              ),
+              const SizedBox(height: 20),
               Text('YOUR FOOD CONCIERGE',
                   style: Theme.of(context)
                       .textTheme

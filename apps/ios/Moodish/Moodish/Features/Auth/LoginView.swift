@@ -12,6 +12,16 @@ struct LoginView: View {
         VStack(spacing: 28) {
             Spacer()
 
+            HStack(spacing: 10) {
+                Image("MoodishLogo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 42, height: 42)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                Text("Moodish")
+                    .font(.title2.weight(.heavy))
+            }
+
             VStack(spacing: 8) {
                 Text("YOUR FOOD CONCIERGE")
                     .font(.caption.weight(.semibold))
