@@ -92,10 +92,22 @@ function initMoodCloud() {
   cards.forEach((card, index) => {
     applyPhrase(card, nextPhrase());
     if (reduceMotion) return;
-    window.setInterval(() => applyPhrase(card, nextPhrase()), 5200 + index * 900);
+    window.setInterval(() => applyPhrase(card, nextPhrase()), 2200 + index * 340);
   });
 }
 initMoodCloud();
+
+function highlightRecommendedDownload() {
+  const ua = navigator.userAgent || "";
+  const platform = /iPhone|iPad|iPod/i.test(ua) ? "ios" : /Android/i.test(ua) ? "android" : null;
+  if (!platform) return;
+  const card = document.querySelector(`.app-download-card[data-platform="${platform}"]`);
+  if (!card) return;
+  card.classList.add("recommended");
+  const badge = card.querySelector("[data-recommended-badge]");
+  if (badge) badge.hidden = false;
+}
+highlightRecommendedDownload();
 
 const savedTheme = window.localStorage.getItem("moodish-theme");
 applyTheme(savedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
