@@ -32,6 +32,23 @@ class ApiClient {
     _cookie = prefs.getString(_cookieKey);
   }
 
+  /// The mobile Google login flow (see auth.mjs `client=mobile`) hands back
+  /// the same signed token that would otherwise be embedded in the
+  /// `moodish_session` cookie, so storing it as that cookie reuses all the
+  /// existing cookie-based auth plumbing instead of needing a parallel
+  /// bearer-token code path.
+  Future<void> setSessionToken(String token) async {
+    _cookie = 'moodish_session=$token';
+    await _persistCookie();
+  }
+
+  /// `/api/auth/google/start` redirects the browser straight to Google;
+  /// `client=mobile` tells the backend to complete the flow by redirecting
+  /// to `moodish://auth-callback?token=...` instead of a web cookie+redirect.
+  Uri get googleMobileAuthorizeUrl => Uri.parse('$baseUrl/api/auth/google/start').replace(
+        queryParameters: {'client': 'mobile'},
+      );
+
   Future<void> _persistCookie() async {
     final prefs = await SharedPreferences.getInstance();
     if (_cookie != null) {

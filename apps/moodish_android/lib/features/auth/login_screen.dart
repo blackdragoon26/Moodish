@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart' show canLaunchUrl, launchUrl;
 
 import '../../app_state.dart';
 import '../../core/api_client.dart';
+import '../../core/google_auth_session.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +14,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _googleAuthSession = GoogleAuthSession();
   bool _isSigningIn = false;
   String? _errorMessage;
 
@@ -62,9 +64,9 @@ class _LoginScreenState extends State<LoginScreen> {
               ],
               _LoginButton(
                 icon: Icons.g_mobiledata,
-                label: 'Continue with Google',
-                enabled: false,
-                onTap: null,
+                label: _isSigningIn ? 'Signing in…' : 'Continue with Google',
+                enabled: config?.google == true && !_isSigningIn,
+                onTap: _signInWithGoogle,
               ),
               if (config?.google == false)
                 Padding(
@@ -117,6 +119,24 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await context.read<AppState>().loginWithDemo();
+    } on ApiException catch (error) {
+      setState(() => _errorMessage = error.message);
+    } finally {
+      if (mounted) setState(() => _isSigningIn = false);
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isSigningIn = true;
+      _errorMessage = null;
+    });
+    try {
+      final state = context.read<AppState>();
+      final token = await _googleAuthSession.signIn(state.api.googleMobileAuthorizeUrl);
+      await state.loginWithGoogleToken(token);
+    } on GoogleAuthException catch (error) {
+      setState(() => _errorMessage = error.message);
     } on ApiException catch (error) {
       setState(() => _errorMessage = error.message);
     } finally {

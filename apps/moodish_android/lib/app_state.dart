@@ -84,6 +84,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> loginWithGoogleToken(String token) async {
+    await api.setSessionToken(token);
+    await bootstrap();
+  }
+
   Future<void> logout() async {
     await api.logout();
     user = null;

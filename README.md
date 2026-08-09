@@ -2,11 +2,28 @@
 
 ![Moodish logo](apps/web/public/assets/moodish-logo.png)
 
+<p>
+  <a href="https://mcp.swiggy.com/builders/">
+    <img src="apps/web/public/assets/swiggy.png" alt="Swiggy" width="28" height="28" />
+  </a>
+  <a href="https://www.swiggy.com/instamart">
+    <img src="apps/web/public/assets/instamart.png" alt="Instamart" width="28" height="28" />
+  </a>
+  &nbsp;<strong>Built for Swiggy Food + Instamart</strong> · Powered through the <a href="https://mcp.swiggy.com/builders/">Swiggy Builders Club</a>
+</p>
+
 Moodish is a mood-based food planning app for Swiggy-style ordering.
 
 You tell it what you feel like eating, your maximum budget, dietary needs, and whether you want something familiar, balanced, or completely new. Moodish returns craving-first meal options, explains exact matches and alternatives, and lets you build a cart only after confirmation.
 
 Live app: https://moodish.onrender.com/
+
+## Apps
+
+Moodish also ships as native mobile clients that talk to the same backend as the web app:
+
+- **iOS** (SwiftUI) — [`apps/ios`](apps/ios). Open `Moodish.xcodeproj` in Xcode and run on a Simulator (see [docs/demo-testing-guide.md](docs/demo-testing-guide.md)).
+- **Android** (Flutter) — [`apps/moodish_android`](apps/moodish_android). Download the latest APK from [Releases](https://github.com/blackdragoon26/Moodish/releases) or build it yourself with `flutter build apk`.
 
 The main experience is now conversational: sign in, describe the mood, and Moodish asks only for missing hard constraints such as food mode and maximum budget. A complete prompt such as `spicy Chinese, non-veg, under ₹450 with a cold drink` goes directly to recommendations.
 
