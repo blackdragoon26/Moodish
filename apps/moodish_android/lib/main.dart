@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'app_state.dart';
 import 'home_screen.dart';
+import 'theme.dart';
 import 'features/auth/login_screen.dart';
 
 void main() {
@@ -33,13 +34,12 @@ class _MoodishAppState extends State<MoodishApp> {
       value: appState,
       child: Consumer<AppState>(
         builder: (context, state, _) {
-          const accent = Color(0xFFDB5D33);
           return MaterialApp(
             title: 'Moodish',
             debugShowCheckedModeBanner: false,
             themeMode: state.themeMode,
-            theme: ThemeData(colorSchemeSeed: accent, brightness: Brightness.light, useMaterial3: true),
-            darkTheme: ThemeData(colorSchemeSeed: accent, brightness: Brightness.dark, useMaterial3: true),
+            theme: buildMoodishTheme(Brightness.light),
+            darkTheme: buildMoodishTheme(Brightness.dark),
             home: const RootView(),
           );
         },
