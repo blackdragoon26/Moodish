@@ -1,6 +1,6 @@
 # Moodish
 
-![Moodish logo](apps/web/public/assets/moodish-logo.png)
+<img src="apps/web/public/assets/moodish-logo.png" alt="Moodish logo" width="96" height="96" />
 
 <p>
   <a href="https://mcp.swiggy.com/builders/">
