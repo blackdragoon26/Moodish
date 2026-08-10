@@ -127,7 +127,7 @@ class ApiClient {
       _send('/api/auth/demo', method: 'POST', parse: (j) => MoodishUser.fromJson((j as Map<String, dynamic>)['user'] as Map<String, dynamic>));
 
   Future<void> logout() async {
-    await _send('/api/auth/logout', method: 'POST', parse: (j) => null);
+    await _send('/api/auth/logout', method: 'POST', parse: (j) {});
     _cookie = null;
     await _persistCookie();
   }
@@ -278,5 +278,5 @@ class ApiClient {
   // Privacy
 
   Future<void> deleteTasteMemory({required String userIdHash}) =>
-      _send('/api/privacy/delete-taste-memory', method: 'POST', body: {'userIdHash': userIdHash}, parse: (j) => null);
+      _send('/api/privacy/delete-taste-memory', method: 'POST', body: {'userIdHash': userIdHash}, parse: (j) {});
 }

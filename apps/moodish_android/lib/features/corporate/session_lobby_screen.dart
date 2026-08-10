@@ -105,8 +105,10 @@ class _SessionLobbyScreenState extends State<SessionLobbyScreen> {
               ...session.options.map((option) => Card(
                     child: ListTile(
                       title: Text(option.restaurantName),
-                      subtitle: Text('₹${option.estimatedTotal}' +
-                          (session.voteCounts[option.optionId] != null ? ' · ${session.voteCounts[option.optionId]} votes' : '')),
+                      subtitle: Text(
+                        '₹${option.estimatedTotal}'
+                        '${session.voteCounts[option.optionId] != null ? ' · ${session.voteCounts[option.optionId]} votes' : ''}',
+                      ),
                       trailing: session.approvalMode == GroupApprovalMode.managerDecides
                           ? OutlinedButton(
                               onPressed: option.optionId == session.selectedOptionId
