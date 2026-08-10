@@ -50,6 +50,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const _SectionHeader('Connection'),
             ListTile(title: const Text('Data mode'), trailing: Text(health.swiggyMode == 'live' ? 'Live Swiggy' : 'Demo data')),
             ListTile(title: const Text('AI provider'), trailing: Text(health.aiProvider ?? 'mock')),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text('Powered by Swiggy', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            ),
           ],
           const _SectionHeader('Privacy'),
           ListTile(

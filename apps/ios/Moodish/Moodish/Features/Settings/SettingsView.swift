@@ -31,6 +31,7 @@ struct SettingsView: View {
                     Section("Connection") {
                         LabeledContent("Data mode", value: health.swiggyMode == "live" ? "Live Swiggy" : "Demo data")
                         LabeledContent("AI provider", value: health.aiProvider ?? "mock")
+                        Text("Powered by Swiggy").font(.footnote).foregroundStyle(.secondary)
                     }
                 }
 

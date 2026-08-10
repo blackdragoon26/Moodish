@@ -2,15 +2,9 @@
 
 <img src="apps/web/public/assets/moodish-logo.png" alt="Moodish logo" width="96" height="96" />
 
-<p>
-  <a href="https://mcp.swiggy.com/builders/">
-    <img src="apps/web/public/assets/swiggy.png" alt="Swiggy" width="28" height="28" />
-  </a>
-  <a href="https://www.swiggy.com/instamart">
-    <img src="apps/web/public/assets/instamart.png" alt="Instamart" width="28" height="28" />
-  </a>
-  &nbsp;<strong>Built for Swiggy Food + Instamart</strong> · Powered through the <a href="https://mcp.swiggy.com/builders/">Swiggy Builders Club</a>
-</p>
+**Built for Swiggy Food + Instamart** · Powered through the [Swiggy Builders Club](https://mcp.swiggy.com/builders/)
+
+> Swiggy trademarks and logos are used only within the live app itself; live Swiggy MCP connectivity requires credentials issued directly by Swiggy to a registered integration partner and isn't included in this repository.
 
 Moodish is a mood-based food planning app for Swiggy-style ordering.
 
