@@ -71,11 +71,7 @@ class _SessionLobbyScreenState extends State<SessionLobbyScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.share),
-                        onPressed: () => Share.share(
-                          invitePasscode != null
-                              ? 'Join my Moodish group order: code ${widget.sessionId}, passcode $invitePasscode'
-                              : 'Join my Moodish group order: code ${widget.sessionId}',
-                        ),
+                        onPressed: () => Share.share(_inviteShareText(widget.sessionId, invitePasscode)),
                       ),
                     ],
                   ),
@@ -109,14 +105,21 @@ class _SessionLobbyScreenState extends State<SessionLobbyScreen> {
                         '₹${option.estimatedTotal}'
                         '${session.voteCounts[option.optionId] != null ? ' · ${session.voteCounts[option.optionId]} votes' : ''}',
                       ),
-                      trailing: session.approvalMode == GroupApprovalMode.managerDecides
-                          ? OutlinedButton(
-                              onPressed: option.optionId == session.selectedOptionId
-                                  ? null
-                                  : () => _viewModel.approve(option.optionId),
-                              child: Text(option.optionId == session.selectedOptionId ? 'Approved' : 'Approve this plan'),
-                            )
-                          : null,
+                      // Once any option has been approved, the backend's state
+                      // machine no longer accepts a different selection - hide
+                      // the other buttons entirely instead of leaving them
+                      // tappable and surfacing a raw "Cannot select an option
+                      // while session is awaiting_creator_confirmation" error.
+                      trailing: session.approvalMode != GroupApprovalMode.managerDecides
+                          ? null
+                          : session.selectedOptionId == null
+                              ? OutlinedButton(
+                                  onPressed: () => _viewModel.approve(option.optionId),
+                                  child: const Text('Approve this plan'),
+                                )
+                              : option.optionId == session.selectedOptionId
+                                  ? const Chip(label: Text('Approved'))
+                                  : null,
                     ),
                   )),
             ],
@@ -148,4 +151,15 @@ class _SessionLobbyScreenState extends State<SessionLobbyScreen> {
       ),
     );
   }
+}
+
+/// Same invite link shape as the web app's own share button
+/// (`${location.origin}/?group=<sessionId>&action=preferences` - see
+/// apps/web/public/app.js) so recipients get a tappable URL instead of
+/// bare text, on any device. The passcode is sent alongside as plain text
+/// rather than embedded in the URL, matching the web app's own choice not
+/// to put it in a link that could be logged or cached.
+String _inviteShareText(String sessionId, String? invitePasscode) {
+  final url = 'https://moodish.onrender.com/?group=${Uri.encodeComponent(sessionId)}&action=preferences';
+  return invitePasscode != null ? '$url\nPasscode: $invitePasscode' : url;
 }

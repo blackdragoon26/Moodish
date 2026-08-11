@@ -92,11 +92,24 @@ private struct InviteCard: View {
     let sessionId: String
     let invitePasscode: String?
 
-    private var shareText: String {
-        if let invitePasscode {
-            return "Join my Moodish group order: code \(sessionId), passcode \(invitePasscode)"
-        }
-        return "Join my Moodish group order: code \(sessionId)"
+    /// Same invite link shape as the web app's own share button
+    /// (`${location.origin}/?group=<sessionId>&action=preferences` - see
+    /// apps/web/public/app.js) so recipients get a real tappable URL
+    /// instead of bare text, on any device.
+    private var inviteURL: URL {
+        var components = URLComponents(string: "https://moodish.onrender.com/")!
+        components.queryItems = [
+            URLQueryItem(name: "group", value: sessionId),
+            URLQueryItem(name: "action", value: "preferences"),
+        ]
+        return components.url!
+    }
+
+    /// Sent alongside the link rather than embedded in the URL, matching
+    /// the web app's own choice not to put the passcode somewhere that
+    /// could be logged or cached.
+    private var shareMessage: Text? {
+        invitePasscode.map { Text("Passcode: \($0)") }
     }
 
     var body: some View {
@@ -107,7 +120,7 @@ private struct InviteCard: View {
                     Text(sessionId).font(.system(.body, design: .monospaced))
                 }
                 Spacer()
-                ShareLink(item: shareText) {
+                ShareLink(item: inviteURL, message: shareMessage) {
                     Image(systemName: "square.and.arrow.up")
                 }
             }
@@ -172,12 +185,22 @@ private struct OptionsList: View {
                         }
                     }
                     Spacer()
+                    // Once any option has been approved, the backend's state
+                    // machine no longer accepts a different selection - hide
+                    // the other buttons entirely instead of leaving them
+                    // tappable and surfacing a raw "Cannot select an option
+                    // while session is awaiting_creator_confirmation" error.
                     if approvalMode == .managerDecides {
-                        Button(option.optionId == selectedOptionId ? "Approved" : "Approve this plan") {
-                            onApprove(option.optionId)
+                        if let selectedOptionId {
+                            if option.optionId == selectedOptionId {
+                                Text("Approved").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            }
+                        } else {
+                            Button("Approve this plan") {
+                                onApprove(option.optionId)
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(option.optionId == selectedOptionId)
                     }
                 }
                 .padding(10)
