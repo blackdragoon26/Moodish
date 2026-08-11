@@ -28,10 +28,21 @@
             </intent-filter>
         </activity>
         <!-- Receives the moodish://auth-callback redirect that completes the
-             mobile Google login flow (flutter_web_auth_2 -> Chrome Custom Tabs). -->
+             mobile Google login flow (flutter_web_auth_2 -> Chrome Custom Tabs).
+             Must share MainActivity's taskAffinity ("") or Android spins up a
+             brand-new task (with its own splash screen) for this activity
+             instead of routing back into the already-running app - which is
+             what caused the "stuck until you manually go back" bug: the login
+             actually succeeded in the background, but the new task never came
+             to the foreground on its own. noHistory/excludeFromRecents keep
+             this purely-transient activity out of the back stack and the
+             recent-apps switcher once it's served its purpose. -->
         <activity
             android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
-            android:exported="true">
+            android:exported="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true">
             <intent-filter android:label="flutter_web_auth_2">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
