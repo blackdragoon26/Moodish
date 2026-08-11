@@ -37,6 +37,37 @@ class AddOnProduct {
       );
 }
 
+class FoodSource {
+  final String restaurantId;
+  final String restaurantName;
+
+  FoodSource({required this.restaurantId, required this.restaurantName});
+
+  factory FoodSource.fromJson(Map<String, dynamic> json) => FoodSource(
+        restaurantId: json['restaurantId'] as String? ?? '',
+        restaurantName: json['restaurantName'] as String? ?? '',
+      );
+}
+
+/// How many submitted group-session requests this option's coverage plan
+/// satisfies vs. needs a compromise item for - same "coverage" key on both
+/// the trimmed public view and the full manager/creator view (the full
+/// view additionally carries a per-participant `participants` breakdown
+/// that isn't modeled here).
+class CoverageSummary {
+  final int totalParticipants;
+  final int satisfiedCount;
+  final int compromiseCount;
+
+  CoverageSummary({required this.totalParticipants, required this.satisfiedCount, required this.compromiseCount});
+
+  factory CoverageSummary.fromJson(Map<String, dynamic> json) => CoverageSummary(
+        totalParticipants: json['totalParticipants'] as int? ?? 0,
+        satisfiedCount: json['satisfiedCount'] as int? ?? 0,
+        compromiseCount: json['compromiseCount'] as int? ?? 0,
+      );
+}
+
 class RecommendationOption {
   final String optionId;
   final String restaurantName;
@@ -47,6 +78,11 @@ class RecommendationOption {
   final num? distanceKm;
   final String? matchType;
   final List<String> reasons;
+  /// True when this option's items are drawn from more than one restaurant
+  /// to cover every teammate's request (group flow only).
+  final bool splitOrder;
+  final List<FoodSource> foodSources;
+  final CoverageSummary? coverage;
 
   RecommendationOption({
     required this.optionId,
@@ -58,6 +94,9 @@ class RecommendationOption {
     this.distanceKm,
     this.matchType,
     this.reasons = const [],
+    this.splitOrder = false,
+    this.foodSources = const [],
+    this.coverage,
   });
 
   factory RecommendationOption.fromJson(Map<String, dynamic> json) => RecommendationOption(
@@ -70,6 +109,11 @@ class RecommendationOption {
         distanceKm: json['distanceKm'] as num?,
         matchType: json['matchType'] as String?,
         reasons: (json['reasons'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+        splitOrder: json['splitOrder'] == true,
+        foodSources:
+            (json['foodSources'] as List<dynamic>? ?? []).map((e) => FoodSource.fromJson(e as Map<String, dynamic>)).toList(),
+        coverage:
+            json['coverage'] != null ? CoverageSummary.fromJson(json['coverage'] as Map<String, dynamic>) : null,
       );
 }
 
@@ -174,7 +218,12 @@ class InstamartPreview {
 
 class CartConfirmResult {
   final String? recommendationId;
+  /// First-restaurant convenience view - the personal flow never splits,
+  /// but a group cart can span multiple restaurants (`foodCarts`) to cover
+  /// every teammate's request. Prefer `foodCarts` when present.
   final CartSummary? foodCart;
+  final List<CartSummary> foodCarts;
+  final bool splitOrder;
   final InstamartPreview? instamartCartPreview;
   final bool checkoutBlocked;
   final String? checkoutNote;
@@ -182,6 +231,8 @@ class CartConfirmResult {
   CartConfirmResult({
     this.recommendationId,
     this.foodCart,
+    this.foodCarts = const [],
+    this.splitOrder = false,
     this.instamartCartPreview,
     required this.checkoutBlocked,
     this.checkoutNote,
@@ -190,6 +241,9 @@ class CartConfirmResult {
   factory CartConfirmResult.fromJson(Map<String, dynamic> json) => CartConfirmResult(
         recommendationId: json['recommendationId'] as String?,
         foodCart: json['foodCart'] != null ? CartSummary.fromJson(json['foodCart'] as Map<String, dynamic>) : null,
+        foodCarts:
+            (json['foodCarts'] as List<dynamic>? ?? []).map((e) => CartSummary.fromJson(e as Map<String, dynamic>)).toList(),
+        splitOrder: json['splitOrder'] == true,
         instamartCartPreview: json['instamartCartPreview'] != null
             ? InstamartPreview.fromJson(json['instamartCartPreview'] as Map<String, dynamic>)
             : null,

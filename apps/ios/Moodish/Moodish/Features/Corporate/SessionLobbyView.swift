@@ -41,7 +41,14 @@ struct SessionLobbyView: View {
                             ManagerReviewView(submissions: submissions)
                         }
 
-                        if let options = session.options, !options.isEmpty {
+                        // The creator/manager's poll returns the full
+                        // `recommendation.options` (with per-option coverage
+                        // detail); other participants only see the stripped
+                        // public `options`. Each option already tries to
+                        // cover every teammate's request across restaurants
+                        // and Instamart - it's not a single-restaurant menu
+                        // to multi-select from.
+                        if let options = session.recommendation?.options ?? session.options, !options.isEmpty {
                             OptionsList(
                                 options: options,
                                 approvalMode: session.approvalMode,
@@ -200,6 +207,11 @@ private struct OptionsList: View {
                     VStack(alignment: .leading) {
                         Text(option.restaurantName).font(.subheadline.weight(.medium))
                         Text("₹\(Int(option.estimatedTotal))").font(.caption).foregroundStyle(.secondary)
+                        if let coverage = option.coverage {
+                            Text("\(coverage.satisfiedCount) of \(coverage.totalParticipants) covered\(option.splitOrder == true ? " · split across restaurants" : "")")
+                                .font(.caption2)
+                                .foregroundStyle(coverage.compromiseCount > 0 ? .orange : .secondary)
+                        }
                         if let votes = voteCounts?[option.optionId] {
                             Text("\(votes) votes").font(.caption2).foregroundStyle(.secondary)
                         }

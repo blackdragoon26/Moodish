@@ -317,7 +317,7 @@ html[data-theme="dark"] :is(
   .truth-grid article,
   .docs-table-wrap
 ) { background-color: #241d22; }
-html[data-theme="dark"] :is(input, select, textarea, .composer, .meal-dial, #managerInputs article, .coverage-person) {
+html[data-theme="dark"] :is(input, select, textarea, .composer, .meal-dial, #managerInputs article, .coverage-person, .fulfilment-block) {
   color: var(--ink);
   border-color: var(--line);
   background: #1c171b;
@@ -580,6 +580,10 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
 .coverage-person > div:nth-child(2) span { color: #41613f; font-size: 9px; font-weight: 950; text-transform: uppercase; }
 .coverage-person.compromise { border: 1px solid #ecb199; background: #fff0e8; }
 .coverage-person.compromise > div:nth-child(2) span { color: #a44025; }
+.group-cart-panel { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); display: grid; gap: 10px; }
+.group-cart-panel h4 { margin: 0; font-size: 13px; }
+.fulfilment-block { padding: 10px 12px; border-radius: 10px; background: #f7f4ef; font-size: 11px; }
+.fulfilment-block p { margin: 4px 0 0; color: var(--muted); }
 .coverage-person.unanswered { border: 1px dashed #c8bcae; }
 .coverage-person p { grid-column: 1 / -1; margin: 2px 0 0; color: var(--muted); font-size: 9px; line-height: 1.4; }
 .group-addon-panel { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(260px, 1.2fr); gap: 18px; margin: 18px 0; padding: 18px; border-radius: 16px; color: #fff; background: var(--plum); }

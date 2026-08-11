@@ -22,6 +22,23 @@ struct AddOnProduct: Codable, Equatable, Identifiable {
     let pairingReason: String?
 }
 
+struct FoodSource: Codable, Equatable, Identifiable {
+    var id: String { restaurantId }
+    let restaurantId: String
+    let restaurantName: String
+}
+
+/// How many submitted group-session requests this option's coverage plan
+/// satisfies vs. needs a compromise item for - same "coverage" key on both
+/// the trimmed public view and the full manager/creator view (the full
+/// view additionally carries a per-participant `participants` breakdown
+/// that isn't modeled here).
+struct CoverageSummary: Codable, Equatable {
+    let totalParticipants: Int
+    let satisfiedCount: Int
+    let compromiseCount: Int
+}
+
 struct RecommendationOption: Codable, Equatable, Identifiable {
     var id: String { optionId }
     let optionId: String
@@ -33,6 +50,11 @@ struct RecommendationOption: Codable, Equatable, Identifiable {
     let distanceKm: Double?
     let matchType: String?
     let reasons: [String]?
+    /// True when this option's items are drawn from more than one
+    /// restaurant to cover every teammate's request (group flow only).
+    let splitOrder: Bool?
+    let foodSources: [FoodSource]?
+    let coverage: CoverageSummary?
 }
 
 /// Personal recommendations return `orderPlacementEnabled`; the office/group
@@ -76,7 +98,12 @@ struct InstamartPreview: Codable, Equatable {
 
 struct CartConfirmResult: Codable, Equatable {
     let recommendationId: String?
+    /// First-restaurant convenience view - the personal flow never splits,
+    /// but a group cart can span multiple restaurants (`foodCarts`) to cover
+    /// every teammate's request. Prefer `foodCarts` when present.
     let foodCart: CartSummary?
+    let foodCarts: [CartSummary]?
+    let splitOrder: Bool?
     let instamartCartPreview: InstamartPreview?
     let explicitConfirmationCaptured: Bool?
     let checkoutBlocked: Bool

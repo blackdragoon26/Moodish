@@ -109,15 +109,22 @@ class _SessionLobbyScreenState extends State<SessionLobbyScreen> {
               const SizedBox(height: 16),
             ],
             if (session.submissions.isNotEmpty) ManagerReviewList(submissions: session.submissions),
-            if (session.options.isNotEmpty) ...[
+            // The creator/manager's poll returns the full `recommendation.options`
+            // (with per-option coverage detail); other participants only see the
+            // stripped public `options`. Each option already tries to cover every
+            // teammate's request across restaurants and Instamart - it's not a
+            // single-restaurant menu to multi-select from.
+            if ((session.recommendation?.options ?? session.options).isNotEmpty) ...[
               const SizedBox(height: 16),
               Text('Options', style: Theme.of(context).textTheme.titleMedium),
-              ...session.options.map((option) => Card(
+              ...(session.recommendation?.options ?? session.options).map((option) => Card(
                     child: ListTile(
                       title: Text(option.restaurantName),
                       subtitle: Text(
                         '₹${option.estimatedTotal}'
-                        '${session.voteCounts[option.optionId] != null ? ' · ${session.voteCounts[option.optionId]} votes' : ''}',
+                        '${session.voteCounts[option.optionId] != null ? ' · ${session.voteCounts[option.optionId]} votes' : ''}'
+                        '${option.coverage != null ? ' · ${option.coverage!.satisfiedCount} of ${option.coverage!.totalParticipants} covered' : ''}'
+                        '${option.splitOrder ? ' · split across restaurants' : ''}',
                       ),
                       // Once any option has been approved, the backend's state
                       // machine no longer accepts a different selection - hide

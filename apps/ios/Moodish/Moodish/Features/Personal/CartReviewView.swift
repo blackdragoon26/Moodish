@@ -8,7 +8,11 @@ struct CartReviewView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if let food = result.foodCart {
+                    // A group cart can span multiple restaurants to cover every
+                    // teammate's request - render all of `foodCarts` when present
+                    // rather than only the first-restaurant `foodCart` view, or a
+                    // split order silently loses everyone past the first restaurant.
+                    ForEach(Array((result.foodCarts?.isEmpty == false ? result.foodCarts! : [result.foodCart].compactMap { $0 }).enumerated()), id: \.offset) { _, food in
                         SectionCard(title: "Swiggy Food") {
                             if let restaurant = food.restaurant {
                                 Text(restaurant).font(.headline)

@@ -26,15 +26,17 @@ class CartReviewContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (result.foodCart != null)
+        // A group cart can span multiple restaurants to cover every teammate's
+        // request - render every entry in `foodCarts` when present rather than
+        // only the first-restaurant `foodCart` view, or a split order silently
+        // loses everyone past the first restaurant.
+        for (final foodCart in result.foodCarts.isNotEmpty ? result.foodCarts : [if (result.foodCart != null) result.foodCart!])
           _Section(
             title: 'Swiggy Food',
             children: [
-              if (result.foodCart!.restaurant != null)
-                Text(result.foodCart!.restaurant!, style: Theme.of(context).textTheme.titleMedium),
-              ...result.foodCart!.items.map((item) => Text('• ${item.name}')),
-              if (result.foodCart!.total != null)
-                Text('₹${result.foodCart!.total}', style: Theme.of(context).textTheme.titleMedium),
+              if (foodCart.restaurant != null) Text(foodCart.restaurant!, style: Theme.of(context).textTheme.titleMedium),
+              ...foodCart.items.map((item) => Text('• ${item.name}')),
+              if (foodCart.total != null) Text('₹${foodCart.total}', style: Theme.of(context).textTheme.titleMedium),
             ],
           ),
         if (result.instamartCartPreview != null && result.instamartCartPreview!.items.isNotEmpty)

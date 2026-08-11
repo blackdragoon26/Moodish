@@ -640,10 +640,17 @@ export async function buildConfirmedCart({ recommendation, optionId, addOnProduc
   return {
     ...cart,
     total: foodTotal,
+    // `foodCart` is a single-restaurant convenience view (first restaurant
+    // only) for callers that don't handle split orders - its total must be
+    // that restaurant's own total, not the grand total across `foodCarts`,
+    // or it reads as inconsistent with the items list right next to it.
+    // Callers that need the full picture (e.g. a split order covering
+    // multiple teammates' requests across restaurants) should render
+    // `foodCarts` instead.
     foodCart: {
       restaurant: cart.restaurant,
       items: cart.items,
-      total: foodTotal,
+      total: cart.total,
       fulfilment: "Swiggy Food"
     },
     foodCarts,

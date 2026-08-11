@@ -751,6 +751,7 @@ function renderGroup(session) {
   $("#groupShareActions").classList.toggle("hidden", reviewingPlans);
   $("#groupInviteCode").classList.toggle("hidden", reviewingPlans || !currentGroupInvitePasscode);
   renderManagerInputs(session.submissions || []);
+  renderGroupCart(session);
   const options = session.recommendation?.options || session.options || [];
   $("#groupResults").classList.toggle("hidden", !options.length);
   $("#groupOptions").innerHTML = options.map((option, index) => optionCard(option, index, selectedGroupOptionId)).join("");
@@ -778,6 +779,38 @@ function renderGroup(session) {
     } Checkout remains safely disabled.`
   }[session.state] || `Session is ${session.state.replaceAll("_", " ")}.`;
   $("#groupNextStep").textContent = nextStep;
+}
+
+// The confirmed cart can span multiple restaurants (`foodCarts`) when no
+// single restaurant covers every teammate's request - `cart.foodCart` is
+// only a first-restaurant convenience view, so the team-facing summary
+// renders every entry in `foodCarts` instead, alongside the separate
+// Instamart fulfilment.
+function renderGroupCart(session) {
+  const cart = session.cart;
+  $("#groupCartPanel").classList.toggle("hidden", !cart);
+  if (!cart) return;
+  const foodCarts = cart.foodCarts?.length ? cart.foodCarts : cart.foodCart ? [cart.foodCart] : [];
+  const instamart = cart.instamartCartPreview;
+  $("#groupCartPanel").innerHTML = `
+    <h4>${cart.splitOrder ? "Split across restaurants" : "Team cart"}</h4>
+    ${foodCarts
+      .map(
+        (foodCart) => `<div class="fulfilment-block">
+          <strong>${escapeHtml(foodCart.restaurant || "Swiggy Food")}</strong> · ₹${foodCart.total}
+          <p>${(foodCart.items || []).map((item) => `${item.quantity}× ${escapeHtml(item.name)}`).join(" + ")}</p>
+        </div>`
+      )
+      .join("")}
+    ${
+      instamart?.items?.length
+        ? `<div class="fulfilment-block">
+            <strong>Instamart</strong> · ₹${instamart.total} · separate fulfilment
+            <p>${instamart.items.map((item) => `${item.quantity || 1}× ${escapeHtml(item.name)}`).join(" + ")}</p>
+          </div>`
+        : ""
+    }
+  `;
 }
 
 function renderGroupAddOns(option, session) {

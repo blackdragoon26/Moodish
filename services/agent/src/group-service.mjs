@@ -261,12 +261,32 @@ export function publicSessionView(session) {
       restrictionCounts: aggregate.restrictionCounts,
       allergySubmissionCount: aggregate.allergySubmissionCount
     },
+    // Each option is already a full coverage plan that tries to satisfy every
+    // submitted request (splitting across restaurants and Instamart as
+    // needed, per recommender.mjs's buildParticipantCoveragePlan) - there is
+    // only ever one option to pick, not several to combine. coverageSummary/
+    // splitOrder/foodSources let clients disclose that instead of implying a
+    // single-restaurant choice.
     options: session.recommendation?.options?.map((option) => ({
       optionId: option.optionId,
       restaurantName: option.restaurantName,
       cuisine: option.cuisine,
       estimatedTotal: option.estimatedTotal,
-      items: option.items.map((item) => ({ name: item.name, quantity: item.quantity }))
+      items: option.items.map((item) => ({ name: item.name, quantity: item.quantity })),
+      splitOrder: option.splitOrder || false,
+      foodSources: option.foodSources,
+      // Same key ("coverage") as the full recommendation.options object
+      // (available to the manager/creator via privateSessionView) so
+      // clients can decode one shape regardless of which view they got -
+      // this trimmed version just omits the per-participant `participants`
+      // breakdown for non-manager viewers.
+      coverage: option.coverage
+        ? {
+            totalParticipants: option.coverage.totalParticipants,
+            satisfiedCount: option.coverage.satisfiedCount,
+            compromiseCount: option.coverage.compromiseCount
+          }
+        : undefined
     })),
     voteCounts: voteCounts(session),
     selectedOptionId: session.selectedOptionId,
