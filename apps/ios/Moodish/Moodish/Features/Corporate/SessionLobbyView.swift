@@ -13,16 +13,22 @@ struct SessionLobbyView: View {
                     // The passcode is only ever returned once, at creation —
                     // later polls of `viewModel.session` won't carry it, so
                     // it's read from `initial` rather than the live session.
-                    InviteCard(sessionId: sessionId, invitePasscode: initial?.invitePasscode)
+                    InviteCard(sessionId: sessionId, invitePasscode: initial?.invitePasscode, baseURL: appState.api.baseURL)
 
                     if let session = viewModel.session {
                         StateBanner(state: session.state)
 
+                        ResponseProgressView(headcount: session.headcount, responseCount: session.responseCount ?? session.submissions?.count ?? 0)
+
                         if session.state == .collecting {
-                            Button("Simulate 3 teammates") {
+                            Button {
                                 Task { await viewModel.simulateTeammates() }
+                            } label: {
+                                Label("Simulate 3 teammates (testing only)", systemImage: "wrench.and.screwdriver")
+                                    .font(.footnote)
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
 
                             Button("Close responses & build plans") {
                                 Task { await viewModel.lockAndRank() }
@@ -88,16 +94,30 @@ struct SessionLobbyView: View {
     }
 }
 
+private struct ResponseProgressView: View {
+    let headcount: Int
+    let responseCount: Int
+
+    var body: some View {
+        Text("\(responseCount) of \(headcount) teammates responded")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+    }
+}
+
 private struct InviteCard: View {
     let sessionId: String
     let invitePasscode: String?
+    let baseURL: URL
 
     /// Same invite link shape as the web app's own share button
     /// (`${location.origin}/?group=<sessionId>&action=preferences` - see
     /// apps/web/public/app.js) so recipients get a real tappable URL
-    /// instead of bare text, on any device.
+    /// instead of bare text, on any device. Built from the app's own
+    /// configured `baseURL` (not hardcoded to production) so the link
+    /// actually resolves against whichever backend this build talks to.
     private var inviteURL: URL {
-        var components = URLComponents(string: "https://moodish.onrender.com/")!
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "group", value: sessionId),
             URLQueryItem(name: "action", value: "preferences"),

@@ -48,7 +48,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
       configs:
         Debug:
-          MOODISH_API_BASE_URL: http://localhost:8787
+          MOODISH_API_BASE_URL: http://localhost:8786
         Release:
           MOODISH_API_BASE_URL: https://moodish.onrender.com
     postbuildScripts: []

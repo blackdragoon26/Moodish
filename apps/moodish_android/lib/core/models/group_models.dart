@@ -106,6 +106,7 @@ class GroupSession {
   final String sessionId;
   final GroupSessionState state;
   final int headcount;
+  final int? responseCount;
   final num budgetPerPerson;
   final GroupApprovalMode approvalMode;
   final bool invitePasscodeRequired;
@@ -125,6 +126,7 @@ class GroupSession {
     required this.sessionId,
     required this.state,
     required this.headcount,
+    this.responseCount,
     required this.budgetPerPerson,
     required this.approvalMode,
     this.invitePasscodeRequired = false,
@@ -143,6 +145,7 @@ class GroupSession {
         sessionId: json['sessionId'] as String? ?? '',
         state: GroupSessionState.fromValue(json['state'] as String?),
         headcount: json['headcount'] as int? ?? 0,
+        responseCount: json['responseCount'] as int?,
         budgetPerPerson: json['budgetPerPerson'] as num? ?? 0,
         approvalMode: GroupApprovalMode.fromValue(json['approvalMode'] as String?),
         invitePasscodeRequired: json['invitePasscodeRequired'] == true,

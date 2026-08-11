@@ -13,3 +13,4 @@ tmp/
 apps/ios/**/xcuserdata/
 apps/ios/**/*.xcuserstate
 apps/ios/**/DerivedData/
+apps/ios/**/build/

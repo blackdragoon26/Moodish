@@ -22,7 +22,7 @@ class ApiClient {
 
   /// Android emulators reach the host machine's localhost via 10.0.2.2, not
   /// 127.0.0.1/localhost (those resolve to the emulator itself).
-  final String baseUrl = kReleaseMode ? 'https://moodish.onrender.com' : 'http://10.0.2.2:8787';
+  final String baseUrl = kReleaseMode ? 'https://moodish.onrender.com' : 'http://10.0.2.2:8786';
 
   final http.Client _client = http.Client();
   String? _cookie;

@@ -4,7 +4,7 @@ import Foundation
 /// web app (`apps/web/public/app.js`) calls — see docs/architecture.md and
 /// services/agent/src/server.mjs for the source of truth.
 final class APIClient {
-    private let baseURL: URL
+    let baseURL: URL
     private let session: URLSession
     private let sessionStore: SessionStore
     private let decoder: JSONDecoder

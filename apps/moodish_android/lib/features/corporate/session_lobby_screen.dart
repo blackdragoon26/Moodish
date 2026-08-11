@@ -71,7 +71,8 @@ class _SessionLobbyScreenState extends State<SessionLobbyScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.share),
-                        onPressed: () => Share.share(_inviteShareText(widget.sessionId, invitePasscode)),
+                        onPressed: () =>
+                            Share.share(_inviteShareText(_viewModel.api.baseUrl, widget.sessionId, invitePasscode)),
                       ),
                     ],
                   ),
@@ -87,9 +88,22 @@ class _SessionLobbyScreenState extends State<SessionLobbyScreen> {
           const SizedBox(height: 16),
           if (session != null) ...[
             Chip(label: Text(session.state.label)),
+            const SizedBox(height: 8),
+            Text(
+              '${session.responseCount ?? session.submissions.length} of ${session.headcount} teammates responded',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 16),
             if (session.state == GroupSessionState.collecting) ...[
-              OutlinedButton(onPressed: _viewModel.simulateTeammates, child: const Text('Simulate 3 teammates')),
+              TextButton.icon(
+                onPressed: _viewModel.simulateTeammates,
+                icon: const Icon(Icons.build_outlined, size: 16),
+                label: const Text('Simulate 3 teammates (testing only)'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.outline,
+                  textStyle: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
               const SizedBox(height: 8),
               FilledButton(onPressed: _viewModel.lockAndRank, child: const Text('Close responses & build plans')),
               const SizedBox(height: 16),
@@ -156,10 +170,12 @@ class _SessionLobbyScreenState extends State<SessionLobbyScreen> {
 /// Same invite link shape as the web app's own share button
 /// (`${location.origin}/?group=<sessionId>&action=preferences` - see
 /// apps/web/public/app.js) so recipients get a tappable URL instead of
-/// bare text, on any device. The passcode is sent alongside as plain text
-/// rather than embedded in the URL, matching the web app's own choice not
-/// to put it in a link that could be logged or cached.
-String _inviteShareText(String sessionId, String? invitePasscode) {
-  final url = 'https://moodish.onrender.com/?group=${Uri.encodeComponent(sessionId)}&action=preferences';
+/// bare text, on any device. Built from the app's own configured `baseUrl`
+/// (not hardcoded to production) so the link actually resolves against
+/// whichever backend this build talks to. The passcode is sent alongside
+/// as plain text rather than embedded in the URL, matching the web app's
+/// own choice not to put it in a link that could be logged or cached.
+String _inviteShareText(String baseUrl, String sessionId, String? invitePasscode) {
+  final url = '$baseUrl/?group=${Uri.encodeComponent(sessionId)}&action=preferences';
   return invitePasscode != null ? '$url\nPasscode: $invitePasscode' : url;
 }
