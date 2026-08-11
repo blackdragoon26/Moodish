@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Sheet wrapper with a "Done" toolbar button that actually dismisses -
+/// only appropriate when presented modally (see RecommendationDeckView's
+/// `.sheet`). Group sessions embed `CartReviewContent` directly inline
+/// instead, since there's nothing there to dismiss.
 struct CartReviewView: View {
     let result: CartConfirmResult
     let onClose: () -> Void
@@ -7,48 +11,8 @@ struct CartReviewView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // A group cart can span multiple restaurants to cover every
-                    // teammate's request - render all of `foodCarts` when present
-                    // rather than only the first-restaurant `foodCart` view, or a
-                    // split order silently loses everyone past the first restaurant.
-                    ForEach(Array((result.foodCarts?.isEmpty == false ? result.foodCarts! : [result.foodCart].compactMap { $0 }).enumerated()), id: \.offset) { _, food in
-                        SectionCard(title: "Swiggy Food") {
-                            if let restaurant = food.restaurant {
-                                Text(restaurant).font(.headline)
-                            }
-                            ForEach(food.items ?? []) { item in
-                                Text("• \(item.name)").font(.subheadline)
-                            }
-                            if let total = food.total {
-                                Text("₹\(Int(total))").font(.subheadline.weight(.semibold))
-                            }
-                        }
-                    }
-
-                    if let instamart = result.instamartCartPreview, let items = instamart.items, !items.isEmpty {
-                        SectionCard(title: "Instamart") {
-                            ForEach(items) { item in
-                                Text("• \(item.name) — ₹\(Int(item.price))").font(.subheadline)
-                            }
-                            if let note = instamart.note {
-                                Text(note).font(.caption2).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label("Checkout stays blocked", systemImage: "lock.fill")
-                            .font(.subheadline.weight(.semibold))
-                        Text(result.checkoutNote ?? "This is a preview only. Checkout stays blocked until a later final-confirmation flow.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
+                CartReviewContent(result: result)
                     .padding()
-                    .background(Color.moodishSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .padding()
             }
             .navigationTitle("Cart preview")
             .navigationBarTitleDisplayMode(.inline)
@@ -57,6 +21,56 @@ struct CartReviewView: View {
                     Button("Done", action: onClose)
                 }
             }
+        }
+    }
+}
+
+/// Content-only cart preview, reused standalone (above, inside a sheet)
+/// and embedded inline in the group-session lobby list.
+struct CartReviewContent: View {
+    let result: CartConfirmResult
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // A group cart can span multiple restaurants to cover every
+            // teammate's request - render all of `foodCarts` when present
+            // rather than only the first-restaurant `foodCart` view, or a
+            // split order silently loses everyone past the first restaurant.
+            ForEach(Array((result.foodCarts?.isEmpty == false ? result.foodCarts! : [result.foodCart].compactMap { $0 }).enumerated()), id: \.offset) { _, food in
+                SectionCard(title: "Swiggy Food") {
+                    if let restaurant = food.restaurant {
+                        Text(restaurant).font(.headline)
+                    }
+                    ForEach(food.items ?? []) { item in
+                        Text("• \(item.name)").font(.subheadline)
+                    }
+                    if let total = food.total {
+                        Text("₹\(Int(total))").font(.subheadline.weight(.semibold))
+                    }
+                }
+            }
+
+            if let instamart = result.instamartCartPreview, let items = instamart.items, !items.isEmpty {
+                SectionCard(title: "Instamart") {
+                    ForEach(items) { item in
+                        Text("• \(item.name) — ₹\(Int(item.price))").font(.subheadline)
+                    }
+                    if let note = instamart.note {
+                        Text(note).font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Checkout stays blocked", systemImage: "lock.fill")
+                    .font(.subheadline.weight(.semibold))
+                Text(result.checkoutNote ?? "This is a preview only. Checkout stays blocked until a later final-confirmation flow.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .background(Color.moodishSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
     }
 }

@@ -69,8 +69,11 @@ struct SessionLobbyView: View {
                         }
 
                         if let cart = session.cart {
-                            CartReviewView(result: cart) {}
-                                .frame(height: 320)
+                            // Embedded inline in this scroll view, not presented as a
+                            // sheet - there's nothing to dismiss here, so this uses the
+                            // plain content view rather than `CartReviewView`, which
+                            // wraps it in a "Done" button that would do nothing.
+                            CartReviewContent(result: cart)
                         }
 
                         if session.state.isActive {
