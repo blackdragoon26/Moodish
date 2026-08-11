@@ -10,10 +10,11 @@ Moodish is a mood-based food planning app for Swiggy-style ordering.
 
 You tell it what you feel like eating, your maximum budget, dietary needs, and whether you want something familiar, balanced, or completely new. Moodish returns craving-first meal options, explains exact matches and alternatives, and lets you build a cart only after confirmation.
 
-## Demo
+| Flutter Demo | Swift Demo |
+| :---: | :---: |
+| https://github.com/user-attachments/assets/475c01eb-8101-4944-b44e-1d57e82644ca | https://github.com/user-attachments/assets/ec6797e2-0dcc-4fbe-a2ae-dae141ec14f5 |
 
 
-https://github.com/user-attachments/assets/475c01eb-8101-4944-b44e-1d57e82644ca
 
 
 ## Apps
