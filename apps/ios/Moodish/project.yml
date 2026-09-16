@@ -50,5 +50,5 @@ targets:
         Debug:
           MOODISH_API_BASE_URL: http://localhost:8787
         Release:
-          MOODISH_API_BASE_URL: https://moodish.onrender.com
+          MOODISH_API_BASE_URL: https://moodish.sankalpjha.dev
     postbuildScripts: []

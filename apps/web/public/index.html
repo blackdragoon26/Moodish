@@ -355,9 +355,9 @@
               <summary>How do I test Moodish in Slack?</summary>
               <ol>
                 <li>Create an app at <strong>api.slack.com/apps</strong> and choose “From scratch.”</li>
-                <li>Add a slash command named <code>/moodish</code>. Set its Request URL to <code>https://moodish.onrender.com/api/platforms/slack/events</code>.</li>
-                <li>Copy the app’s Signing Secret to Render as <code>SLACK_SIGNING_SECRET</code>.</li>
-                <li>For the manager dashboard, add the redirect URL <code>https://moodish.onrender.com/api/platforms/slack/oauth/callback</code>, then set <code>SLACK_CLIENT_ID</code> and <code>SLACK_CLIENT_SECRET</code> on Render.</li>
+                <li>Add a slash command named <code>/moodish</code>. Set its Request URL to <code>https://moodish.sankalpjha.dev/api/platforms/slack/events</code>.</li>
+                <li>Install the app’s Signing Secret in the Myprod runtime env file as <code>SLACK_SIGNING_SECRET</code>.</li>
+                <li>For the manager dashboard, add the redirect URL <code>https://moodish.sankalpjha.dev/api/platforms/slack/oauth/callback</code>, then install <code>SLACK_CLIENT_ID</code> and <code>SLACK_CLIENT_SECRET</code> in the Myprod runtime env file.</li>
                 <li>Install the app to your workspace, redeploy Moodish, then type <code>/moodish easy team lunch</code> in a test channel.</li>
               </ol>
               <p>The channel receives safe progress plus a private preference link. The manager button uses Slack identity to protect approval access.</p>

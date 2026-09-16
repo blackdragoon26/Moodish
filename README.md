@@ -119,12 +119,15 @@ Reviewers can also open Developer view in the app and paste their own OpenRouter
 
 ## Deploy
 
-This is a Node web service. The repo includes `render.yaml` for Render.
+This is a Node web service packaged as a non-root container for Myprod.
 
-1. Push the repo to GitHub.
-2. Create a Render Blueprint from the repo.
-3. Add `OPENROUTER_API_KEY` as a secret env var.
-4. Keep `SWIGGY_MODE=fixture` until live Swiggy OAuth has been completed.
+1. Push `main` to GitHub.
+2. Let GitHub Actions publish `ghcr.io/blackdragoon26/moodish:<commit-sha>`.
+3. Register that public image in Myprod with container port `8787` and health path `/health`.
+4. Install runtime secrets on the target node at `/etc/poolctl/apps/moodish.env`.
+5. Keep `SWIGGY_MODE=fixture` until live Swiggy OAuth has been completed.
+
+See [docs/myprod-deployment.md](docs/myprod-deployment.md) for the exact Myprod handoff manifest and environment split.
 
 ## Recommendation Contract
 

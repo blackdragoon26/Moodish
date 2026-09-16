@@ -13,7 +13,7 @@ final class APIClient {
     init(sessionStore: SessionStore) {
         self.sessionStore = sessionStore
         let configured = Bundle.main.object(forInfoDictionaryKey: "MoodishAPIBaseURL") as? String
-        self.baseURL = URL(string: configured?.isEmpty == false ? configured! : "https://moodish.onrender.com")!
+        self.baseURL = URL(string: configured?.isEmpty == false ? configured! : "https://moodish.sankalpjha.dev")!
         let configuration = URLSessionConfiguration.default
         configuration.httpShouldSetCookies = true
         configuration.httpCookieAcceptPolicy = .always

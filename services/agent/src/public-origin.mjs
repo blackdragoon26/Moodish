@@ -10,7 +10,7 @@ export function resolvePublicOrigin(req) {
   const configuredIsLocal = LOCAL_HOSTS.has(configuredUrl.hostname);
   const incomingIsLocal = LOCAL_HOSTS.has(incomingUrl.hostname);
 
-  // A stale localhost Render variable must never pull a production OAuth callback
+  // A stale localhost deployment variable must never pull a production OAuth callback
   // back to the developer machine.
   if (configuredIsLocal && !incomingIsLocal) return incoming;
   return configured;

@@ -43,15 +43,15 @@ The suite covers signed creator access, private submissions, group state transit
 
 ## Production configuration
 
-For a Render deployment, set these environment variables:
+For a Myprod deployment, install these environment variables in the app runtime env file:
 
 ```text
 TOKEN_ENCRYPTION_KEY=<long random secret>
 GROUP_SESSION_SIGNING_KEY=<different long random secret>
-DATABASE_URL=<Render PostgreSQL connection>
+DATABASE_URL=<PostgreSQL connection>
 ```
 
-The Blueprint generates both secrets for a new/synchronized service. If the existing service predates those entries, open **Render → moodish → Environment**, add the two keys, and redeploy.
+Install both secrets in `/etc/poolctl/apps/moodish.env` on the target Myprod node, then redeploy the app from the Myprod dashboard.
 
 Fixture mode can now create test sessions even if the keys are temporarily missing. It uses an ephemeral process key, so demo manager links expire after a service restart. Live Swiggy mode intentionally refuses that fallback.
 
@@ -67,10 +67,10 @@ node --test tests/platform-adapters.test.mjs tests/platform-oauth.test.mjs
 
 1. Create an app from scratch at `https://api.slack.com/apps`.
 2. Add `/moodish` under **Slash Commands**.
-3. Use `https://moodish.onrender.com/api/platforms/slack/events` as the Request URL.
-4. Copy the Slack Signing Secret into Render as `SLACK_SIGNING_SECRET`.
-5. Add `https://moodish.onrender.com/api/platforms/slack/oauth/callback` under OAuth redirect URLs.
-6. Add `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET` to Render for protected manager access.
+3. Use `https://moodish.sankalpjha.dev/api/platforms/slack/events` as the Request URL.
+4. Install the Slack Signing Secret in the Myprod runtime env file as `SLACK_SIGNING_SECRET`.
+5. Add `https://moodish.sankalpjha.dev/api/platforms/slack/oauth/callback` under OAuth redirect URLs.
+6. Install `SLACK_CLIENT_ID` and `SLACK_CLIENT_SECRET` in the Myprod runtime env file for protected manager access.
 7. Install the app, redeploy Moodish, and run `/moodish easy team lunch`.
 
 The public Slack response contains safe aggregate progress, a private participant URL, and a manager dashboard link. Moodish validates Slack’s signature before creating a session.

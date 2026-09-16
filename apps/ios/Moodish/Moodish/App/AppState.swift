@@ -7,7 +7,7 @@ enum BootstrapPhase: Equatable {
 }
 
 /// Root app state: who's logged in, server config, and the slow-reconnect
-/// dance the web app does against a Render cold start (see app.js `boot()`).
+/// dance the web app does against a cold production start (see app.js `boot()`).
 @Observable
 @MainActor
 final class AppState {

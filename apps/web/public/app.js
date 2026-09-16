@@ -176,7 +176,7 @@ function configureLogin(config, health) {
     $("#googleLogin").onclick = (event) => {
       event.preventDefault();
       $("#loginNote").classList.remove("hidden");
-      $("#loginNote").textContent = "Google login is ready in code; add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on Render to switch it on.";
+      $("#loginNote").textContent = "Google login is ready in code; install GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the Myprod runtime env file to switch it on.";
     };
     $("#loginNote").classList.remove("hidden");
     $("#loginNote").textContent = "Google needs OAuth credentials; Swiggy uses approved MCP access. Demo access is available for review.";

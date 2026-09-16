@@ -28,7 +28,7 @@ npm run web
 ```
 This serves both the web app and the API on `http://localhost:8787`.
 
-**Production** (`https://moodish.onrender.com`) — no setup needed, just point
+**Production** (`https://moodish.sankalpjha.dev`) — no setup needed, just point
 each client at it (see below). Pick this if you want the demo to show the
 real deployed product, or if you want to show off the live multi-language
 landing page and download buttons that only make sense on the real domain.
@@ -38,7 +38,7 @@ landing page and download buttons that only make sense on the real domain.
 ```bash
 open http://localhost:8787
 ```
-(or `open https://moodish.onrender.com` for production).
+(or `open https://moodish.sankalpjha.dev` for production).
 
 Walk through:
 - Landing page: mood-cloud bubbles cycling through languages, theme toggle, the
@@ -65,7 +65,7 @@ In Xcode: pick a simulator (top bar, e.g. "iPhone 17"), hit **Run** (▶ or `Cmd
 
 **Which backend it hits depends on the scheme configuration:**
 - **Debug** scheme → `http://localhost:8787` (make sure `npm run web` is running first)
-- **Release** scheme → `https://moodish.onrender.com`
+- **Release** scheme → `https://moodish.sankalpjha.dev`
 
 To switch: `Product → Scheme → Edit Scheme…` and change the Run action's build
 configuration, or just use `Cmd+R` for Debug (local) vs archiving/running
@@ -96,7 +96,7 @@ which points at `http://10.0.2.2:8787` — the Android emulator's special alias
 for your Mac's `localhost` (make sure `npm run web` is running).
 
 To point at production instead, build/install a **release** APK (already
-configured for `https://moodish.onrender.com`):
+configured for `https://moodish.sankalpjha.dev`):
 ```bash
 flutter build apk --release
 adb install -r build/app/outputs/flutter-apk/app-release.apk

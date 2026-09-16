@@ -1,0 +1,13 @@
+.git
+.github
+.env
+.env.*
+node_modules
+npm-debug.log
+Dockerfile
+apps/ios
+apps/moodish_android
+docs
+tests
+scripts
+services/profile-go
