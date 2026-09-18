@@ -1,4 +1,4 @@
-name: Container
+name: Build and deploy Moodish
 
 on:
   push:
@@ -9,11 +9,24 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: moodish-production
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
 
       - uses: docker/setup-qemu-action@v3
 
@@ -33,10 +46,50 @@ jobs:
             type=sha,format=long
             type=ref,event=branch
 
-      - uses: docker/build-push-action@v6
+      - id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Deploy immutable image through Myprod
+        env:
+          DEPLOY_TOKEN: ${{ secrets.MYPROD_DEPLOY_TOKEN }}
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DEPLOY_TOKEN" ]; then
+            echo '::error::Add the Moodish-scoped MYPROD_DEPLOY_TOKEN repository secret.'
+            exit 1
+          fi
+          image="ghcr.io/blackdragoon26/moodish@${IMAGE_DIGEST}"
+          payload="$(jq -n --arg image "$image" '{image: $image}')"
+          curl --fail-with-body --silent --show-error \
+            --connect-timeout 20 --max-time 900 \
+            --request POST \
+            --header "Authorization: Bearer ${DEPLOY_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            'https://api.sankalpjha.dev/__poolctl/api/apps/moodish/image'
+          echo "Deployed ${image}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify public health
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
+            --retry 5 --retry-delay 5 --retry-all-errors \
+            'https://moodish.sankalpjha.dev/health' \
+            | jq -e '.ok == true and .service == "moodish-agent"'
+          echo 'Public HTTPS health check passed.' >> "$GITHUB_STEP_SUMMARY"

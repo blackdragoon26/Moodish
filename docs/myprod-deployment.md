@@ -1,5 +1,23 @@
 # Myprod Deployment
 
+## Automatic Deployment
+
+Every push to `main` runs backend tests, publishes a multi-platform image, and
+deploys its exact immutable digest to Myprod. The workflow then verifies the
+public `/health` response. Production runs are serialized without cancelling
+an active deployment. A failed test or build prevents deployment.
+
+One-time setup: in Myprod, open Moodish's **CI tokens**, generate an app-scoped
+token, and save it in this GitHub repository's Actions secrets as
+`MYPROD_DEPLOY_TOKEN`. Never use the dashboard-wide operator token. Run
+**Build and deploy Moodish** from GitHub Actions to verify setup; later pushes
+deploy automatically. A missing token fails the deploy job explicitly.
+
+Runtime secrets remain in Myprod's **Secrets & registry**. Save and apply them
+there; CI uses the last applied version and does not activate pending drafts.
+Managed secrets are injected directly into the environment and do not require
+the legacy runtime-file mount described below.
+
 Moodish runs on Myprod as a public container image managed by Nomad and Traefik.
 
 ## Image Contract
