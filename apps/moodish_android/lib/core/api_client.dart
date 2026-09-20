@@ -26,7 +26,9 @@ class ApiClient {
   /// 127.0.0.1/localhost (those resolve to the emulator itself).
   final String baseUrl = kReleaseMode ? 'https://moodish.sankalpjha.dev' : 'http://10.0.2.2:8787';
 
-  final http.Client _client = http.Client();
+  final http.Client _client;
+
+  ApiClient({http.Client? client}) : _client = client ?? http.Client();
   String? _cookie;
 
   Future<void> restoreSession() async {

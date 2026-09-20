@@ -47,6 +47,10 @@ final class APIClient {
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
         }
+        // Group authorization and purchasing-account authorization are distinct.
+        if bearerToken != nil, let personalToken = sessionStore.sessionToken {
+            request.setValue(personalToken, forHTTPHeaderField: "x-moodish-session")
+        }
         if let body {
             request.httpBody = try encoder.encode(AnyEncodable(body))
         } else if method == "POST" {

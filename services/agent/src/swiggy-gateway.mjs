@@ -398,6 +398,9 @@ function fixtureGateway() {
       const q = query.toLowerCase();
       return fixtureProducts.filter((product) => !q || product.tags.some((tag) => tag.includes(q)) || product.name.toLowerCase().includes(q));
     },
+    async getFoodCart({ addressId } = {}) {
+      return { cartId: null, addressId, restaurantId: "", restaurant: "", items: [], total: 0, mode: "fixture" };
+    },
     async buildFoodCart({ restaurantId, addressId, items }) {
       const menu = await this.getRestaurantMenu({ restaurantId, addressId });
       const cartItems = items.map((wanted) => {
@@ -518,7 +521,7 @@ function liveGateway(userId) {
 }
 
 export function normalizeFoodCart(data) {
-  if (!data || typeof data !== "object" || !Array.isArray(data.items)) throw upstreamError("Swiggy returned an unrecognized cart. Check your Swiggy cart before continuing.");
+  if (!data || typeof data !== "object" || Array.isArray(data) || (data.items !== undefined && !Array.isArray(data.items))) throw upstreamError("Swiggy returned an unrecognized cart. Check your Swiggy cart before continuing.");
   const items = arrayFrom(data, ["items"]).map(item => ({ ...item,
     itemId: validId(item.menu_item_id ?? item.itemId ?? item.id), quantity: Number(item.quantity),
     price: Number(item.final_price ?? item.price ?? item.subtotal), name: String(item.name || "Item")
@@ -560,11 +563,15 @@ function normalizeRestaurants(data) {
 }
 
 function normalizeMenuSearch(data) {
-  return arrayFrom(data, ["items", "menuItems", "results"]).map((entry) => {
+  return arrayFrom(data, ["items", "menuItems", "results"]).flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
     const rawRestaurant = entry.restaurant || entry.restaurantInfo || { id: entry.restaurant_id, name: entry.restaurant_name };
+    const itemId = entry.menu_item_id ?? entry.itemId ?? entry.id;
+    const restaurantId = rawRestaurant.id ?? rawRestaurant.restaurantId;
+    if ([itemId, restaurantId].some(id => id === undefined || id === null || String(id).trim() === "")) return [];
     return {
       ...entry,
-      itemId: validId(entry.menu_item_id ?? entry.itemId ?? entry.id),
+      itemId: validId(itemId),
       name: entry.name || entry.itemName,
       price: Number(entry.price ?? entry.defaultPrice ?? NaN),
       tags: normalizeItemTags(entry),

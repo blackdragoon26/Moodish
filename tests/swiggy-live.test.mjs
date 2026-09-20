@@ -42,6 +42,7 @@ test("Swiggy OAuth uses PKCE/DCR and live gateway propagates addressId", async (
         result: { content: [],
           structuredContent: {
             items: [
+              null, {}, { id: "no-restaurant" }, { restaurant: { id: "no-item" } },
               {
                 id: "dish-live",
                 name: "Live Soya Chaap",
@@ -76,7 +77,7 @@ test("Swiggy OAuth uses PKCE/DCR and live gateway propagates addressId", async (
         }
       });
     }
-    return jsonResponse({ jsonrpc: "2.0", result: { content: [], structuredContent: {} } });
+    throw new Error(`Unexpected MCP request: ${body.method} ${body.params?.name || ""}`);
   };
 
   try {
@@ -98,6 +99,7 @@ test("Swiggy OAuth uses PKCE/DCR and live gateway propagates addressId", async (
       items: [{ itemId: "dish-live", quantity: 1 }]
     });
     assert.equal(addresses[0].id, "address-live");
+    assert.equal(items.length, 1);
     assert.equal(items[0].restaurant.name, "Live Chaap House");
     assert.equal(items[0].tags.includes("veg"), true);
     assert.ok(calls.some((call) => call.url.endsWith("/food")));

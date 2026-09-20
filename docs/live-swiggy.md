@@ -32,7 +32,7 @@ service warning.
    `addressId` to `/api/swiggy/address`. POST `/api/swiggy/disconnect` to unlink.
 
 Swiggy credentials never reach the clients. They are encrypted in PostgreSQL under
-an account-specific key. Use a direct PostgreSQL connection or session pooling;
+the shared `TOKEN_ENCRYPTION_KEY`, with separate records for each account. Use a direct PostgreSQL connection or session pooling;
 transaction-mode poolers are incompatible with the session advisory locks. Expiry uses Swiggy's `expires_in`; no unsupported refresh
 flow is assumed. A shared environment access token is not supported. A standalone
 Moodish identity lives in its signed app session; clearing that session currently

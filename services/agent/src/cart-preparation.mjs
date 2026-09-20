@@ -30,7 +30,7 @@ export async function prepareCart({ ownerId, recommendation, optionId, restauran
     restaurantId, address: recommendation.address, items: checked,
     estimatedItemTotal: checked.reduce((sum, i) => sum + i.price * i.quantity, 0),
     existingCart: existing, replacesExistingCart: existing.items.length > 0,
-    note: "This will update your real Swiggy Food cart. Final charges come from Swiggy after the update. Instamart remains a preview. No order will be placed." };
+    note: swiggy.mode === "fixture" ? "This is a demo cart preview. No real cart or order will be created." : "This will update your real Swiggy Food cart. Final charges come from Swiggy after the update. Instamart remains a preview. No order will be placed." };
 }
 
 export async function confirmPreparedCart({ preparationId, ownerId, recommendation, optionId, restaurantId, addOnProductIds = [], confirmed, swiggy, groupSessionId, build }) {

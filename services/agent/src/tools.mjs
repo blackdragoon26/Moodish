@@ -78,9 +78,10 @@ export function createTools(runtime = createToolRuntime()) {
       });
     },
     async prepare_cart(args = {}) {
+      const userIdHash = args.userIdHash || DEFAULT_USER_HASH;
       const recommendation = await getRecommendation(args.recommendationId);
-      if (!recommendation || recommendation.ownerId !== args.userIdHash) throw Object.assign(new Error("Recommendation not found"), { status: 404 });
-      return prepareCart({ ...args, ownerId: args.userIdHash, recommendation, swiggy: runtime.swiggy });
+      if (!recommendation || recommendation.ownerId !== userIdHash) throw Object.assign(new Error("Recommendation not found"), { status: 404 });
+      return prepareCart({ ...args, ownerId: userIdHash, recommendation, swiggy: runtime.swiggy });
     },
     async build_confirmed_cart(args = {}) {
       const userIdHash = args.userIdHash || DEFAULT_USER_HASH;

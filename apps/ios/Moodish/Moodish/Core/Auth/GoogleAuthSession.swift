@@ -2,6 +2,7 @@ import AuthenticationServices
 import Foundation
 import UIKit
 import CryptoKit
+import Security
 
 /// Drives the native Google login handoff: opens the agent's
 /// `/api/auth/google/start?client=mobile` authorize URL in an

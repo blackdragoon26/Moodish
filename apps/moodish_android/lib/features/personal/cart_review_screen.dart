@@ -58,7 +58,7 @@ class CartReviewContent extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   result.checkoutNote ??
-                      'This is a preview only. Checkout stays blocked until a later final-confirmation flow.',
+                      'No order was placed. Instamart remains a preview.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

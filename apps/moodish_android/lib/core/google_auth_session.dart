@@ -35,11 +35,11 @@ class GoogleAuthSession {
         await FlutterWebAuth2.authenticate(url: authorizeUrl.toString(), callbackUrlScheme: 'moodish'),
       );
     } catch (error) {
-      throw GoogleAuthException("Couldn't complete Google sign-in.");
+      throw GoogleAuthException("Couldn't complete sign-in.");
     }
     final token = result.queryParameters[parameter];
     if (token == null || token.isEmpty) {
-      throw GoogleAuthException("Google sign-in didn't return a session token");
+      throw GoogleAuthException("Sign-in didn't return the expected callback value");
     }
     return token;
   }

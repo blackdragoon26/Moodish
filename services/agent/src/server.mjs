@@ -268,6 +268,12 @@ export async function handleAgentRequest(req, res) {
           }
           return send(res, 200, await withAccountLock(`group:${sessionId}`, async () => {
             const stored = await getGroupSession(sessionId);
+            if (live && ["prepare-cart", "confirm-cart"].includes(action)) {
+              const user = requireUser();
+              if (!stored || user.id !== stored.purchaseUserId) {
+                throw Object.assign(new Error("Sign in as the group purchasing account to review or confirm its cart"), { status: 403 });
+              }
+            }
             return createTools(createToolRuntime({ userId: stored?.purchaseUserId }))[toolName](body);
           }));
         }

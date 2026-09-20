@@ -40,4 +40,21 @@ test('live APIs enforce signed identity for profile, cart, MCP and group creatio
   const group = await response.json();
   assert.equal(group.creatorId, 'api-alice');
   assert.equal((await getGroupSession(group.sessionId)).purchaseUserId, 'api-alice');
+  for (const action of ['prepare-cart', 'confirm-cart']) {
+    const call = headers => fetch(`${base}/api/group-sessions/${group.sessionId}/${action}`, {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${group.accessToken}`, ...headers },
+      body: JSON.stringify({ confirmed: true, userIdHash: 'api-alice' })
+    });
+    assert.equal((await call({})).status, 401, 'group token alone must not authorize cart access');
+    const other = signSessionToken({ id: 'api-bob' });
+    assert.equal((await call({ cookie: `moodish_session=${other}` })).status, 403);
+    assert.equal((await call({ 'x-moodish-session': other })).status, 403);
+    // The matching personal session reaches the group state check; this group is
+    // still collecting, so neither request can call Swiggy or mutate a cart.
+    for (const headers of [{ cookie: `moodish_session=${token}` }, { 'x-moodish-session': token }]) {
+      const allowed = await call(headers);
+      assert.equal(allowed.status, 409);
+      assert.match((await allowed.json()).error, /collecting/);
+    }
+  }
 });
