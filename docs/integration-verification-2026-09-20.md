@@ -2,7 +2,10 @@
 
 Branch: `feat/live-swiggy-integration`.
 
-Verified locally:
+Verified:
+- Swiggy DCR accepted the canonical production callback with HTTP 201 and a
+  client identifier on September 20. This verifies registration only, not phone
+  consent or authenticated access. No credentials are included in this report.
 - All 62 backend tests passed with PostgreSQL enabled after the final API, group
   locking and cart changes.
 - A separate PostgreSQL test passed with two app processes: persisted records,
