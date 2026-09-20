@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionLobbyView: View {
     @Environment(AppState.self) private var appState
+    @State private var showLiveReview = false
     @State private var viewModel: GroupSessionViewModel?
     let sessionId: String
     let initial: GroupSession?
@@ -61,7 +62,7 @@ struct SessionLobbyView: View {
 
                         if session.state == .awaitingCreatorConfirmation, let optionId = session.selectedOptionId {
                             Button("Creator: confirm final cart") {
-                                Task { await viewModel.confirmCart() }
+                                if appState.health?.swiggyMode == "live" { showLiveReview = true } else { Task { await viewModel.confirmCart() } }
                             }
                             .buttonStyle(.borderedProminent)
                             .tint(.moodishAccent)
@@ -93,6 +94,11 @@ struct SessionLobbyView: View {
             }
         }
         .navigationTitle("Group order")
+        .sheet(isPresented: $showLiveReview) {
+            if let model = viewModel, let option = model.session?.recommendation?.options.first(where: { $0.optionId == model.session?.selectedOptionId }) {
+                LiveCartReviewSheet(option: option, prepare: { try await model.prepareCart(restaurantId: $0) }, confirm: { try await model.confirmPrepared($0) })
+            }
+        }
         .task {
             if viewModel == nil {
                 let model = GroupSessionViewModel(api: appState.api, sessionStore: appState.sessionStore, sessionId: sessionId, initial: initial)

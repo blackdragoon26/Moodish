@@ -10,6 +10,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
   const allergies = normalizeRules(request.allergies);
   validateDietConstraints(dietMode, dietaryRules);
   const mood = request.mood || "curious";
+  if (swiggy.mode === "live" && !request.addressId) throw Object.assign(new Error("Choose your saved Swiggy address first"), { status: 422 });
   const addresses = await swiggy.getAddresses();
   const address = pickAddress(addresses, request.addressLabel, request.addressId);
   const intent = extractMealIntent([mood, request.query].filter(Boolean).join(" "));
@@ -106,6 +107,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
     summary,
     transparency: {
       dataSource: swiggy.mode,
+      serviceWarnings: swiggy.warnings || [],
       moodInput: mood,
       intentTags,
       structuredIntent: intent,
@@ -124,6 +126,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
       instamart: {
         requested: Boolean(request.includeInstamartAddOns),
         dataSource: swiggy.mode,
+      serviceWarnings: swiggy.warnings || [],
         count: addOns.length,
         restaurantFirstSatisfied: addOnSatisfiedByRestaurant,
         separateFulfilment: true
@@ -181,8 +184,9 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
   const dietaryRules = request.dietaryRules !== undefined ? normalizeRules(request.dietaryRules) : normalizeRules(teamProfile.dietaryRules);
   const dietMode = normalizeDietMode(request.dietMode || (dietaryRules.includes("veg") ? "veg" : "both"));
   const avoidCuisines = mergeRules(teamProfile.cuisineAvoidList, request.cuisineAvoidList);
+  if (swiggy.mode === "live" && !request.addressId) throw Object.assign(new Error("Choose your saved Swiggy address first"), { status: 422 });
   const addresses = await swiggy.getAddresses();
-  const address = pickAddress(addresses, request.addressLabel);
+  const address = pickAddress(addresses, request.addressLabel, request.addressId);
   const restaurants = await swiggy.searchRestaurants({ addressId: address.id, query: request.query || "office lunch" });
   const intentTags = expandIntentTokens([request.query, "office lunch"].filter(Boolean).join(" "));
   const candidates = await hydrateCandidateMenus(
@@ -300,6 +304,7 @@ export async function planOfficeLunch({ request, teamProfile, swiggy, ai }) {
     summary: coverageSummary ? `${coverageSummary}. ${aiSummary.text}` : aiSummary.text,
     transparency: {
       dataSource: swiggy.mode,
+      serviceWarnings: swiggy.warnings || [],
       moodInput: request.query || "office lunch",
       intentTags,
       searchedRestaurants: restaurants.map((restaurant) => restaurant.name),
@@ -593,13 +598,13 @@ function uniqueFoodSources(items) {
   }])).values()];
 }
 
-export async function buildConfirmedCart({ recommendation, optionId, addOnProductIds = [], swiggy, confirmed }) {
+export async function buildConfirmedCart({ recommendation, optionId, restaurantId: selectedRestaurantId, addOnProductIds = [], swiggy, confirmed }) {
   if (!confirmed) {
     const error = new Error("Explicit confirmation is required before cart build");
     error.status = 409;
     throw error;
   }
-  const option = recommendation.options.find((candidate) => candidate.optionId === optionId) || recommendation.options[0];
+  const option = recommendation.options.find((candidate) => candidate.optionId === optionId);
   if (!option) {
     const error = new Error("No recommendation option available");
     error.status = 404;
@@ -612,8 +617,10 @@ export async function buildConfirmedCart({ recommendation, optionId, addOnProduc
     if (!foodGroups.has(restaurantId)) foodGroups.set(restaurantId, { restaurantId, restaurantName, items: [] });
     foodGroups.get(restaurantId).items.push({ itemId: item.itemId, quantity: item.quantity });
   }
+  if (swiggy.mode === "live" && foodGroups.size > 1 && !selectedRestaurantId) throw Object.assign(new Error("Select one restaurant for the live cart"), { status: 409 });
   const foodCarts = [];
   for (const group of foodGroups.values()) {
+    if (swiggy.mode === "live" && selectedRestaurantId && group.restaurantId !== selectedRestaurantId) continue;
     const built = await swiggy.buildFoodCart({
       restaurantId: group.restaurantId,
       addressId: recommendation.address?.id,
@@ -621,7 +628,7 @@ export async function buildConfirmedCart({ recommendation, optionId, addOnProduc
     });
     foodCarts.push({
       ...built,
-      restaurantId: group.restaurantId,
+      restaurantId: swiggy.mode === "live" ? built.restaurantId : group.restaurantId,
       restaurant: built.restaurant || group.restaurantName,
       fulfilment: "Swiggy Food"
     });
@@ -654,7 +661,8 @@ export async function buildConfirmedCart({ recommendation, optionId, addOnProduc
       fulfilment: "Swiggy Food"
     },
     foodCarts,
-    splitOrder: foodCarts.length > 1,
+    splitOrder: foodGroups.size > 1,
+    pendingRestaurantIds: [...foodGroups.keys()].filter(id => !foodCarts.some(c => c.restaurantId === id)),
     instamartCartPreview: {
       items: instamartItems,
       total: instamartItems.reduce((sum, item) => sum + item.price * Number(item.quantity || 1), 0),
@@ -678,7 +686,11 @@ function mergeRules(...groups) {
 
 function pickAddress(addresses, label, addressId) {
   if (!addresses?.length) throw new Error("No saved Swiggy address is available");
-  if (addressId) return addresses.find((address) => address.id === addressId) || addresses[0];
+  if (addressId) {
+    const selected = addresses.find(address => address.id === addressId);
+    if (!selected) throw Object.assign(new Error("Selected delivery address is no longer available"), { status: 422 });
+    return selected;
+  }
   if (!label) return addresses[0];
   return addresses.find((address) => address.label?.toLowerCase() === String(label).toLowerCase()) || addresses[0];
 }
@@ -1031,6 +1043,7 @@ async function complementaryProducts(
       ...product,
       pairingReason: pairingReason(query),
       dataSource: swiggy.mode,
+      serviceWarnings: swiggy.warnings || [],
       separateFulfilment: true
     }));
 }

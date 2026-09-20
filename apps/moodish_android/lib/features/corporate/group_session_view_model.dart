@@ -94,8 +94,13 @@ class GroupSessionViewModel extends ChangeNotifier {
   Future<void> approve(String optionId) =>
       _run((token) => api.selectGroupOption(sessionId: sessionId, optionId: optionId, bearerToken: token));
 
-  Future<void> confirmCart({List<String> addOnProductIds = const []}) =>
-      _run((token) => api.confirmGroupCart(sessionId: sessionId, addOnProductIds: addOnProductIds, bearerToken: token));
+  Future<void> confirmCart({List<String> addOnProductIds = const [], String? preparationId}) =>
+      _run((token) => api.confirmGroupCart(sessionId: sessionId, addOnProductIds: addOnProductIds, bearerToken: token, preparationId: preparationId));
 
+  Future<Map<String, dynamic>> prepareCart(String? restaurantId) async {
+    final token = await _accessToken;
+    if (token == null) throw ApiException('Creator access is required');
+    return api.swiggyRequest('/api/group-sessions/$sessionId/prepare-cart', bearerToken: token, body: {if (restaurantId != null) 'restaurantId': restaurantId});
+  }
   Future<void> cancel() => _run((token) => api.cancelGroupSession(sessionId: sessionId, bearerToken: token));
 }

@@ -1,5 +1,4 @@
-import { retrySwiggyCall } from "./telemetry.mjs";
-import { getSwiggyAccessToken } from "./swiggy-auth.mjs";
+import { createLiveCaller, upstreamError } from "./swiggy-client.mjs";
 
 const fixtureRestaurants = [
   {
@@ -346,9 +345,9 @@ const fixtureProducts = [
   { productId: "p12", name: "Fresh Lime Soda", price: 65, tags: ["beverage", "seafood", "coastal", "mexican", "cooling"] }
 ];
 
-export function createSwiggyGateway() {
+export function createSwiggyGateway({ userId } = {}) {
   const mode = process.env.SWIGGY_MODE || "fixture";
-  if (mode === "live") return liveGateway();
+  if (mode === "live") return liveGateway(userId);
   return fixtureGateway();
 }
 
@@ -475,72 +474,71 @@ export function expandIntentTokens(value = "") {
   return [...new Set([...baseTokens, ...phraseTokens, ...expanded].filter((token) => token.length > 1))];
 }
 
-function liveGateway() {
-  const base = "https://mcp.swiggy.com";
-  async function callTool(server, name, args = {}) {
-    const token = await getSwiggyAccessToken();
-    if (!token) {
-      const error = new Error("SWIGGY_ACCESS_TOKEN is required for live mode");
-      error.status = 401;
-      throw error;
-    }
-    return retrySwiggyCall(async () => {
-      const response = await fetch(`${base}/${server}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: `${Date.now()}`,
-          method: "tools/call",
-          params: { name, arguments: args }
-        })
-      });
-      if (!response.ok) {
-        const error = new Error(`Swiggy ${server}.${name} failed with ${response.status}`);
-        error.status = response.status;
-        throw error;
-      }
-      const body = await response.json();
-      if (body.error) throw new Error(body.error.message || "Swiggy MCP error");
-      return unwrapMcpResult(body);
-    });
-  }
+function liveGateway(userId) {
+  const callTool = createLiveCaller(userId);
+  const warnings = [];
+  const menus = new Map();
+  const menuFor = async args => {
+    const key = `${args.addressId}:${args.restaurantId}`;
+    if (!menus.has(key)) menus.set(key, callTool("food", "get_restaurant_menu", args).then(data => normalizeRestaurantMenu(data, args)));
+    return menus.get(key);
+  };
   return {
-    mode: "live",
+    mode: "live", userId, warnings,
     getAddresses: async () => normalizeAddresses(await callTool("food", "get_addresses")),
-    searchMenu: async (args) => normalizeMenuSearch(await callTool("food", "search_menu", args)),
-    searchRestaurants: async (args) => normalizeRestaurants(await callTool("food", "search_restaurants", args)),
-    getRestaurantMenu: async (args) => normalizeRestaurantMenu(await callTool("food", "get_restaurant_menu", args), args),
-    searchProducts: async (args) => normalizeProducts(await callTool("im", "search_products", args)),
-    buildFoodCart: (args) => callTool("food", "update_food_cart", args)
+    searchMenu: async args => {
+      const items = normalizeMenuSearch(await callTool("food", "search_menu", args));
+      for (const id of [...new Set(items.map(i => i.restaurant.id))].slice(0, 12)) {
+        const menu = await menuFor({ restaurantId: id, addressId: args.addressId });
+        if (menu.restaurant) for (const item of items.filter(i => i.restaurant.id === id)) item.restaurant = normalizeRestaurants([menu.restaurant])[0];
+      }
+      return items.filter(i => Number.isFinite(i.price) && i.inStock !== 0 && i.inStock !== false);
+    },
+    searchRestaurants: async args => normalizeRestaurants(await callTool("food", "search_restaurants", args)),
+    getRestaurantMenu: menuFor,
+    searchProducts: async args => {
+      try { return normalizeProducts(await callTool("im", "search_products", args)); }
+      catch (error) {
+        if (error.status === 401) throw error;
+        if (!warnings.some(w => w.service === "instamart")) warnings.push({ service: "instamart", message: "Instamart suggestions are unavailable. Food results are still live." });
+        return [];
+      }
+    },
+    getFoodCart: async args => normalizeFoodCart(await callTool("food", "get_food_cart", args)),
+    buildFoodCart: async ({ restaurantId, addressId, items }) => {
+      await callTool("food", "update_food_cart", { restaurantId, addressId, cartItems: items.map(item => ({
+        menu_item_id: item.itemId, quantity: item.quantity,
+        ...(item.variants ? { variants: item.variants } : {}),
+        ...(item.variantsV2 ? { variantsV2: item.variantsV2 } : {}),
+        ...(item.addons ? { addons: item.addons } : {})
+      })) });
+      return { ...normalizeFoodCart(await callTool("food", "get_food_cart", { addressId })), mutationApplied: true };
+    }
   };
 }
 
-function unwrapMcpResult(body) {
-  if (body.error) throw new Error(body.error.message || "Swiggy MCP error");
-  const result = body.result?.structuredContent ?? body.result?.data ?? body.result ?? body;
-  if (result?.success === false) throw new Error(result.error?.message || "Swiggy MCP tool failed");
-  if (result?.data !== undefined) return result.data;
-  const text = result?.content?.find?.((item) => item.type === "text")?.text;
-  if (text) {
-    try {
-      const parsed = JSON.parse(text);
-      return parsed.data ?? parsed;
-    } catch {
-      return { message: text };
-    }
-  }
-  return result;
+export function normalizeFoodCart(data) {
+  if (!data || typeof data !== "object" || !Array.isArray(data.items)) throw upstreamError("Swiggy returned an unrecognized cart. Check your Swiggy cart before continuing.");
+  const items = arrayFrom(data, ["items"]).map(item => ({ ...item,
+    itemId: validId(item.menu_item_id ?? item.itemId ?? item.id), quantity: Number(item.quantity),
+    price: Number(item.final_price ?? item.price ?? item.subtotal), name: String(item.name || "Item")
+  }));
+  const total = Number(data.pricing?.to_pay ?? data.total ?? (items.length === 0 ? 0 : NaN));
+  if (!Number.isFinite(total)) throw upstreamError("Swiggy cart total is missing");
+  return { cartId: data.cart_id ?? data.cartId, restaurantId: String(data.restaurant?.id ?? data.restaurantId ?? ""),
+    restaurant: data.restaurant?.name ?? data.restaurantName ?? (typeof data.restaurant === "string" ? data.restaurant : ""),
+    items, total, pricing: data.pricing, offers: data.offers, mode: "live" };
+}
+function validId(value) {
+  if (value === undefined || value === null || String(value) === "") throw upstreamError("Swiggy returned an item without an identifier");
+  return String(value);
 }
 
 function normalizeAddresses(data) {
   const addresses = arrayFrom(data, ["addresses", "items"]);
   return addresses.map((address) => ({
     ...address,
-    id: String(address.id || address.addressId),
+    id: validId(address.id ?? address.addressId),
     label: address.label || address.type || "Saved address",
     display: address.display || address.address || address.formattedAddress || ""
   }));
@@ -549,13 +547,13 @@ function normalizeAddresses(data) {
 function normalizeRestaurants(data) {
   return arrayFrom(data, ["restaurants", "items"]).map((restaurant) => ({
     ...restaurant,
-    id: String(restaurant.id || restaurant.restaurantId),
+    id: validId(restaurant.id ?? restaurant.restaurantId),
     name: restaurant.name || restaurant.restaurantName,
     cuisine: Array.isArray(restaurant.cuisines) ? restaurant.cuisines.join(", ") : restaurant.cuisine || "Mixed",
     rating: Number(restaurant.rating || restaurant.avgRating || 0),
     distanceKm: Number(restaurant.distanceKm || restaurant.distance || 0),
     priceBand: Number(restaurant.priceBand || restaurant.costForTwo / 2 || 0),
-    availabilityStatus: restaurant.availabilityStatus || "OPEN",
+    availabilityStatus: restaurant.availabilityStatus || (restaurant.isOpen === true ? "OPEN" : "UNKNOWN"),
     tags: [...new Set([...(restaurant.tags || []), ...(restaurant.cuisines || [])].map(String))],
     items: restaurant.items || []
   }));
@@ -563,12 +561,12 @@ function normalizeRestaurants(data) {
 
 function normalizeMenuSearch(data) {
   return arrayFrom(data, ["items", "menuItems", "results"]).map((entry) => {
-    const rawRestaurant = entry.restaurant || entry.restaurantInfo || {};
+    const rawRestaurant = entry.restaurant || entry.restaurantInfo || { id: entry.restaurant_id, name: entry.restaurant_name };
     return {
       ...entry,
-      itemId: String(entry.itemId || entry.id),
+      itemId: validId(entry.menu_item_id ?? entry.itemId ?? entry.id),
       name: entry.name || entry.itemName,
-      price: Number(entry.price || entry.defaultPrice || 0),
+      price: Number(entry.price ?? entry.defaultPrice ?? NaN),
       tags: normalizeItemTags(entry),
       restaurant: normalizeRestaurants({ restaurants: [rawRestaurant] })[0]
     };
@@ -584,28 +582,32 @@ function normalizeRestaurantMenu(data, args) {
     restaurant: data.restaurant,
     items: items.map((item) => ({
       ...item,
-      itemId: String(item.itemId || item.id),
+      itemId: validId(item.menu_item_id ?? item.itemId ?? item.id),
       name: item.name || item.itemName,
-      price: Number(item.price || item.defaultPrice || 0),
+      price: Number(item.price ?? item.defaultPrice ?? NaN),
       tags: normalizeItemTags(item)
     }))
   };
 }
 
 function normalizeProducts(data) {
-  return arrayFrom(data, ["products", "items", "results"]).map((product) => ({
-    ...product,
-    productId: String(product.productId || product.id || product.spinId),
-    name: product.name || product.productName,
-    price: Number(product.price || product.finalPrice || product.variants?.[0]?.price || 0),
-    tags: (product.tags || []).map(String)
-  }));
+  return arrayFrom(data, ["products", "items", "results"]).flatMap(product => {
+    if (product.inStock === false || product.isAvail === false) return [];
+    if (Array.isArray(product.variations)) return product.variations
+      .filter(v => v.isInStockAndAvailable === true && Number.isFinite(v.price?.offerPrice))
+      .map(v => ({ ...v, productId: validId(v.spinId), parentProductId: product.productId,
+        name: `${v.displayName || product.displayName} · ${v.quantityDescription}`, price: v.price.offerPrice,
+        tags: (product.tags || []).map(String) }));
+    const price = Number(product.price ?? product.finalPrice ?? NaN);
+    return Number.isFinite(price) ? [{ ...product, productId: validId(product.productId ?? product.id ?? product.spinId),
+      name: product.name || product.displayName || product.productName, price, tags: (product.tags || []).map(String) }] : [];
+  });
 }
 
 function normalizeItemTags(item) {
   const tags = [...(item.tags || [])].map((tag) => String(tag).toLowerCase());
-  if (item.isVeg === true || item.veg === true) tags.push("veg");
-  if (item.isVeg === false || item.veg === false) tags.push("non-veg");
+  if (item.isVeg === true || item.veg === true || item.is_veg === true || item.is_veg === 1 || item.is_veg === "1") tags.push("veg");
+  if (item.isVeg === false || item.veg === false || item.is_veg === false || item.is_veg === 0 || item.is_veg === "0") tags.push("non-veg");
   return [...new Set(tags)];
 }
 

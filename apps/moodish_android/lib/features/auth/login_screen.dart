@@ -75,6 +75,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: Theme.of(context).textTheme.bodySmall),
                 ),
               const SizedBox(height: 8),
+              if (config?.swiggy == true)
+                _LoginButton(icon: Icons.storefront, label: 'Continue with Swiggy', enabled: !_isSigningIn, onTap: _signInWithSwiggy),
               if (config != null && !config.swiggy)
                 _LoginButton(
                   icon: Icons.storefront,
@@ -112,6 +114,15 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Future<void> _signInWithSwiggy() async {
+    setState(() { _isSigningIn = true; _errorMessage = null; });
+    try {
+      final state = context.read<AppState>();
+      final token = await _googleAuthSession.connectSwiggy(state.api);
+      await state.loginWithGoogleToken(token);
+    } catch (error) { if (mounted) setState(() => _errorMessage = error.toString()); }
+    finally { if (mounted) setState(() => _isSigningIn = false); }
+  }
   Future<void> _signInWithDemo() async {
     setState(() {
       _isSigningIn = true;

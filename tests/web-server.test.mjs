@@ -78,7 +78,7 @@ test("web bootstrap combines health, auth configuration and current session with
       redirect: "manual"
     });
     assert.equal(swiggyLogin.status, 503);
-    assert.match((await swiggyLogin.json()).error, /whitelist approval/i);
+    assert.match((await swiggyLogin.json()).error, /not enabled/i);
   } finally {
     server.close();
   }

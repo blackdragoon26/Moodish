@@ -16,6 +16,8 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "ajv": "^8.20.0",
     "jose": "^6.2.4",
     "pg": "^8.22.0"
   }

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../core/api_client.dart';
+import '../../core/google_auth_session.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -12,6 +13,30 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  Map<String, dynamic>? _connection;
+  List<dynamic> _addresses = [];
+  bool _connecting = false;
+  @override
+  void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) => _loadSwiggy()); }
+  Future<void> _loadSwiggy() async {
+    final state = context.read<AppState>();
+    if (state.health?.swiggyMode != 'live') return;
+    try {
+      final connection = await state.api.swiggyRequest('/api/swiggy/connection');
+      final addresses = connection['connected'] == true ? (await state.api.swiggyRequest('/api/swiggy/addresses'))['addresses'] as List : <dynamic>[];
+      if (mounted) setState(() { _connection = connection; _addresses = addresses; });
+    } catch (error) { if (mounted) setState(() => _statusMessage = error.toString()); }
+  }
+  Future<void> _connectSwiggy() async {
+    setState(() => _connecting = true);
+    try {
+      final state = context.read<AppState>();
+      final token = await GoogleAuthSession().connectSwiggy(state.api);
+      await state.api.setSessionToken(token);
+      if (mounted) await _loadSwiggy();
+    } catch (error) { if (mounted) setState(() => _statusMessage = error.toString()); }
+    finally { if (mounted) setState(() => _connecting = false); }
+  }
   bool _isClearingMemory = false;
   String? _statusMessage;
 
@@ -30,6 +55,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(title: const Text('Name'), trailing: Text(user.name)),
             if (user.email != null) ListTile(title: const Text('Email'), trailing: Text(user.email!)),
             ListTile(title: const Text('Signed in via'), trailing: Text(user.provider)),
+          ],
+          if (health?.swiggyMode == 'live') ...[
+            const _SectionHeader('Swiggy'),
+            ListTile(title: Text(_connection?['connected'] == true ? 'Swiggy connected' : 'Connect Swiggy to discover meals'), trailing: TextButton(onPressed: _connecting ? null : _connectSwiggy, child: const Text('Connect / reconnect'))),
+            ..._addresses.map((a) => ListTile(title: Text('${a['label']} · ${a['display']}'), trailing: _connection?['selectedAddressId'] == a['id'] ? const Icon(Icons.check) : null,
+              onTap: () async { try { await state.api.swiggyRequest('/api/swiggy/address', body: {'addressId': a['id']}); if (mounted) await _loadSwiggy(); } catch (error) { if (mounted) setState(() => _statusMessage = error.toString()); } })),
+            if (_connection?['connected'] == true) TextButton(onPressed: () async { try { await state.api.swiggyRequest('/api/swiggy/disconnect', body: {}); if (mounted) await _loadSwiggy(); } catch (error) { if (mounted) setState(() => _statusMessage = error.toString()); } }, child: const Text('Disconnect Swiggy')),
           ],
           const _SectionHeader('Appearance'),
           ListTile(

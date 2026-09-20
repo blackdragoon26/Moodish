@@ -9,6 +9,7 @@ struct RecommendationDeckView: View {
     @State private var selectedOptionId: String?
     @State private var selectedAddOnIds: Set<String> = []
     @State private var showCartConfirmation = false
+    @State private var showLiveReview = false
     @State private var cartResult: CartConfirmResult?
     @State private var errorMessage: String?
     @State private var isConfirming = false
@@ -72,7 +73,7 @@ struct RecommendationDeckView: View {
                     isEnabled: selectedOptionId != nil,
                     isBusy: isConfirming
                 ) {
-                    showCartConfirmation = true
+                    if appState.health?.swiggyMode == "live" { showLiveReview = true } else { showCartConfirmation = true }
                 }
             }
             .navigationTitle("Recommendations")
@@ -89,6 +90,15 @@ struct RecommendationDeckView: View {
             ) {
                 Button("Confirm preview") { Task { await confirmCart() } }
                 Button("Cancel", role: .cancel) {}
+            }
+            .sheet(isPresented: $showLiveReview) {
+                if let option = selectedOption {
+                    LiveCartReviewSheet(option: option, prepare: { restaurantId in
+                        try await appState.api.prepareCart(recommendationId: recommendation.recommendationId, optionId: option.optionId, addOnProductIds: Array(selectedAddOnIds), restaurantId: restaurantId)
+                    }, confirm: { preparationId in
+                        cartResult = try await appState.api.confirmCart(recommendationId: recommendation.recommendationId, optionId: option.optionId, addOnProductIds: Array(selectedAddOnIds), preparationId: preparationId)
+                    })
+                }
             }
             .sheet(item: $cartResult) { result in
                 CartReviewView(result: result) {

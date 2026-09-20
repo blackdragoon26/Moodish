@@ -1,4 +1,5 @@
 import pg from "pg";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { DEFAULT_USER_HASH, nowIso } from "./contracts.mjs";
 import { loadLocalEnv } from "./env.mjs";
 
@@ -7,9 +8,14 @@ loadLocalEnv();
 const pool = process.env.DATABASE_URL
   ? new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
+      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined
     })
   : null;
+
+// Queries inside an advisory-lock scope reuse its connection. Otherwise a burst
+// of locked requests could hold every pool connection while waiting for another.
+const connectionContext = new AsyncLocalStorage();
+const queryDatabase = (...args) => (connectionContext.getStore() || pool).query(...args);
 
 const userProfiles = new Map();
 const teamProfiles = new Map();
@@ -51,7 +57,7 @@ teamProfiles.set(defaultTeamProfile.teamId, defaultTeamProfile);
 export async function getTasteProfile(userIdHash = DEFAULT_USER_HASH) {
   if (pool) {
     await ensureSchema();
-    const result = await pool.query("SELECT data FROM moodish_profiles WHERE user_id_hash = $1", [userIdHash]);
+    const result = await queryDatabase("SELECT data FROM moodish_profiles WHERE user_id_hash = $1", [userIdHash]);
     if (result.rows[0]) return result.rows[0].data;
   }
   return userProfiles.get(userIdHash) ?? blankTasteProfile(userIdHash);
@@ -63,7 +69,7 @@ export async function updateTasteProfile(userIdHash = DEFAULT_USER_HASH, patch =
   userProfiles.set(userIdHash, updated);
   if (pool) {
     await ensureSchema();
-    await pool.query(
+    await queryDatabase(
       `INSERT INTO moodish_profiles (user_id_hash, data, updated_at)
        VALUES ($1, $2::jsonb, NOW())
        ON CONFLICT (user_id_hash) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
@@ -90,7 +96,7 @@ export async function saveRecommendation(run) {
   recommendations.set(run.recommendationId, run);
   if (pool) {
     await ensureSchema();
-    await pool.query(
+    await queryDatabase(
       `INSERT INTO moodish_recommendations (recommendation_id, data, created_at)
        VALUES ($1, $2::jsonb, NOW())
        ON CONFLICT (recommendation_id) DO UPDATE SET data = EXCLUDED.data`,
@@ -105,7 +111,7 @@ export async function getRecommendation(recommendationId) {
   if (recommendations.has(recommendationId)) return recommendations.get(recommendationId);
   if (pool) {
     await ensureSchema();
-    const result = await pool.query("SELECT data FROM moodish_recommendations WHERE recommendation_id = $1", [
+    const result = await queryDatabase("SELECT data FROM moodish_recommendations WHERE recommendation_id = $1", [
       recommendationId
     ]);
     return result.rows[0]?.data;
@@ -118,7 +124,7 @@ export async function recordFeedback(event) {
   feedbackEvents.push(stored);
   if (pool) {
     await ensureSchema();
-    await pool.query("INSERT INTO moodish_feedback (user_id_hash, data, created_at) VALUES ($1, $2::jsonb, NOW())", [
+    await queryDatabase("INSERT INTO moodish_feedback (user_id_hash, data, created_at) VALUES ($1, $2::jsonb, NOW())", [
       stored.userIdHash,
       JSON.stringify(stored)
     ]);
@@ -141,7 +147,7 @@ export async function recordMealHistory(event) {
   if (existingInMemory) return existingInMemory;
   if (pool) {
     await ensureSchema();
-    const existing = await pool.query(
+    const existing = await queryDatabase(
       "SELECT data FROM moodish_meal_history WHERE user_id_hash = $1 AND data->>'recommendationId' = $2 LIMIT 1",
       [stored.userIdHash, stored.recommendationId]
     );
@@ -149,7 +155,7 @@ export async function recordMealHistory(event) {
   }
   mealHistoryEvents.unshift(stored);
   if (pool) {
-    await pool.query(
+    await queryDatabase(
       "INSERT INTO moodish_meal_history (user_id_hash, data, confirmed_at) VALUES ($1, $2::jsonb, $3)",
       [stored.userIdHash, JSON.stringify(stored), stored.confirmedAt]
     );
@@ -174,7 +180,7 @@ export async function recordMealHistory(event) {
 export async function getMealHistory(userIdHash = DEFAULT_USER_HASH, limit = 6) {
   if (pool) {
     await ensureSchema();
-    const result = await pool.query(
+    const result = await queryDatabase(
       "SELECT data FROM moodish_meal_history WHERE user_id_hash = $1 ORDER BY confirmed_at DESC LIMIT $2",
       [userIdHash, Math.max(1, Math.min(30, Number(limit) || 6))]
     );
@@ -187,7 +193,7 @@ export async function exportTasteMemory(userIdHash = DEFAULT_USER_HASH) {
   let feedback = feedbackEvents.filter((event) => event.userIdHash === userIdHash);
   if (pool) {
     await ensureSchema();
-    const result = await pool.query("SELECT data FROM moodish_feedback WHERE user_id_hash = $1 ORDER BY created_at DESC", [
+    const result = await queryDatabase("SELECT data FROM moodish_feedback WHERE user_id_hash = $1 ORDER BY created_at DESC", [
       userIdHash
     ]);
     feedback = result.rows.map((row) => row.data);
@@ -235,7 +241,7 @@ export async function saveGroupSession(session) {
   groupSessions.set(session.sessionId, session);
   if (pool) {
     await ensureSchema();
-    await pool.query(
+    await queryDatabase(
       `INSERT INTO moodish_group_sessions (session_id, state, data, updated_at)
        VALUES ($1, $2, $3::jsonb, NOW())
        ON CONFLICT (session_id) DO UPDATE SET state = EXCLUDED.state, data = EXCLUDED.data, updated_at = NOW()`,
@@ -246,20 +252,19 @@ export async function saveGroupSession(session) {
 }
 
 export async function getGroupSession(sessionId) {
-  if (groupSessions.has(sessionId)) return groupSessions.get(sessionId);
   if (pool) {
     await ensureSchema();
-    const result = await pool.query("SELECT data FROM moodish_group_sessions WHERE session_id = $1", [sessionId]);
+    const result = await queryDatabase("SELECT data FROM moodish_group_sessions WHERE session_id = $1", [sessionId]);
     return result.rows[0]?.data;
   }
-  return undefined;
+  return groupSessions.get(sessionId);
 }
 
 export async function getPlatformEventResponse(eventKey) {
   if (platformEvents.has(eventKey)) return platformEvents.get(eventKey);
   if (pool) {
     await ensureSchema();
-    const result = await pool.query("SELECT response FROM moodish_platform_events WHERE event_key = $1", [eventKey]);
+    const result = await queryDatabase("SELECT response FROM moodish_platform_events WHERE event_key = $1", [eventKey]);
     return result.rows[0]?.response;
   }
   return undefined;
@@ -269,7 +274,7 @@ export async function savePlatformEventResponse(eventKey, response) {
   platformEvents.set(eventKey, response);
   if (pool) {
     await ensureSchema();
-    await pool.query(
+    await queryDatabase(
       `INSERT INTO moodish_platform_events (event_key, response, created_at)
        VALUES ($1, $2::jsonb, NOW())
        ON CONFLICT (event_key) DO NOTHING`,
@@ -280,20 +285,19 @@ export async function savePlatformEventResponse(eventKey, response) {
 }
 
 export async function getSecretSession(sessionKey) {
-  if (secretSessions.has(sessionKey)) return secretSessions.get(sessionKey);
   if (pool) {
     await ensureSchema();
-    const result = await pool.query("SELECT data FROM moodish_secret_sessions WHERE session_key = $1", [sessionKey]);
+    const result = await queryDatabase("SELECT data FROM moodish_secret_sessions WHERE session_key = $1", [sessionKey]);
     return result.rows[0]?.data;
   }
-  return undefined;
+  return secretSessions.get(sessionKey);
 }
 
 export async function saveSecretSession(sessionKey, data) {
   secretSessions.set(sessionKey, data);
   if (pool) {
     await ensureSchema();
-    await pool.query(
+    await queryDatabase(
       `INSERT INTO moodish_secret_sessions (session_key, data, updated_at)
        VALUES ($1, $2::jsonb, NOW())
        ON CONFLICT (session_key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
@@ -308,7 +312,7 @@ export async function logAudit(event, details = {}) {
   auditLogs.push(log);
   if (pool) {
     await ensureSchema();
-    await pool.query("INSERT INTO moodish_audit_logs (event, details, created_at) VALUES ($1, $2::jsonb, NOW())", [
+    await queryDatabase("INSERT INTO moodish_audit_logs (event, details, created_at) VALUES ($1, $2::jsonb, NOW())", [
       event,
       JSON.stringify(details)
     ]);
@@ -318,7 +322,7 @@ export async function logAudit(event, details = {}) {
 export async function getAuditLogs() {
   if (pool) {
     await ensureSchema();
-    const result = await pool.query(
+    const result = await queryDatabase(
       "SELECT created_at AS ts, event, details FROM moodish_audit_logs ORDER BY created_at DESC LIMIT 100"
     );
     return result.rows;
@@ -329,7 +333,7 @@ export async function getAuditLogs() {
 async function ensureSchema() {
   if (!pool) return;
   if (!schemaReady) {
-    schemaReady = pool.query(`
+    schemaReady = queryDatabase(`
       CREATE TABLE IF NOT EXISTS moodish_profiles (
         user_id_hash TEXT PRIMARY KEY,
         data JSONB NOT NULL,
@@ -379,4 +383,46 @@ async function ensureSchema() {
     `);
   }
   await schemaReady;
+}
+
+// Atomic single-use records and account locks also work across Myprod replicas.
+export async function takeSecretSession(key) {
+  if (pool) {
+    await ensureSchema();
+    const result = await queryDatabase("DELETE FROM moodish_secret_sessions WHERE session_key = $1 RETURNING data", [key]);
+    secretSessions.delete(key);
+    return result.rows[0]?.data;
+  }
+  const value = secretSessions.get(key);
+  secretSessions.delete(key);
+  return value;
+}
+export async function deleteSecretSession(key) { await takeSecretSession(key); }
+const locks = new Map();
+export async function withAccountLock(key, fn) {
+  if (pool) {
+    await ensureSchema();
+    const inherited = connectionContext.getStore();
+    const client = inherited || await pool.connect();
+    let failedUnlock = false;
+    try {
+      await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [key]);
+      return await connectionContext.run(client, fn);
+    } finally {
+      try { await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]); }
+      catch { failedUnlock = true; }
+      if (!inherited) client.release(failedUnlock);
+    }
+  }
+  const previous = locks.get(key) || Promise.resolve();
+  let release;
+  const current = new Promise(resolve => { release = resolve; });
+  locks.set(key, current);
+  await previous;
+  try { return await fn(); } finally { release(); if (locks.get(key) === current) locks.delete(key); }
+}
+export function requireDurableLiveStorage() {
+  if (process.env.NODE_ENV === "production" && process.env.SWIGGY_MODE === "live" && !pool) {
+    throw Object.assign(new Error("DATABASE_URL is required for live production connections"), { status: 503 });
+  }
 }

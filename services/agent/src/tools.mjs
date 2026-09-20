@@ -1,3 +1,4 @@
+import { prepareCart, confirmPreparedCart } from "./cart-preparation.mjs";
 import { DEFAULT_USER_HASH } from "./contracts.mjs";
 import {
   exportTasteMemory,
@@ -17,6 +18,7 @@ import { instrumentToolCall } from "./telemetry.mjs";
 import {
   cancelGroupSession,
   confirmGroupCart,
+  prepareGroupCart,
   createGroupSession,
   getGroupSessionView,
   lockAndRankGroupSession,
@@ -26,8 +28,8 @@ import {
   voteGroupOption
 } from "./group-service.mjs";
 
-export function createToolRuntime() {
-  const swiggy = createSwiggyGateway();
+export function createToolRuntime({ userId } = {}) {
+  const swiggy = createSwiggyGateway({ userId });
   const ai = createAiProvider();
   return { swiggy, ai };
 }
@@ -60,7 +62,7 @@ export function createTools(runtime = createToolRuntime()) {
           swiggy: runtime.swiggy,
           ai: aiForRequest(args, runtime.ai)
         });
-        return saveRecommendation(run);
+        return saveRecommendation({ ...run, ownerId: userIdHash });
       });
     },
     async plan_office_lunch(args = {}) {
@@ -72,8 +74,13 @@ export function createTools(runtime = createToolRuntime()) {
           swiggy: runtime.swiggy,
           ai: aiForRequest(args, runtime.ai)
         });
-        return await saveRecommendation(run);
+        return await saveRecommendation({ ...run, ownerId: userIdHash });
       });
+    },
+    async prepare_cart(args = {}) {
+      const recommendation = await getRecommendation(args.recommendationId);
+      if (!recommendation || recommendation.ownerId !== args.userIdHash) throw Object.assign(new Error("Recommendation not found"), { status: 404 });
+      return prepareCart({ ...args, ownerId: args.userIdHash, recommendation, swiggy: runtime.swiggy });
     },
     async build_confirmed_cart(args = {}) {
       const userIdHash = args.userIdHash || DEFAULT_USER_HASH;
@@ -86,13 +93,18 @@ export function createTools(runtime = createToolRuntime()) {
             error.status = 404;
             throw error;
           }
-          const cart = await buildConfirmedCart({
+          if (runtime.swiggy.mode === "live" && recommendation.ownerId !== userIdHash) throw Object.assign(new Error("Recommendation not found"), { status: 404 });
+          const build = restaurantId => buildConfirmedCart({
+            restaurantId,
             recommendation,
             optionId: args.optionId,
             addOnProductIds: args.addOnProductIds,
             confirmed: args.confirmed === true,
             swiggy: runtime.swiggy
           });
+          const cart = runtime.swiggy.mode === "live"
+            ? await confirmPreparedCart({ ...args, ownerId: userIdHash, recommendation, swiggy: runtime.swiggy, build })
+            : await build();
           const option =
             recommendation.options.find((candidate) => candidate.optionId === args.optionId) ||
             recommendation.options[0];
@@ -102,6 +114,7 @@ export function createTools(runtime = createToolRuntime()) {
           );
           const mealMemoryEntry = await recordMealHistory({
             userIdHash,
+            eventType: "cart_prepared",
             recommendationId: recommendation.recommendationId,
             restaurantName: option?.restaurantName,
             cuisine: option?.cuisine,
@@ -149,6 +162,7 @@ export function createTools(runtime = createToolRuntime()) {
     async select_group_option(args = {}) {
       return selectGroupOption(args);
     },
+    async prepare_group_cart(args = {}) { return prepareGroupCart(args, runtime); },
     async confirm_group_cart(args = {}) {
       return confirmGroupCart(args, runtime);
     },

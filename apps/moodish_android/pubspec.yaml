@@ -41,6 +41,8 @@ dependencies:
   share_plus: ^10.1.2
   uuid: ^4.5.1
   flutter_web_auth_2: ^5.0.3
+  crypto: ^3.0.7
+  flutter_secure_storage: ^10.3.4
 
 dev_dependencies:
   flutter_test:

@@ -9,7 +9,7 @@ class CartReviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Cart preview')),
+      appBar: AppBar(title: const Text('Cart result')),
       body: ListView(padding: const EdgeInsets.all(16), children: [CartReviewContent(result: result)]),
     );
   }
@@ -41,7 +41,7 @@ class CartReviewContent extends StatelessWidget {
           ),
         if (result.instamartCartPreview != null && result.instamartCartPreview!.items.isNotEmpty)
           _Section(
-            title: 'Instamart',
+            title: 'Instamart preview',
             children: [
               ...result.instamartCartPreview!.items.map((item) => Text('• ${item.name} — ₹${item.price}')),
               if (result.instamartCartPreview!.note != null)
