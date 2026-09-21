@@ -161,6 +161,13 @@
         </div>
       </header>
 
+      <section id="swiggyConnection" class="hidden" aria-label="Swiggy connection" style="padding:1rem 2rem">
+        <span id="swiggyStatus" role="status"></span>
+        <a href="/api/auth/swiggy/start" id="connectSwiggy">Connect Swiggy</a>
+        <label id="addressLabel" class="hidden">Deliver to <select id="swiggyAddress"><option value="">Choose a saved address</option></select></label>
+        <button id="disconnectSwiggy" type="button" class="hidden">Disconnect</button>
+        <p id="connectionError" role="alert"></p>
+      </section>
       <main class="app-shell">
         <aside class="rail">
           <p class="rail-label">Plan</p>

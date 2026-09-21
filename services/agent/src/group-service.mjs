@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { prepareCart, confirmPreparedCart } from "./cart-preparation.mjs";
 import { makeRecommendationId, normalizeList, nowIso } from "./contracts.mjs";
 import { getGroupSession, logAudit, recordMealHistory, saveGroupSession } from "./memory.mjs";
 import { buildConfirmedCart, planOfficeLunch } from "./recommender.mjs";
@@ -28,6 +29,8 @@ export async function createGroupSession(args = {}) {
     workspaceId: String(args.workspaceId || "web"),
     channelId: String(args.channelId || "private"),
     creatorId,
+    purchaseUserId: args.purchaseUserId,
+    addressId: args.addressId,
     invitePasscodeHash: hashInvitePasscode(invitePasscode, invitePasscodeSalt),
     invitePasscodeSalt,
     coManagerIds: unique(args.coManagerIds),
@@ -88,6 +91,7 @@ export async function lockAndRankGroupSession(args = {}, runtime) {
   assertState(session, "collecting");
   expireIfNeeded(session);
   assertState(session, "collecting");
+  if (runtime.swiggy.mode === "live" && (!session.purchaseUserId || !session.addressId)) throw stateError("The creator must connect Swiggy and select a delivery address before ranking");
   session.state = "locked";
   session.updatedAt = nowIso();
   await saveGroupSession(session);
@@ -95,8 +99,10 @@ export async function lockAndRankGroupSession(args = {}, runtime) {
   session.state = "ranking";
   await saveGroupSession(session);
   const aggregate = aggregatePreferences(session);
-  const recommendation = await planOfficeLunch({
+  let recommendation;
+  try { recommendation = await planOfficeLunch({
     request: {
+      addressId: session.addressId,
       headcount: Math.max(Object.keys(session.submissions).length, session.headcount),
       budgetPerPerson: session.budgetPerPerson,
       query: aggregate.moods.join(" ") || "team lunch",
@@ -118,6 +124,11 @@ export async function lockAndRankGroupSession(args = {}, runtime) {
     swiggy: runtime.swiggy,
     ai: runtime.ai
   });
+  } catch (error) {
+    session.state = "collecting";
+    await saveGroupSession(session);
+    throw error;
+  }
   session.recommendation = recommendation;
   if (session.approvalMode === "automatic") {
     session.selectedOptionId = recommendation.options[0]?.optionId || null;
@@ -161,6 +172,15 @@ export async function selectGroupOption(args = {}) {
   return privateSessionView(session);
 }
 
+export async function prepareGroupCart(args = {}, runtime) {
+  const session = await requireSession(args.sessionId);
+  if (String(args.actorId) !== session.creatorId) throw Object.assign(new Error("Only the creator can prepare the Swiggy cart"), { status: 403 });
+  assertState(session, "awaiting_creator_confirmation");
+  return prepareCart({ ...args, ownerId: session.purchaseUserId || session.creatorId,
+    groupSessionId: session.sessionId, recommendation: session.recommendation,
+    optionId: session.selectedOptionId, swiggy: runtime.swiggy });
+}
+
 export async function confirmGroupCart(args = {}, runtime) {
   const session = await requireSession(args.sessionId);
   if (String(args.actorId) !== session.creatorId) {
@@ -170,13 +190,18 @@ export async function confirmGroupCart(args = {}, runtime) {
   }
   assertState(session, "awaiting_creator_confirmation");
   if (args.confirmed !== true) throw stateError("Explicit creator confirmation is required");
-  session.cart = await buildConfirmedCart({
+  const build = restaurantId => buildConfirmedCart({
+    restaurantId,
     recommendation: session.recommendation,
     optionId: session.selectedOptionId,
     addOnProductIds: args.addOnProductIds || [],
     swiggy: runtime.swiggy,
     confirmed: true
   });
+  session.cart = runtime.swiggy.mode === "live" ? await confirmPreparedCart({ ...args,
+    ownerId: session.purchaseUserId, groupSessionId: session.sessionId,
+    recommendation: session.recommendation, optionId: session.selectedOptionId,
+    swiggy: runtime.swiggy, build }) : await build();
   const selectedOption =
     session.recommendation.options.find((option) => option.optionId === session.selectedOptionId) ||
     session.recommendation.options[0];
@@ -185,7 +210,8 @@ export async function confirmGroupCart(args = {}, runtime) {
     selectedAddOnIds.has(item.productId)
   );
   session.mealMemoryEntry = await recordMealHistory({
-    userIdHash: session.creatorId,
+    userIdHash: session.purchaseUserId || session.creatorId,
+    eventType: "cart_prepared",
     recommendationId: session.recommendation.recommendationId,
     restaurantName:
       selectedOption?.foodSources?.map((source) => source.restaurantName).join(" + ") ||

@@ -1,5 +1,6 @@
 const $ = (selector) => document.querySelector(selector);
 let authUser = null;
+let isLiveSwiggy = false;
 let conversationState = {};
 let currentRecommendation = null;
 let selectedOptionId = null;
@@ -137,7 +138,11 @@ function formJson(form) {
 async function boot() {
   const inviteSessionId = new URLSearchParams(window.location.search).get("group");
   const managerAccessToken = new URLSearchParams(window.location.hash.slice(1)).get("access_token");
-  if (inviteSessionId && !managerAccessToken) {
+  if (inviteSessionId && managerAccessToken) {
+    sessionStorage.setItem("moodish.manager", JSON.stringify({ sessionId: inviteSessionId, accessToken: managerAccessToken }));
+    history.replaceState(null, "", `/?group=${encodeURIComponent(inviteSessionId)}`);
+  }
+  if (inviteSessionId && !managerAccessToken && !sessionStorage.getItem("moodish.manager")) {
     await openParticipantInvite(inviteSessionId);
     return;
   }
@@ -166,6 +171,7 @@ async function boot() {
 }
 
 function configureLogin(config, health) {
+  isLiveSwiggy = health.swiggyMode === "live";
   $("#dataModeBadge").textContent = health.swiggyMode === "fixture" ? "Demo data" : "Live Swiggy";
   $("#dataModeBadge").classList.toggle("live", health.swiggyMode !== "fixture");
   $("#demoLogin").classList.toggle("hidden", !config.demo);
@@ -202,6 +208,8 @@ function enterProduct(user, history = []) {
   $("#creatorId").value = user.id;
   renderMealMemory();
   renderRailNudge();
+  refreshSwiggyConnection();
+  restoreManagerSession();
   if (mealMemory[0]) {
     const previous = mealMemory[0];
     appendMessage(
@@ -221,6 +229,7 @@ $("#demoLogin").addEventListener("click", async () => {
 
 $("#logout").addEventListener("click", async () => {
   await api("/api/auth/logout", { method: "POST", body: "{}" });
+  sessionStorage.removeItem("moodish.manager");
   window.location.reload();
 });
 
@@ -513,8 +522,8 @@ function optionCard(option, index, selectedId) {
 function renderPairings(items) {
   $("#pairings").classList.toggle("hidden", !items.length);
   $("#pairings").innerHTML = items.length
-    ? `<div class="pairing-head"><div><p class="kicker">Moodish Pairings · optional Instamart cart</p><h4>Make it a complete moment.</h4></div>
-         <details class="pairing-why"><summary>Why these?</summary><p>Moodish maps Chinese to chilled drinks, biryani to raita, pizza or burgers to cola, chaap or tandoori food to mint and lemon, spicy food to cooling drinks, and light meals to fruit. A pairing appears only when it is available and fits the remaining budget. It never changes the main-meal ranking and stays in a separate Instamart cart.</p></details>
+    ? `<div class="pairing-head"><div><p class="kicker">Moodish Pairings · optional Instamart preview</p><h4>Make it a complete moment.</h4></div>
+         <details class="pairing-why"><summary>Why these?</summary><p>Moodish maps Chinese to chilled drinks, biryani to raita, pizza or burgers to cola, chaap or tandoori food to mint and lemon, spicy food to cooling drinks, and light meals to fruit. A pairing appears only when it is available and fits the remaining budget. It never changes the main-meal ranking and stays in a separate Instamart preview.</p></details>
        </div>
        <div class="pairing-list">${items
          .map(
@@ -525,7 +534,7 @@ function renderPairings(items) {
            </button>`
          )
          .join("")}</div>
-       <div class="pairing-summary"><span>${selectedAddOnIds.size} selected for a separate Instamart cart</span><strong>₹${items
+       <div class="pairing-summary"><span>${selectedAddOnIds.size} selected for a separate Instamart preview</span><strong>₹${items
          .filter((item) => selectedAddOnIds.has(item.productId))
          .reduce((sum, item) => sum + item.price, 0)}</strong></div>`
     : "";
@@ -545,19 +554,22 @@ function renderCartReview() {
   const instamartTotal = selectedPairings.reduce((sum, item) => sum + Number(item.price || 0), 0);
   const foodTotal = Number(option?.estimatedTotal || 0);
   $("#confirmCart").disabled = !option;
-  $("#cartReviewLabel").textContent = selectedPairings.length ? "Review Food + Instamart carts" : "Review Food cart";
+  $("#cartReviewLabel").textContent = selectedPairings.length ? "Review Food cart + Instamart preview" : "Review Food cart";
   $("#cartReviewTotal").textContent = `₹${foodTotal + instamartTotal}`;
 }
 
 $("#confirmCart").addEventListener("click", async () => {
-  if (!currentRecommendation || !selectedOptionId || !window.confirm("Prepare the selected Food and Instamart cart previews? This still will not place an order.")) return;
+  if (!currentRecommendation || !selectedOptionId) return;
+  try {
+  const review = await reviewLiveCart(currentRecommendation, selectedOptionId, [...selectedAddOnIds]);
+  if (!review) return;
   const cart = await api("/api/cart/confirm", {
     method: "POST",
     body: JSON.stringify({
+      ...review,
       recommendationId: currentRecommendation.recommendationId,
       optionId: selectedOptionId,
       addOnProductIds: [...selectedAddOnIds],
-      userIdHash: authUser?.id,
       confirmed: true
     })
   });
@@ -567,16 +579,17 @@ $("#confirmCart").addEventListener("click", async () => {
     `FOOD CART · ${cart.foodCart.restaurant} · ₹${cart.foodCart.total}`,
     ...cart.foodCart.items.map((item) => `${item.quantity}× ${item.name}`),
     "",
-    `INSTAMART CART · ₹${instamart.total}`,
+    `INSTAMART PREVIEW · ₹${instamart.total}`,
     ...(instamart.items.length ? instamart.items.map((item) => `1× ${item.name}`) : ["No add-ons selected"]),
     "",
-    "Separate fulfilment · Checkout stays blocked until a later final-confirmation flow."
+    "Food cart prepared. Instamart is a preview only. No order was placed."
   ].join("\n");
   if (cart.mealMemoryEntry) {
     mealMemory = [cart.mealMemoryEntry, ...mealMemory.filter((item) => item.recommendationId !== cart.mealMemoryEntry.recommendationId)].slice(0, 6);
     renderMealMemory();
     renderRailNudge();
   }
+  } catch (error) { $("#cartOutput").classList.remove("hidden"); $("#cartOutput").textContent = error.message; }
 });
 
 $("#office").addEventListener("submit", async (event) => {
@@ -585,6 +598,7 @@ $("#office").addEventListener("submit", async (event) => {
     const session = await api("/api/group-sessions", { method: "POST", body: JSON.stringify(formJson(event.currentTarget)) });
     currentGroupSession = session;
     currentGroupAccessToken = session.accessToken;
+    sessionStorage.setItem("moodish.manager", JSON.stringify({ sessionId: session.sessionId, accessToken: session.accessToken }));
     currentGroupInvitePasscode = session.invitePasscode;
     selectedGroupOptionId = null;
     selectedGroupAddOnIds = new Set();
@@ -665,8 +679,11 @@ $("#voteGroup").addEventListener("click", async () => {
 });
 
 $("#confirmGroupCart").addEventListener("click", async () => {
-  if (!window.confirm("Prepare every selected Food and Instamart cart preview? No order will be placed.")) return;
+  try {
+  const review = await reviewLiveCart(currentGroupSession.recommendation, currentGroupSession.selectedOptionId, [...selectedGroupAddOnIds], currentGroupSession.sessionId);
+  if (!review) return;
   currentGroupSession = await groupApi(`/api/group-sessions/${currentGroupSession.sessionId}/confirm-cart`, {
+    ...review,
     confirmed: true,
     addOnProductIds: [...selectedGroupAddOnIds]
   });
@@ -681,6 +698,7 @@ $("#confirmGroupCart").addEventListener("click", async () => {
     renderRailNudge();
   }
   renderGroup(currentGroupSession);
+  } catch (error) { window.alert(error.message); }
 });
 
 async function groupApi(path, payload) {
@@ -1018,3 +1036,70 @@ function wait(milliseconds) {
 }
 
 boot();
+
+async function refreshSwiggyConnection() {
+  if (!authUser || !isLiveSwiggy) return;
+  $("#swiggyConnection").classList.remove("hidden");
+  try {
+    const status = await api("/api/swiggy/connection");
+    $("#swiggyStatus").textContent = status.connected ? "Swiggy connected" : status.requiresReauthentication ? "Swiggy session expired" : "Connect Swiggy to discover meals";
+    $("#connectSwiggy").classList.toggle("hidden", status.connected);
+    $("#disconnectSwiggy").classList.toggle("hidden", !status.connected);
+    $("#addressLabel").classList.toggle("hidden", !status.connected);
+    if (status.connected) {
+      const { addresses } = await api("/api/swiggy/addresses");
+      $("#swiggyAddress").replaceChildren(new Option("Choose a saved address", ""), ...addresses.map(a => new Option(`${a.label} · ${a.display}`, a.id)));
+      $("#swiggyAddress").value = status.selectedAddressId || "";
+    }
+  } catch (error) { $("#connectionError").textContent = error.message; }
+}
+$("#swiggyAddress").addEventListener("change", async event => {
+  try {
+    await api("/api/swiggy/address", { method: "POST", body: JSON.stringify({ addressId: event.target.value }) });
+    currentRecommendation = null;
+    selectedOptionId = null;
+    conversationState = {};
+    $("#confirmCart").disabled = true;
+    $("#connectionError").textContent = "Address updated. Ask for fresh meal suggestions.";
+    if (currentGroupSession?.state === "collecting" && currentGroupAccessToken) await groupApi(`/api/group-sessions/${currentGroupSession.sessionId}/connect`, {});
+  } catch (error) { $("#connectionError").textContent = error.message; }
+});
+$("#disconnectSwiggy").addEventListener("click", async () => {
+  try { await api("/api/swiggy/disconnect", { method: "POST", body: "{}" }); await refreshSwiggyConnection(); }
+  catch (error) { $("#connectionError").textContent = error.message; }
+});
+async function reviewLiveCart(recommendation, optionId, addOnProductIds, groupSessionId) {
+  if (!isLiveSwiggy) return window.confirm("Prepare the demo cart previews? No order will be placed.") ? {} : null;
+  const option = recommendation.options.find(o => o.optionId === optionId);
+  const sources = [...new Map(option.items.map(i => [i.restaurantId || option.restaurantId, { id: i.restaurantId || option.restaurantId, name: i.restaurantName || option.restaurantName }])).values()];
+  let restaurantId = sources[0]?.id;
+  if (sources.length > 1) {
+    const picked = window.prompt(`Swiggy holds one restaurant cart at a time. Choose which to prepare; the rest stay previews.\n${sources.map((s, i) => `${i + 1}. ${s.name}`).join("\n")}`);
+    if (picked === null) return null;
+    restaurantId = sources[Number(picked) - 1]?.id;
+    if (!restaurantId) throw new Error("Choose a restaurant from the list");
+  }
+  const args = { recommendationId: recommendation.recommendationId, optionId, addOnProductIds, restaurantId };
+  const review = groupSessionId ? await groupApi(`/api/group-sessions/${groupSessionId}/prepare-cart`, args) : await api("/api/cart/prepare", { method: "POST", body: JSON.stringify(args) });
+  const text = [review.note, `Deliver to: ${review.address.label} · ${review.address.display}`, ...review.items.map(i => `${i.quantity} × ${i.name} · ₹${i.price}`), `Items estimate: ₹${review.estimatedItemTotal}`, review.replacesExistingCart ? `Existing cart: ${review.existingCart.restaurant} · ₹${review.existingCart.total}. This update can replace those contents.` : "Your current Food cart is empty.", "Update your Food cart?"].join("\n");
+  return window.confirm(text) ? { preparationId: review.preparationId, restaurantId } : null;
+}
+
+async function restoreManagerSession() {
+  const saved = sessionStorage.getItem("moodish.manager");
+  if (!saved) return;
+  try {
+    const manager = JSON.parse(saved);
+    currentGroupAccessToken = manager.accessToken;
+    currentGroupSession = await api(`/api/group-sessions/${encodeURIComponent(manager.sessionId)}`, { headers: { authorization: `Bearer ${manager.accessToken}` } });
+    if (isLiveSwiggy && currentGroupSession.state === "collecting") {
+      const connection = await api("/api/swiggy/connection");
+      if (connection.connected && connection.selectedAddressId) await groupApi(`/api/group-sessions/${manager.sessionId}/connect`, {});
+    }
+    $("#groupPreference [name=sessionId]").value = manager.sessionId;
+    $("#groupPreference").classList.remove("hidden");
+    $("#groupControls").classList.remove("hidden");
+    renderGroup(currentGroupSession);
+    startGroupPolling();
+  } catch (error) { $("#groupStatus").textContent = error.message; }
+}

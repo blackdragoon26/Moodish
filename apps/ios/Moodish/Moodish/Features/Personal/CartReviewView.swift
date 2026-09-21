@@ -14,7 +14,7 @@ struct CartReviewView: View {
                 CartReviewContent(result: result)
                     .padding()
             }
-            .navigationTitle("Cart preview")
+            .navigationTitle("Cart result")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -51,7 +51,7 @@ struct CartReviewContent: View {
             }
 
             if let instamart = result.instamartCartPreview, let items = instamart.items, !items.isEmpty {
-                SectionCard(title: "Instamart") {
+                SectionCard(title: "Instamart preview") {
                     ForEach(items) { item in
                         Text("• \(item.name) — ₹\(Int(item.price))").font(.subheadline)
                     }
@@ -64,7 +64,7 @@ struct CartReviewContent: View {
             VStack(alignment: .leading, spacing: 4) {
                 Label("Checkout stays blocked", systemImage: "lock.fill")
                     .font(.subheadline.weight(.semibold))
-                Text(result.checkoutNote ?? "This is a preview only. Checkout stays blocked until a later final-confirmation flow.")
+                Text(result.checkoutNote ?? "No order was placed. Instamart remains a preview.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -88,5 +88,61 @@ private struct SectionCard<Content: View>: View {
         .padding()
         .background(Color.moodishSurface)
         .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+struct LiveCartReviewSheet: View {
+    let option: RecommendationOption
+    let prepare: (String?) async throws -> CartPreparation
+    let confirm: (String) async throws -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var restaurantId = ""
+    @State private var review: CartPreparation?
+    @State private var busy = false
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if let sources = option.foodSources, sources.count > 1 {
+                    Picker("Restaurant to prepare", selection: $restaurantId) {
+                        Text("Choose one restaurant").tag("")
+                        ForEach(sources) { s in Text(s.restaurantName).tag(s.restaurantId) }
+                    }.disabled(review != nil)
+                    Text("The other restaurant plans remain previews.")
+                }
+                if let review {
+                    Section("Delivery") { Text("\(review.address.label) · \(review.address.display)") }
+                    Section("Food items") {
+                        ForEach(review.items) { i in Text("\(i.quantity) × \(i.name) · ₹\(Int(i.price))") }
+                        Text("Items estimate: ₹\(Int(review.estimatedItemTotal))")
+                    }
+                    if review.replacesExistingCart {
+                        Section("Current cart will change") {
+                            Text(review.existingCart.restaurant ?? "Existing Food cart")
+                            ForEach(review.existingCart.items ?? []) { i in Text(i.name) }
+                        }
+                    }
+                    Text(review.note)
+                    Button("Confirm Food cart update") { Task {
+                        busy = true
+                        defer { busy = false }
+                        do { try await confirm(review.preparationId); dismiss() }
+                        catch { self.error = error.localizedDescription }
+                    } }.disabled(busy)
+                } else {
+                    Button("Load current cart and prices") { Task {
+                        busy = true
+                        defer { busy = false }
+                        do { review = try await prepare(restaurantId.isEmpty ? nil : restaurantId) }
+                        catch { self.error = error.localizedDescription }
+                    } }.disabled(busy || ((option.foodSources?.count ?? 0) > 1 && restaurantId.isEmpty))
+                }
+                if let error { Text(error).foregroundStyle(.red) }
+                if busy { ProgressView() }
+            }
+            .navigationTitle("Review Food cart")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) } }
+        }
     }
 }

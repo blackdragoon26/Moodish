@@ -5,6 +5,7 @@ import '../../app_state.dart';
 import '../../core/api_client.dart';
 import '../../core/models/recommendation_models.dart';
 import 'cart_review_screen.dart';
+import 'live_cart_review.dart';
 
 class RecommendationDeckScreen extends StatefulWidget {
   final RecommendationRun recommendation;
@@ -100,6 +101,19 @@ class _RecommendationDeckScreenState extends State<RecommendationDeckScreen> {
   }
 
   Future<void> _confirmDialog() async {
+    final state = context.read<AppState>();
+    if (state.health?.swiggyMode == 'live') {
+      setState(() => _isConfirming = true);
+      try {
+        final preparationId = await reviewLiveCart(context, _selectedOption!, (restaurantId) => state.api.swiggyRequest('/api/cart/prepare', body: {
+          'recommendationId': widget.recommendation.recommendationId, 'optionId': _selectedOptionId,
+          'addOnProductIds': _selectedAddOnIds.toList(), if (restaurantId != null) 'restaurantId': restaurantId,
+        }));
+        if (preparationId != null && mounted) await _confirmCart(preparationId: preparationId);
+      } catch (error) { if (mounted) setState(() => _errorMessage = error.toString()); }
+      finally { if (mounted) setState(() => _isConfirming = false); }
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -116,7 +130,7 @@ class _RecommendationDeckScreenState extends State<RecommendationDeckScreen> {
     await _confirmCart();
   }
 
-  Future<void> _confirmCart() async {
+  Future<void> _confirmCart({String? preparationId}) async {
     setState(() {
       _isConfirming = true;
       _errorMessage = null;
@@ -124,6 +138,7 @@ class _RecommendationDeckScreenState extends State<RecommendationDeckScreen> {
     try {
       final api = context.read<AppState>().api;
       final result = await api.confirmCart(
+        preparationId: preparationId,
         recommendationId: widget.recommendation.recommendationId,
         optionId: _selectedOptionId!,
         addOnProductIds: _selectedAddOnIds.toList(),

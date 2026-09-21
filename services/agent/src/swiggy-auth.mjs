@@ -1,134 +1,107 @@
 import crypto from "node:crypto";
-import { getSecretSession, saveSecretSession } from "./memory.mjs";
+import { getSecretSession, saveSecretSession, takeSecretSession, deleteSecretSession, requireDurableLiveStorage } from "./memory.mjs";
 
-const pendingFlows = new Map();
-const tokenSessions = new Map();
-const DEFAULT_SESSION = "default";
+const hash = value => crypto.createHash("sha256").update(String(value)).digest("base64url");
+const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 
-export async function startSwiggyOAuth({ redirectUri, sessionId = DEFAULT_SESSION } = {}) {
-  const callback = redirectUri || defaultRedirectUri();
+export async function startSwiggyOAuth({ redirectUri, user, browserBinding, mobileChallenge, groupSessionId } = {}) {
+  requireDurableLiveStorage();
+  if (!user?.id || (!browserBinding && !mobileChallenge)) throw fail("A bound login flow is required");
+  if (mobileChallenge && !/^[A-Za-z0-9_-]{43}$/.test(mobileChallenge)) throw fail("Invalid mobile PKCE challenge");
+  const callback = redirectUri || `${process.env.MOODISH_PUBLIC_URL || "http://localhost:8787"}/api/auth/swiggy/callback`;
   const verifier = crypto.randomBytes(32).toString("base64url");
-  const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
-  const state = crypto.randomBytes(24).toString("base64url");
-  const client = await registerClient(callback);
-  pendingFlows.set(state, {
-    sessionId,
-    redirectUri: callback,
-    verifier,
-    clientId: client.client_id,
-    expiresAt: Date.now() + 10 * 60_000
+  const state = crypto.randomBytes(32).toString("base64url");
+  const client = await authRequest("register", {
+    client_name: "Moodish", redirect_uris: [callback], grant_types: ["authorization_code"],
+    response_types: ["code"], token_endpoint_auth_method: "none"
   });
+  if (!client.client_id) throw fail("Swiggy registration did not return a client identifier", 502);
+  const flow = { user, redirectUri: callback, verifier, clientId: client.client_id,
+    binding: browserBinding ? hash(browserBinding) : null, mobileChallenge, groupSessionId,
+    expiresAt: Date.now() + 600000 };
+  await saveSecretSession(`swiggy-flow:${hash(state)}`, { encrypted: encryptToken(JSON.stringify(flow)) });
   const authorize = new URL("https://mcp.swiggy.com/auth/authorize");
-  authorize.search = new URLSearchParams({
-    response_type: "code",
-    client_id: client.client_id,
-    redirect_uri: callback,
-    code_challenge: challenge,
-    code_challenge_method: "S256",
-    state,
-    scope: "mcp:tools mcp:resources mcp:prompts"
-  }).toString();
-  return { authorizationUrl: authorize.toString(), state, expiresIn: 600 };
+  authorize.search = new URLSearchParams({ response_type: "code", client_id: client.client_id,
+    redirect_uri: callback, code_challenge: hash(verifier), code_challenge_method: "S256", state, scope: "mcp:tools" }).toString();
+  return { authorizationUrl: authorize.toString(), expiresIn: 600 };
 }
 
-export async function completeSwiggyOAuth({ code, state } = {}) {
-  const flow = pendingFlows.get(String(state || ""));
-  if (!flow || flow.expiresAt <= Date.now()) {
-    pendingFlows.delete(String(state || ""));
-    const error = new Error("Invalid or expired Swiggy OAuth state");
-    error.status = 400;
-    throw error;
-  }
-  const response = await fetch("https://mcp.swiggy.com/auth/token", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      grant_type: "authorization_code",
-      code,
-      code_verifier: flow.verifier,
-      redirect_uri: flow.redirectUri,
-      client_id: flow.clientId
-    })
+export async function completeSwiggyOAuth({ code, state, browserBinding, denied } = {}) {
+  const key = `swiggy-flow:${hash(state || "")}`;
+  const record = await getSecretSession(key);
+  if (!record) throw fail("Invalid or expired Swiggy OAuth state");
+  const pending = JSON.parse(decryptToken(record.encrypted));
+  if (pending.binding && pending.binding !== hash(browserBinding || "")) throw fail("Login browser does not match this OAuth flow", 403);
+  const claimed = await takeSecretSession(key);
+  if (!claimed || pending.expiresAt <= Date.now()) throw fail("Invalid or expired Swiggy OAuth state");
+  if (denied || !code) throw fail("Swiggy connection was declined. You can try connecting again.");
+  const token = await authRequest("token", { grant_type: "authorization_code", code,
+    code_verifier: pending.verifier, redirect_uri: pending.redirectUri, client_id: pending.clientId });
+  if (!token.access_token || !Number.isFinite(Number(token.expires_in))) throw fail("Swiggy returned an invalid token response", 502);
+  await saveSecretSession(`swiggy:${pending.user.id}`, {
+    accessToken: encryptToken(token.access_token), expiresAt: Date.now() + Number(token.expires_in) * 1000,
+    scope: token.scope, version: crypto.randomUUID()
   });
-  if (!response.ok) {
-    const error = new Error(`Swiggy OAuth token exchange failed with ${response.status}`);
-    error.status = 502;
-    throw error;
+  if (pending.mobileChallenge) {
+    const exchangeCode = crypto.randomBytes(32).toString("base64url");
+    await saveSecretSession(`mobile:${hash(exchangeCode)}`, { user: pending.user,
+      challenge: pending.mobileChallenge, expiresAt: Date.now() + 60000 });
+    return { connected: true, user: pending.user, exchangeCode, groupSessionId: pending.groupSessionId };
   }
-  const token = await response.json();
-  const storedSession = {
-    accessToken: encryptToken(token.access_token),
-    expiresAt: Date.now() + Number(token.expires_in || 432000) * 1000,
-    scope: token.scope
-  };
-  tokenSessions.set(flow.sessionId, storedSession);
-  await saveSecretSession(`swiggy:${flow.sessionId}`, storedSession);
-  pendingFlows.delete(state);
-  return { connected: true, sessionId: flow.sessionId, expiresAt: new Date(tokenSessions.get(flow.sessionId).expiresAt).toISOString() };
+  return { connected: true, user: pending.user, groupSessionId: pending.groupSessionId };
 }
 
-export async function getSwiggyAccessToken(sessionId = DEFAULT_SESSION) {
-  if (process.env.SWIGGY_ACCESS_TOKEN) return process.env.SWIGGY_ACCESS_TOKEN;
-  const session = tokenSessions.get(sessionId) || (await getSecretSession(`swiggy:${sessionId}`));
-  if (!session || session.expiresAt <= Date.now() + 60_000) return "";
+export async function exchangeMobileCode({ code, verifier } = {}) {
+  if (!/^[A-Za-z0-9_-]{43,128}$/.test(verifier || "")) throw fail("Invalid verifier");
+  const key = `mobile:${hash(code || "")}`;
+  const record = await getSecretSession(key);
+  if (!record || record.expiresAt <= Date.now() || record.challenge !== hash(verifier)) throw fail("Invalid or expired app login code", 401);
+  if (!await takeSecretSession(key)) throw fail("App login code already used", 401);
+  return record.user;
+}
+
+export async function getSwiggyAccessToken(userId) {
+  if (!userId) return "";
+  const session = await getSecretSession(`swiggy:${userId}`);
+  if (!session || session.expiresAt <= Date.now() + 60000) return "";
   return decryptToken(session.accessToken);
 }
-
-export async function getSwiggyConnectionStatus(sessionId = DEFAULT_SESSION) {
-  const session = tokenSessions.get(sessionId) || (await getSecretSession(`swiggy:${sessionId}`));
-  return {
-    connected: Boolean(process.env.SWIGGY_ACCESS_TOKEN || (session && session.expiresAt > Date.now() + 60_000)),
+export async function getSwiggyConnectionStatus(userId) {
+  const session = userId ? await getSecretSession(`swiggy:${userId}`) : null;
+  const connected = Boolean(session && session.expiresAt > Date.now() + 60000);
+  return { connected, state: connected ? "connected" : session ? "expired" : "disconnected",
     expiresAt: session?.expiresAt ? new Date(session.expiresAt).toISOString() : null,
-    requiresReauthentication: Boolean(session && session.expiresAt <= Date.now() + 60_000)
-  };
+    requiresReauthentication: Boolean(session && !connected), selectedAddressId: session?.selectedAddressId || null };
 }
-
-async function registerClient(redirectUri) {
-  const response = await fetch("https://mcp.swiggy.com/auth/register", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      client_name: "Moodish",
-      redirect_uris: [redirectUri],
-      grant_types: ["authorization_code"],
-      response_types: ["code"],
-      token_endpoint_auth_method: "none"
-    })
-  });
-  if (!response.ok) {
-    const error = new Error(`Swiggy dynamic client registration failed with ${response.status}`);
-    error.status = 502;
-    throw error;
-  }
+export async function disconnectSwiggy(userId) { await deleteSecretSession(`swiggy:${userId}`); }
+export async function selectSwiggyAddress(userId, addressId) {
+  const session = await getSecretSession(`swiggy:${userId}`);
+  if (!session) throw fail("Connect Swiggy first", 401);
+  await saveSecretSession(`swiggy:${userId}`, { ...session, selectedAddressId: addressId });
+}
+async function authRequest(path, body) {
+  let response;
+  try {
+    response = await fetch(`https://mcp.swiggy.com/auth/${path}`, { method: "POST",
+      headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(20000) });
+  } catch { throw fail(`Swiggy ${path} could not be reached. Try again.`, 502); }
+  if (!response.ok) throw fail(`Swiggy ${path} failed (HTTP ${response.status})`, response.status === 403 ? 403 : 502);
   return response.json();
 }
-
-function defaultRedirectUri() {
-  const base = process.env.MOODISH_PUBLIC_URL || "http://localhost:8787";
-  return `${base.replace(/\/$/, "")}/api/swiggy/oauth/callback`;
-}
-
 function encryptionKey() {
-  const configured = process.env.TOKEN_ENCRYPTION_KEY;
-  if (configured) return crypto.createHash("sha256").update(configured).digest();
-  if (process.env.NODE_ENV === "production") {
-    const error = new Error("TOKEN_ENCRYPTION_KEY is required in production");
-    error.status = 503;
-    throw error;
-  }
+  if (process.env.TOKEN_ENCRYPTION_KEY) return crypto.createHash("sha256").update(process.env.TOKEN_ENCRYPTION_KEY).digest();
+  if (process.env.NODE_ENV === "production") throw fail("TOKEN_ENCRYPTION_KEY is required in production", 503);
   return crypto.createHash("sha256").update("moodish-local-development-only").digest();
 }
-
-function encryptToken(value) {
+export function encryptToken(value) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey(), iv);
   const encrypted = Buffer.concat([cipher.update(String(value), "utf8"), cipher.final()]);
-  return [iv, cipher.getAuthTag(), encrypted].map((part) => part.toString("base64url")).join(".");
+  return [iv, cipher.getAuthTag(), encrypted].map(x => x.toString("base64url")).join(".");
 }
-
-function decryptToken(value) {
-  const [iv, tag, encrypted] = String(value).split(".").map((part) => Buffer.from(part, "base64url"));
-  const decipher = crypto.createDecipheriv("aes-256-gcm", encryptionKey(), iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString("utf8");
+export function decryptToken(value) {
+  const [iv, tag, encrypted] = String(value).split(".").map(x => Buffer.from(x, "base64url"));
+  const cipher = crypto.createDecipheriv("aes-256-gcm", encryptionKey(), iv);
+  cipher.setAuthTag(tag);
+  return Buffer.concat([cipher.update(encrypted), cipher.final()]).toString("utf8");
 }

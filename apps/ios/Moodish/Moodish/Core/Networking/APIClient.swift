@@ -47,6 +47,10 @@ final class APIClient {
         if let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
         }
+        // Group authorization and purchasing-account authorization are distinct.
+        if bearerToken != nil, let personalToken = sessionStore.sessionToken {
+            request.setValue(personalToken, forHTTPHeaderField: "x-moodish-session")
+        }
         if let body {
             request.httpBody = try encoder.encode(AnyEncodable(body))
         } else if method == "POST" {
@@ -100,6 +104,30 @@ final class APIClient {
         return components.url!
     }
 
+    func startSwiggy(challenge: String) async throws -> SwiggyStart {
+        struct Body: Encodable { let mobileChallenge: String }
+        return try await send("/api/swiggy/oauth/start", method: "POST", body: Body(mobileChallenge: challenge))
+    }
+    func exchangeMobile(code: String, verifier: String) async throws -> MobileExchange {
+        struct Body: Encodable { let code: String; let verifier: String }
+        return try await send("/api/auth/mobile/exchange", method: "POST", body: Body(code: code, verifier: verifier))
+    }
+    func swiggyConnection() async throws -> SwiggyConnection { try await send("/api/swiggy/connection") }
+    func swiggyAddresses() async throws -> SwiggyAddresses { try await send("/api/swiggy/addresses") }
+    func selectAddress(_ addressId: String) async throws {
+        struct Body: Encodable { let addressId: String }
+        let _: EmptyResponse = try await send("/api/swiggy/address", method: "POST", body: Body(addressId: addressId))
+    }
+    func disconnectSwiggy() async throws { let _: EmptyResponse = try await send("/api/swiggy/disconnect", method: "POST") }
+    func prepareCart(recommendationId: String, optionId: String, addOnProductIds: [String], restaurantId: String?) async throws -> CartPreparation {
+        struct Body: Encodable { let recommendationId: String; let optionId: String; let addOnProductIds: [String]; let restaurantId: String? }
+        return try await send("/api/cart/prepare", method: "POST", body: Body(recommendationId: recommendationId, optionId: optionId, addOnProductIds: addOnProductIds, restaurantId: restaurantId))
+    }
+    func prepareGroupCart(sessionId: String, restaurantId: String?, bearerToken: String) async throws -> CartPreparation {
+        struct Body: Encodable { let restaurantId: String? }
+        return try await send("/api/group-sessions/\(sessionId)/prepare-cart", method: "POST", body: Body(restaurantId: restaurantId), bearerToken: bearerToken, usePersonalSession: false)
+    }
+
     // MARK: - Personal flow
 
     func personalRecommendations(budget: Double, mood: String, dietaryRules: String?) async throws -> RecommendationRun {
@@ -112,14 +140,15 @@ final class APIClient {
         return try await send("/api/planner/chat", method: "POST", body: body)
     }
 
-    func confirmCart(recommendationId: String, optionId: String, addOnProductIds: [String]) async throws -> CartConfirmResult {
+    func confirmCart(recommendationId: String, optionId: String, addOnProductIds: [String], preparationId: String? = nil) async throws -> CartConfirmResult {
         struct Body: Encodable {
             let recommendationId: String
             let optionId: String
             let addOnProductIds: [String]
+            let preparationId: String?
             let confirmed = true
         }
-        return try await send("/api/cart/confirm", method: "POST", body: Body(recommendationId: recommendationId, optionId: optionId, addOnProductIds: addOnProductIds))
+        return try await send("/api/cart/confirm", method: "POST", body: Body(recommendationId: recommendationId, optionId: optionId, addOnProductIds: addOnProductIds, preparationId: preparationId))
     }
 
     func sendFeedback(recommendationId: String, rating: Int, tags: [String], notes: String?) async throws {
@@ -136,7 +165,7 @@ final class APIClient {
 
     func createGroupSession(creatorId: String, headcount: Int, budgetPerPerson: Double, approvalMode: GroupApprovalMode, vibe: String?) async throws -> GroupSession {
         let body = CreateGroupSessionRequest(creatorId: creatorId, headcount: headcount, budgetPerPerson: budgetPerPerson, approvalMode: approvalMode.rawValue, vibe: vibe)
-        return try await send("/api/group-sessions", method: "POST", body: body, usePersonalSession: false)
+        return try await send("/api/group-sessions", method: "POST", body: body)
     }
 
     func getGroupSession(sessionId: String, bearerToken: String?) async throws -> GroupSession {
@@ -174,9 +203,9 @@ final class APIClient {
         return try await send("/api/group-sessions/\(sessionId)/select", method: "POST", body: Body(optionId: optionId), bearerToken: bearerToken, usePersonalSession: false)
     }
 
-    func confirmGroupCart(sessionId: String, addOnProductIds: [String], bearerToken: String) async throws -> GroupSession {
-        struct Body: Encodable { let addOnProductIds: [String]; let confirmed = true }
-        return try await send("/api/group-sessions/\(sessionId)/confirm-cart", method: "POST", body: Body(addOnProductIds: addOnProductIds), bearerToken: bearerToken, usePersonalSession: false)
+    func confirmGroupCart(sessionId: String, addOnProductIds: [String], bearerToken: String, preparationId: String? = nil) async throws -> GroupSession {
+        struct Body: Encodable { let addOnProductIds: [String]; let preparationId: String?; let confirmed = true }
+        return try await send("/api/group-sessions/\(sessionId)/confirm-cart", method: "POST", body: Body(addOnProductIds: addOnProductIds, preparationId: preparationId), bearerToken: bearerToken, usePersonalSession: false)
     }
 
     func cancelGroupSession(sessionId: String, bearerToken: String) async throws -> GroupSession {
@@ -201,5 +230,25 @@ private struct AnyEncodable: Encodable {
     }
     func encode(to encoder: Encoder) throws {
         try encodeClosure(encoder)
+    }
+}
+
+struct SwiggyStart: Decodable { let authorizationUrl: String }
+struct MobileExchange: Decodable { let token: String }
+struct SwiggyConnection: Decodable { let connected: Bool; let state: String; let selectedAddressId: String? }
+struct SwiggyAddress: Decodable, Identifiable { let id: String; let label: String; let display: String }
+struct SwiggyAddresses: Decodable { let addresses: [SwiggyAddress] }
+struct CartPreparation: Decodable {
+    let preparationId: String
+    let restaurantId: String
+    let address: SwiggyAddress
+    let items: [PreparedItem]
+    let estimatedItemTotal: Double
+    let existingCart: CartSummary
+    let replacesExistingCart: Bool
+    let note: String
+    struct PreparedItem: Decodable, Identifiable {
+        var id: String { itemId }
+        let itemId: String; let name: String; let quantity: Int; let price: Double
     }
 }

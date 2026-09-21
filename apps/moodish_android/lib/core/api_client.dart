@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'models/auth_models.dart';
 import 'models/group_models.dart';
@@ -18,18 +19,23 @@ class ApiException implements Exception {
 /// web app (`apps/web/public/app.js`) and the native iOS client call —
 /// see docs/architecture.md and services/agent/src/server.mjs.
 class ApiClient {
+  static const _secure = FlutterSecureStorage();
   static const _cookieKey = 'moodish.session.cookie';
 
   /// Android emulators reach the host machine's localhost via 10.0.2.2, not
   /// 127.0.0.1/localhost (those resolve to the emulator itself).
   final String baseUrl = kReleaseMode ? 'https://moodish.sankalpjha.dev' : 'http://10.0.2.2:8787';
 
-  final http.Client _client = http.Client();
+  final http.Client _client;
+
+  ApiClient({http.Client? client}) : _client = client ?? http.Client();
   String? _cookie;
 
   Future<void> restoreSession() async {
     final prefs = await SharedPreferences.getInstance();
-    _cookie = prefs.getString(_cookieKey);
+    _cookie = await _secure.read(key: _cookieKey) ?? prefs.getString(_cookieKey);
+    if (_cookie != null) await _secure.write(key: _cookieKey, value: _cookie);
+    await prefs.remove(_cookieKey);
   }
 
   /// The mobile Google login flow (see auth.mjs `client=mobile`) hands back
@@ -50,11 +56,10 @@ class ApiClient {
       );
 
   Future<void> _persistCookie() async {
-    final prefs = await SharedPreferences.getInstance();
     if (_cookie != null) {
-      await prefs.setString(_cookieKey, _cookie!);
+      await _secure.write(key: _cookieKey, value: _cookie!);
     } else {
-      await prefs.remove(_cookieKey);
+      await _secure.delete(key: _cookieKey);
     }
   }
 
@@ -132,6 +137,8 @@ class ApiClient {
     await _persistCookie();
   }
 
+  Future<Map<String, dynamic>> swiggyRequest(String path, {Map<String, dynamic>? body, String? bearerToken}) => _send(path, method: body == null ? 'GET' : 'POST', body: body, bearerToken: bearerToken, parse: (j) => j as Map<String, dynamic>);
+
   // Personal flow
 
   Future<PlannerChatResponse> plannerChat({required String message, dynamic state}) => _send(
@@ -145,6 +152,7 @@ class ApiClient {
     required String recommendationId,
     required String optionId,
     required List<String> addOnProductIds,
+    String? preparationId,
   }) =>
       _send(
         '/api/cart/confirm',
@@ -153,6 +161,7 @@ class ApiClient {
           'recommendationId': recommendationId,
           'optionId': optionId,
           'addOnProductIds': addOnProductIds,
+          'preparationId': preparationId,
           'confirmed': true,
         },
         parse: (j) => CartConfirmResult.fromJson(j as Map<String, dynamic>),
@@ -259,11 +268,12 @@ class ApiClient {
     required String sessionId,
     required List<String> addOnProductIds,
     required String bearerToken,
+    String? preparationId,
   }) =>
       _send(
         '/api/group-sessions/$sessionId/confirm-cart',
         method: 'POST',
-        body: {'addOnProductIds': addOnProductIds, 'confirmed': true},
+        body: {'addOnProductIds': addOnProductIds, 'confirmed': true, 'preparationId': preparationId},
         bearerToken: bearerToken,
         parse: (j) => GroupSession.fromJson(j as Map<String, dynamic>),
       );

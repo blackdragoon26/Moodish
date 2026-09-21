@@ -3,6 +3,12 @@ const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 export function resolvePublicOrigin(req) {
   const incoming = incomingOrigin(req);
   const configured = configuredOrigin();
+  if (process.env.NODE_ENV === "production" && process.env.SWIGGY_MODE === "live") {
+    if (!configured || new URL(configured).protocol !== "https:" || LOCAL_HOSTS.has(new URL(configured).hostname)) {
+      throw Object.assign(new Error("Live production requires MOODISH_PUBLIC_URL with the canonical HTTPS origin"), { status: 503 });
+    }
+    return configured;
+  }
   if (!configured) return incoming;
 
   const configuredUrl = new URL(configured);

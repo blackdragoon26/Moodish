@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../app_state.dart';
 import '../../core/models/group_models.dart';
 import '../personal/cart_review_screen.dart';
+import '../personal/live_cart_review.dart';
 import 'group_session_view_model.dart';
 import 'manager_review_list.dart';
 
@@ -147,7 +148,14 @@ class _SessionLobbyScreenState extends State<SessionLobbyScreen> {
             if (session.state == GroupSessionState.awaitingCreatorConfirmation && session.selectedOptionId != null) ...[
               const SizedBox(height: 8),
               FilledButton(
-                onPressed: () => _viewModel.confirmCart(),
+                onPressed: _viewModel.isBusy ? null : () async {
+                  if (context.read<AppState>().health?.swiggyMode != 'live') { await _viewModel.confirmCart(); return; }
+                  try {
+                    final option = session.recommendation!.options.firstWhere((o) => o.optionId == session.selectedOptionId);
+                    final preparationId = await reviewLiveCart(context, option, _viewModel.prepareCart);
+                    if (preparationId != null) await _viewModel.confirmCart(preparationId: preparationId);
+                  } catch (error) { if (mounted) { _viewModel.errorMessage = error.toString(); setState(() {}); } }
+                },
                 child: const Text('Creator: confirm final cart'),
               ),
             ],

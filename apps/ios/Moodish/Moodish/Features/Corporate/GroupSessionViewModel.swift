@@ -85,11 +85,19 @@ final class GroupSessionViewModel {
         await run { try await api.selectGroupOption(sessionId: sessionId, optionId: optionId, bearerToken: accessToken) }
     }
 
-    func confirmCart(addOnProductIds: [String] = []) async {
+    func confirmCart(addOnProductIds: [String] = [], preparationId: String? = nil) async {
         guard let accessToken else { return }
-        await run { try await api.confirmGroupCart(sessionId: sessionId, addOnProductIds: addOnProductIds, bearerToken: accessToken) }
+        await run { try await api.confirmGroupCart(sessionId: sessionId, addOnProductIds: addOnProductIds, bearerToken: accessToken, preparationId: preparationId) }
     }
 
+    func prepareCart(restaurantId: String?) async throws -> CartPreparation {
+        guard let accessToken else { throw APIError.unauthorized }
+        return try await api.prepareGroupCart(sessionId: sessionId, restaurantId: restaurantId, bearerToken: accessToken)
+    }
+    func confirmPrepared(_ preparationId: String) async throws {
+        guard let accessToken else { throw APIError.unauthorized }
+        session = try await api.confirmGroupCart(sessionId: sessionId, addOnProductIds: [], bearerToken: accessToken, preparationId: preparationId)
+    }
     func cancel() async {
         guard let accessToken else { return }
         await run { try await api.cancelGroupSession(sessionId: sessionId, bearerToken: accessToken) }

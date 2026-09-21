@@ -66,6 +66,9 @@ struct LoginView: View {
                     .opacity(0.6)
                 }
 
+                if config?.swiggy == true {
+                    Button("Continue with Swiggy") { Task { await signInWithSwiggy() } }.disabled(isSigningIn)
+                }
                 if config?.demo == true {
                     Button {
                         Task { await signInWithDemo() }
@@ -84,6 +87,12 @@ struct LoginView: View {
         .background(Color.moodishBackground)
     }
 
+    private func signInWithSwiggy() async {
+        isSigningIn = true
+        defer { isSigningIn = false }
+        do { let token = try await googleAuthSession.connectSwiggy(api: appState.api); appState.loginWithGoogleToken(token) }
+        catch { errorMessage = error.localizedDescription }
+    }
     private func signInWithDemo() async {
         errorMessage = nil
         isSigningIn = true

@@ -97,18 +97,18 @@ export function readAuthUser(cookieHeader = "", authorizationHeader = "") {
     .map((part) => part.trim())
     .find((part) => part.startsWith("moodish_session="))
     ?.slice("moodish_session=".length);
-  const token = bearerToken || cookieToken;
+  for (const token of [bearerToken, cookieToken].filter(Boolean)) {
   if (!token) return null;
   const [payload, signature] = token.split(".");
-  if (!payload || !signature) return null;
+  if (!payload || !signature) continue;
   const expected = crypto.createHmac("sha256", runtimeSigningSecret("auth-session")).update(payload).digest("base64url");
-  if (!safeEqual(expected, signature)) return null;
+  if (!safeEqual(expected, signature)) continue;
   try {
     const user = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    return user.exp > Math.floor(Date.now() / 1000) ? user : null;
-  } catch {
-    return null;
+    if (user.id && user.exp > Math.floor(Date.now() / 1000)) return user;
+  } catch {}
   }
+  return null;
 }
 
 export function demoUser() {

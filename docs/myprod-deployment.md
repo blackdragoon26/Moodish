@@ -51,23 +51,24 @@ MOODISH_PUBLIC_URL=https://moodish.sankalpjha.dev
 TEAMS_TENANT_ID=common
 ```
 
-Keep `SWIGGY_MODE=fixture` until Swiggy grants live MCP OAuth access and whitelists the production redirect URI.
+Set `SWIGGY_OAUTH_ENABLED=true` to allow connection setup. Keep `SWIGGY_MODE=fixture`
+until the canonical production callback has passed phone/OTP consent and authenticated
+read checks. Then set `SWIGGY_MODE=live`. Localhost authentication success alone does
+not prove that the production callback is approved.
+
+Canonical Swiggy callback: `https://moodish.sankalpjha.dev/api/auth/swiggy/callback`.
+Live production requires durable PostgreSQL, a stable encryption/signing key, and the
+configured HTTPS public origin. There is no shared `SWIGGY_ACCESS_TOKEN` fallback.
+Each Moodish account connects its own Swiggy account and selects a saved address.
+See [live integration and acceptance](live-swiggy.md).
 
 ## Runtime Secrets
 
-Do not paste secrets into the Myprod dashboard. Install them on the target node in the app-specific runtime env file:
+Use Myprod's **Secrets & registry** for runtime secrets. Save and apply them;
+the next deployment uses the applied version. Workers have no persistent volumes.
+The legacy `/etc/poolctl/apps/moodish.env` mount is not needed for managed secrets.
 
-```text
-/etc/poolctl/apps/moodish.env
-```
-
-Myprod mounts that file read-only into the container at:
-
-```text
-/run/secrets/cutable.env
-```
-
-Moodish loads that file automatically when it exists. Required production secrets:
+Required production secrets:
 
 ```env
 DATABASE_URL=postgresql://...
@@ -89,7 +90,6 @@ DISCORD_CLIENT_ID=...
 DISCORD_CLIENT_SECRET=...
 TEAMS_APP_ID=...
 TEAMS_CLIENT_SECRET=...
-SWIGGY_ACCESS_TOKEN=...
 ```
 
 ## Myprod Handoff Manifest
