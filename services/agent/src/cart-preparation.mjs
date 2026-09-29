@@ -2,7 +2,11 @@ import crypto from "node:crypto";
 import { getSecretSession, saveSecretSession, withAccountLock } from "./memory.mjs";
 
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
-const digest = value => crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex");
+// Reviews round-trip through PostgreSQL JSONB, which does not keep object key
+// order, so fingerprints must not depend on it.
+const canonical = value => Array.isArray(value) ? value.map(canonical)
+  : value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
+const digest = value => crypto.createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
 const cartFingerprint = cart => digest({ restaurantId: cart.restaurantId, total: cart.total, items: cart.items.map(i => ({ id: i.itemId, quantity: i.quantity, variants: i.variants, variantsV2: i.variantsV2, addons: i.addons })) });
 
 export async function prepareCart({ ownerId, recommendation, optionId, restaurantId, addOnProductIds = [], swiggy, groupSessionId }) {
@@ -16,21 +20,28 @@ export async function prepareCart({ ownerId, recommendation, optionId, restauran
   if (!items.length) throw fail("This option contains no Food items", 422);
   const addressId = recommendation.address?.id;
   if (!addressId) throw fail("Choose a saved delivery address", 422);
-  const addresses = await swiggy.getAddresses();
-  if (!addresses.some(a => a.id === addressId)) throw fail("Delivery address is no longer available", 422);
+  const address = await currentAddress(swiggy, addressId);
+  if (!address) throw fail("Delivery address is no longer available", 422);
   const checked = await checkMenu(swiggy, restaurantId, addressId, items);
   const existing = await swiggy.getFoodCart({ addressId });
+  // Swiggy's update_food_cart adds to the current cart rather than replacing it,
+  // so a live cart that already has items would end up with a mix Moodish never
+  // showed. The review stays visible, but it cannot be confirmed.
+  const blockedReason = swiggy.mode === "live" && existing.items.length > 0
+    ? "Your Swiggy Food cart already has items, and Swiggy adds to that cart instead of replacing it. Clear or check out that cart in Swiggy, then review again."
+    : null;
   const id = crypto.randomUUID();
   const preparation = { id, ownerId, groupSessionId, recommendationId: recommendation.recommendationId, optionId,
     connectionVersion: swiggy.mode === "live" ? (await getSecretSession(`swiggy:${ownerId}`))?.version : undefined,
-    restaurantId, addressId, items: checked, addOnProductIds, existingHash: cartFingerprint(existing),
-    expiresAt: Date.now() + 5 * 60000, state: "prepared" };
+    restaurantId, addressId, addressHash: digest(address), items: checked, addOnProductIds, existingHash: cartFingerprint(existing),
+    blockedReason, expiresAt: Date.now() + 5 * 60000, state: "prepared" };
   await saveSecretSession(`cart-prepare:${id}`, preparation);
   return { preparationId: id, expiresAt: new Date(preparation.expiresAt).toISOString(),
-    restaurantId, address: recommendation.address, items: checked,
+    restaurantId, address: { id: address.id, label: address.label, display: address.display }, items: checked,
     estimatedItemTotal: checked.reduce((sum, i) => sum + i.price * i.quantity, 0),
     existingCart: existing, replacesExistingCart: existing.items.length > 0,
-    note: swiggy.mode === "fixture" ? "This is a demo cart preview. No real cart or order will be created." : "This will update your real Swiggy Food cart. Final charges come from Swiggy after the update. Instamart remains a preview. No order will be placed." };
+    canConfirm: !blockedReason, blockedReason, dataSource: swiggy.mode,
+    note: swiggy.mode === "fixture" ? "This is a demo cart preview. No real cart or order will be created." : "This will update your real Swiggy Food cart. The item estimate is not the final bill; Swiggy's cart total after the update is authoritative. Instamart remains a preview. No order will be placed." };
 }
 
 export async function confirmPreparedCart({ preparationId, ownerId, recommendation, optionId, restaurantId, addOnProductIds = [], confirmed, swiggy, groupSessionId, build }) {
@@ -43,7 +54,10 @@ export async function confirmPreparedCart({ preparationId, ownerId, recommendati
     if (p.state === "done") return p.result;
     if (p.state !== "prepared") throw fail("The previous cart update has an uncertain result. Review your current Swiggy cart before preparing another change.");
     if (p.expiresAt <= Date.now()) throw fail("Cart review expired. Review the cart again.");
+    if (p.blockedReason) throw fail(p.blockedReason);
     if (swiggy.mode === "live" && p.connectionVersion !== (await getSecretSession(`swiggy:${ownerId}`))?.version) throw fail("Swiggy connection changed. Review the cart again.");
+    const address = await currentAddress(swiggy, p.addressId);
+    if (!address || digest(address) !== p.addressHash) throw fail("Delivery address changed. Review the cart again.");
     const checked = await checkMenu(swiggy, p.restaurantId, p.addressId, p.items);
     if (digest(checked) !== digest(p.items)) throw fail("Menu prices or selections changed. Review the cart again.");
     if (cartFingerprint(await swiggy.getFoodCart({ addressId: p.addressId })) !== p.existingHash) throw fail("Your Swiggy cart changed. Review it again before replacing it.");
@@ -62,6 +76,10 @@ export async function confirmPreparedCart({ preparationId, ownerId, recommendati
       throw error;
     }
   });
+}
+async function currentAddress(swiggy, addressId) {
+  const address = (await swiggy.getAddresses()).find(a => a.id === addressId);
+  return address && { id: address.id, label: address.label, display: address.display };
 }
 function sameItems(actual = [], expected = []) {
   return digest(actual.map(i => [i.itemId, Number(i.quantity)]).sort()) === digest(expected.map(i => [i.itemId, Number(i.quantity)]).sort());
