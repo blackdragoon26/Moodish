@@ -89,7 +89,7 @@ export function installFakeSwiggy(options = {}) {
     const { name, arguments: args = {} } = body.params;
     state.calls.push({ server, name, args, token: auth.replace(/^Bearer /, "") });
     state.tokens.push(auth.replace(/^Bearer /, ""));
-    const fault = typeof state.faults[name] === "function" ? state.faults[name]({ args, state }) : state.faults[name];
+    const fault = typeof state.faults[name] === "function" ? await state.faults[name]({ args, state }) : state.faults[name];
     if (fault) {
       const faulted = applyToolFault(fault, reply, name, args, state);
       if (faulted) return faulted;

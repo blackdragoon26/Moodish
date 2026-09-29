@@ -11,7 +11,9 @@
     "web": "node apps/web/server.mjs",
     "test": "node --test tests/*.test.mjs",
     "smoke": "node scripts/smoke.mjs",
-    "test:postgres": "node -e \"if (!process.env.MOODISH_TEST_DATABASE_URL) { console.error('Set MOODISH_TEST_DATABASE_URL to a disposable PostgreSQL database'); process.exit(1); }\" && DATABASE_URL=$MOODISH_TEST_DATABASE_URL node --test tests/*.test.mjs"
+    "test:postgres": "node -e \"if (!process.env.MOODISH_TEST_DATABASE_URL) { console.error('Set MOODISH_TEST_DATABASE_URL to a disposable PostgreSQL database'); process.exit(1); }\" && DATABASE_URL=$MOODISH_TEST_DATABASE_URL node --test tests/*.test.mjs",
+    "test:e2e": "playwright test",
+    "acceptance:live": "node scripts/live-acceptance.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -21,5 +23,8 @@
     "ajv": "^8.20.0",
     "jose": "^6.2.4",
     "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
   }
 }
