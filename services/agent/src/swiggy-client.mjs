@@ -1,22 +1,25 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import Ajv from "ajv";
-import { getSwiggyAccessToken, disconnectSwiggy } from "./swiggy-auth.mjs";
+import { getSwiggyCredential, expireSwiggyConnection } from "./swiggy-auth.mjs";
 import { retrySwiggyCall } from "./telemetry.mjs";
 
 const allowed = { food: new Set(["get_addresses", "search_menu", "search_restaurants", "get_restaurant_menu", "get_food_cart", "update_food_cart"]), im: new Set(["search_products"]) };
 const ajv = new Ajv({ strict: false, allErrors: false });
-export const upstreamError = (message, status = 502, code = "SWIGGY_ERROR") => Object.assign(new Error(message), { status, code });
+export const upstreamError = (message, status = 502, code = "SWIGGY_UNAVAILABLE") => Object.assign(new Error(message), { status, code });
+// Read failures that a second attempt can plausibly fix. Tool errors and
+// unreadable payloads are deterministic, and cart writes are never retried.
+const retryableCodes = new Set(["SWIGGY_UNAVAILABLE", "SWIGGY_TIMEOUT", "SWIGGY_RATE_LIMITED"]);
 
 export function createLiveCaller(userId) {
   return async function call(server, name, args = {}) {
     if (!allowed[server]?.has(name)) throw upstreamError("This Swiggy operation is not enabled", 403);
     const run = async () => {
-      const token = await getSwiggyAccessToken(userId);
-      if (!token) throw upstreamError("Connect or reconnect your Swiggy account", 401, "SWIGGY_REAUTH_REQUIRED");
+      const credential = await getSwiggyCredential(userId);
+      if (!credential) throw upstreamError("Connect or reconnect your Swiggy account", 401, "SWIGGY_REAUTH_REQUIRED");
       const client = new Client({ name: "moodish", version: "0.2.0" });
       const transport = new StreamableHTTPClientTransport(new URL(`https://mcp.swiggy.com/${server}`), {
-        requestInit: { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000) }
+        requestInit: { headers: { Authorization: `Bearer ${credential.token}` }, signal: AbortSignal.timeout(30000) }
       });
       try {
         await client.connect(transport);
@@ -34,29 +37,39 @@ export function createLiveCaller(userId) {
       } catch (error) {
         const status = error.status || error.code;
         if (status === 401 || status === 419) {
-          await disconnectSwiggy(userId);
+          // Only the credential that was rejected is expired; a reconnect that
+          // happened while this call was in flight keeps its newer credential.
+          await expireSwiggyConnection(userId, credential.version);
           throw upstreamError("Your Swiggy connection expired. Reconnect to continue.", 401, "SWIGGY_REAUTH_REQUIRED");
         }
         if (error.status) throw error;
         if (status === 403) throw upstreamError("Swiggy denied access to this service", 403, "SWIGGY_ACCESS_DENIED");
-        if (status === 429) throw upstreamError("Swiggy is rate limiting requests. Please try again shortly.", 429);
+        if (status === 429) throw upstreamError("Swiggy is rate limiting requests. Please try again shortly.", 429, "SWIGGY_RATE_LIMITED");
+        if (isTimeout(error)) throw upstreamError(`Swiggy ${server}.${name} timed out`, 504, "SWIGGY_TIMEOUT");
         throw upstreamError(`Swiggy ${server}.${name} could not complete`, 502);
       } finally { await client.close().catch(() => {}); }
     };
-    return name === "update_food_cart" ? run() : retrySwiggyCall(run, { maxAttempts: 2 });
+    return name === "update_food_cart" ? run() : retrySwiggyCall(run, { maxAttempts: 2, retryable: error => retryableCodes.has(error.code) });
   };
 }
 
+function isTimeout(error) {
+  for (let current = error, depth = 0; current && depth < 4; current = current.cause, depth++) {
+    if (current.name === "TimeoutError" || current.name === "AbortError" || current.code === -32001) return true;
+  }
+  return false;
+}
+
 export function unwrapMcpResult(body) {
-  if (body.error || body.result?.isError) throw upstreamError("Swiggy reported a tool error");
+  if (body.error || body.result?.isError) throw upstreamError("Swiggy reported a tool error", 502, "SWIGGY_TOOL_ERROR");
   let result = body.result?.structuredContent ?? body.result?.data ?? body.result ?? body;
   if (result.content) {
     const text = result.content.find(item => item.type === "text")?.text;
-    if (!text) throw upstreamError("Swiggy returned no structured result");
-    try { result = JSON.parse(text); } catch { throw upstreamError("Swiggy returned an unreadable tool result"); }
+    if (!text) throw upstreamError("Swiggy returned no structured result", 502, "SWIGGY_MALFORMED_RESPONSE");
+    try { result = JSON.parse(text); } catch { throw upstreamError("Swiggy returned an unreadable tool result", 502, "SWIGGY_MALFORMED_RESPONSE"); }
   }
   for (let depth = 0; depth < 4; depth++) {
-    if (result?.success === false || result?.isError || result?.error || (Number(result?.statusCode) >= 400)) throw upstreamError("Swiggy could not complete the requested operation");
+    if (result?.success === false || result?.isError || result?.error || (Number(result?.statusCode) >= 400)) throw upstreamError("Swiggy could not complete the requested operation", 502, "SWIGGY_TOOL_ERROR");
     if (result?.data === undefined) break;
     result = result.data;
   }

@@ -398,6 +398,23 @@ export async function takeSecretSession(key) {
   return value;
 }
 export async function deleteSecretSession(key) { await takeSecretSession(key); }
+// Compare-and-set on the record's `version`, so a stale caller cannot change a
+// record that was replaced after it read it.
+export async function patchSecretSessionIfVersion(key, version, patch) {
+  if (pool) {
+    await ensureSchema();
+    const result = await queryDatabase(
+      `UPDATE moodish_secret_sessions SET data = data || $3::jsonb, updated_at = NOW()
+       WHERE session_key = $1 AND data->>'version' = $2`,
+      [key, String(version), JSON.stringify(patch)]
+    );
+    return result.rowCount === 1;
+  }
+  const current = secretSessions.get(key);
+  if (!current || current.version !== version) return false;
+  secretSessions.set(key, { ...current, ...patch });
+  return true;
+}
 const locks = new Map();
 export async function withAccountLock(key, fn) {
   if (pool) {
