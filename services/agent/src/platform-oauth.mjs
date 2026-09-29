@@ -46,7 +46,7 @@ export async function completePlatformOAuth(platform, { code, state } = {}) {
   const token = await tokenResponse.json();
   const actorId = await fetchPlatformActor(platform, token);
   const session = await getGroupSession(flow.sessionId);
-  if (!session || (session.creatorId !== actorId && !session.coManagerIds.includes(actorId))) {
+  if (!session || session.platform !== platform || (session.creatorId !== actorId && !session.coManagerIds.includes(actorId))) {
     const error = new Error("This platform identity is not a manager for the requested Moodish session");
     error.status = 403;
     throw error;
