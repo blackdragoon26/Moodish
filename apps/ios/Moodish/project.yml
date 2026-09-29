@@ -52,3 +52,27 @@ targets:
         Release:
           MOODISH_API_BASE_URL: https://moodish.sankalpjha.dev
     postbuildScripts: []
+
+  MoodishTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: MoodishTests
+    dependencies:
+      - target: Moodish
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.moodish.app.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Moodish.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Moodish"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  Moodish:
+    build:
+      targets:
+        Moodish: all
+    test:
+      targets:
+        - MoodishTests

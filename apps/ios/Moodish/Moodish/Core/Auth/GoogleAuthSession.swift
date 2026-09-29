@@ -16,24 +16,40 @@ final class GoogleAuthSession: NSObject, ASWebAuthenticationPresentationContextP
         try await withCheckedThrowingContinuation { continuation in
             let session = ASWebAuthenticationSession(url: authorizeURL, callbackURLScheme: "moodish") { callbackURL, error in
                 if let error {
-                    continuation.resume(throwing: error)
+                    let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+                    continuation.resume(throwing: cancelled ? APIError.server(status: 0, message: "Sign-in was cancelled. Nothing was changed.") : error)
                     return
                 }
-                guard
-                    let callbackURL,
-                    let token = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
-                        .queryItems?.first(where: { $0.name == parameter })?.value
-                else {
+                guard let callbackURL else {
                     continuation.resume(throwing: APIError.server(status: 0, message: "Sign-in did not return the expected callback"))
                     return
                 }
-                continuation.resume(returning: token)
+                continuation.resume(with: Result { try Self.callbackValue(from: callbackURL, parameter: parameter) })
             }
             session.presentationContextProvider = self
             session.prefersEphemeralWebBrowserSession = true
             self.session = session
             if !session.start() { continuation.resume(throwing: APIError.server(status: 0, message: "Could not open sign-in")) }
         }
+    }
+
+    /// Reads the value Moodish's server put on `moodish://auth-callback`, or turns
+    /// its short failure reason into something a person can act on.
+    nonisolated static func callbackValue(from url: URL, parameter: String) throws -> String {
+        let reasons = [
+            "declined": "Swiggy connection was cancelled. Nothing was changed.",
+            "expired": "That sign-in expired or was already used. Try again.",
+            "browser_mismatch": "Finish sign-in in the window where you started it.",
+            "exchange_failed": "Swiggy did not complete the connection. Try again."
+        ]
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        if let reason = items.first(where: { $0.name == "error" })?.value {
+            throw APIError.server(status: 0, message: reasons[reason] ?? "Couldn't complete sign-in. Try again.")
+        }
+        guard url.scheme == "moodish", let value = items.first(where: { $0.name == parameter })?.value, !value.isEmpty else {
+            throw APIError.server(status: 0, message: "Sign-in did not return the expected callback")
+        }
+        return value
     }
 
     func connectSwiggy(api: APIClient) async throws -> String {

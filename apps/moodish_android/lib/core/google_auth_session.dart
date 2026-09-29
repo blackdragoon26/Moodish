@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -29,18 +30,32 @@ class GoogleAuthSession {
   }
 
   Future<String> signIn(Uri authorizeUrl, {String parameter = 'token'}) async {
-    final Uri result;
+    final String callback;
     try {
-      result = Uri.parse(
-        await FlutterWebAuth2.authenticate(url: authorizeUrl.toString(), callbackUrlScheme: 'moodish'),
-      );
-    } catch (error) {
+      callback = await FlutterWebAuth2.authenticate(url: authorizeUrl.toString(), callbackUrlScheme: 'moodish');
+    } on PlatformException catch (error) {
+      throw GoogleAuthException(error.code == 'CANCELED' ? 'Sign-in was cancelled. Nothing was changed.' : "Couldn't complete sign-in.");
+    } catch (_) {
       throw GoogleAuthException("Couldn't complete sign-in.");
     }
-    final token = result.queryParameters[parameter];
-    if (token == null || token.isEmpty) {
-      throw GoogleAuthException("Sign-in didn't return the expected callback value");
-    }
-    return token;
+    return callbackValue(Uri.parse(callback), parameter);
   }
+}
+
+/// Reads the value Moodish's server put on `moodish://auth-callback`, or turns
+/// its short failure reason into something a person can act on.
+String callbackValue(Uri callback, String parameter) {
+  const reasons = {
+    'declined': 'Swiggy connection was cancelled. Nothing was changed.',
+    'expired': 'That sign-in expired or was already used. Try again.',
+    'browser_mismatch': 'Finish sign-in in the window where you started it.',
+    'exchange_failed': 'Swiggy did not complete the connection. Try again.',
+  };
+  final error = callback.queryParameters['error'];
+  if (error != null) throw GoogleAuthException(reasons[error] ?? "Couldn't complete sign-in. Try again.");
+  final value = callback.queryParameters[parameter];
+  if (callback.scheme != 'moodish' || value == null || value.isEmpty) {
+    throw GoogleAuthException("Sign-in didn't return the expected callback value");
+  }
+  return value;
 }
