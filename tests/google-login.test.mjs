@@ -101,4 +101,20 @@ test("session and group tokens cannot stand in for each other", t => {
   const sign = payload => { const body = Buffer.from(JSON.stringify(payload)).toString("base64url"); return `${body}.${crypto.createHmac("sha256", runtimeSigningSecret("group-session")).update(body).digest("base64url")}`; };
   const groupWithId = sign({ typ: "group", id: "google:1", sessionId: "group-1", actorId: "google:1", exp: Math.floor(Date.now() / 1000) + 60 });
   assert.equal(readAuthUser("", `Bearer ${groupWithId}`), null);
+  // Group tokens issued before the type claim still work for their remaining hour.
+  const legacyGroup = sign({ sessionId: "group-1", actorId: "google:1", exp: Math.floor(Date.now() / 1000) + 60 });
+  assert.equal(verifyGroupAccessToken(legacyGroup, "group-1").actorId, "google:1");
+  const legacySession = sign({ id: "google:1", sessionId: "group-1", actorId: "google:1", exp: Math.floor(Date.now() / 1000) + 60 });
+  assert.throws(() => verifyGroupAccessToken(legacySession, "group-1"), { status: 401 }, "an untyped token with a user id is not a group token");
+});
+
+test("Google and platform logins require durable storage in production live mode", { skip: Boolean(process.env.DATABASE_URL) && "this process has a database" }, async t => {
+  const keys = ["NODE_ENV", "SWIGGY_MODE", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SLACK_CLIENT_ID", "SLACK_CLIENT_SECRET"];
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  Object.assign(process.env, { NODE_ENV: "production", SWIGGY_MODE: "live", GOOGLE_CLIENT_ID: "c", GOOGLE_CLIENT_SECRET: "s", SLACK_CLIENT_ID: "c", SLACK_CLIENT_SECRET: "s" });
+  t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
+  const { startGoogleOAuth } = await import("../services/agent/src/auth.mjs");
+  const { startPlatformOAuth } = await import("../services/agent/src/platform-oauth.mjs");
+  await assert.rejects(startGoogleOAuth("https://moodish.example", { browserBinding: "b" }), { status: 503 });
+  await assert.rejects(startPlatformOAuth("slack", { sessionId: "group-1" }), { status: 503 });
 });
