@@ -20,7 +20,7 @@ export function createWebServer() {
   return http.createServer(async (req, res) => {
     try {
       const pathname = new URL(req.url, "http://127.0.0.1").pathname;
-      if (pathname === "/health" || pathname === "/mcp" || pathname.startsWith("/api/")) {
+      if (pathname === "/health" || pathname.startsWith("/health/") || pathname === "/mcp" || pathname.startsWith("/api/")) {
         return handleAgentRequest(req, res);
       }
       const file = pathname === "/" ? "index.html" : pathname.slice(1);

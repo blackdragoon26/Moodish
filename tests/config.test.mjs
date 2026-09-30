@@ -31,3 +31,24 @@ test("the server process exits before listening when production configuration is
   assert.match(result.stderr, /TOKEN_ENCRYPTION_KEY is required/);
   assert.equal(result.stderr.includes("very-secret"), false);
 });
+
+test("production verifies database TLS unless the URL explicitly disables it", async () => {
+  const { databaseSsl } = await import("../services/agent/src/memory.mjs");
+  assert.deepEqual(databaseSsl("postgresql://u:p@db.example/moodish", { NODE_ENV: "production" }), { rejectUnauthorized: true });
+  assert.equal(databaseSsl("postgresql://u:p@10.0.0.5/moodish?sslmode=disable", { NODE_ENV: "production" }), false);
+  assert.equal(databaseSsl("postgresql://u:p@localhost/moodish", { NODE_ENV: "test" }), undefined);
+});
+
+test("readiness reports storage, and unexpected errors are not described to clients", async t => {
+  const { createWebServer } = await import("../apps/web/server.mjs");
+  const server = createWebServer();
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => server.close());
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const ready = await (await fetch(`${base}/health/ready`)).json();
+  assert.equal(ready.ok, true);
+  assert.equal(typeof ready.storage.durable, "boolean");
+  const malformed = await fetch(`${base}/api/recommendations/personal`, { method: "POST", headers: { "content-type": "application/json" }, body: "{not json" });
+  assert.equal(malformed.status, 400);
+  assert.equal((await malformed.json()).error, "Request body must be valid JSON");
+});

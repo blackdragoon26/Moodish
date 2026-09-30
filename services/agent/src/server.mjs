@@ -9,6 +9,7 @@ import {
   getGroupSession,
   saveGroupSession,
   withAccountLock,
+  databaseReady,
   getMealHistory,
   getPlatformEventResponse,
   getTasteProfile,
@@ -68,6 +69,11 @@ export async function handleAgentRequest(req, res) {
     if (req.method === "OPTIONS") return send(res, 204, {});
     if (req.method === "GET" && url.pathname === "/health") {
       return send(res, 200, healthPayload());
+    }
+    // Readiness includes storage; /health stays a cheap liveness check.
+    if (req.method === "GET" && url.pathname === "/health/ready") {
+      try { return send(res, 200, { ...healthPayload(), storage: await databaseReady() }); }
+      catch { return send(res, 503, { ...healthPayload(), ok: false, storage: { durable: true, reachable: false } }); }
     }
     if (req.method === "GET" && url.pathname === "/api/bootstrap") {
       const user = readAuthUser(req.headers.cookie, req.headers.authorization);
@@ -319,7 +325,12 @@ export async function handleAgentRequest(req, res) {
     }
     return send(res, 404, { error: "Not found" });
   } catch (error) {
-    return send(res, error.status || 500, { error: error.message, details: error.details });
+    // Unexpected failures (database, bugs) are logged, not described to clients.
+    if (!error.status) {
+      console.error(`[Moodish] ${req.method} ${String(req.url).split("?")[0]} failed: ${error.name}: ${error.message}`);
+      return send(res, 500, { error: "Moodish hit an unexpected problem. Please try again." });
+    }
+    return send(res, error.status, { error: error.message, details: error.details });
   }
 }
 
@@ -381,7 +392,7 @@ function healthPayload() {
 async function readJson(req) {
   const raw = await readRaw(req);
   if (!raw) return {};
-  return JSON.parse(raw);
+  try { return JSON.parse(raw); } catch { throw Object.assign(new Error("Request body must be valid JSON"), { status: 400 }); }
 }
 
 async function readRaw(req) {

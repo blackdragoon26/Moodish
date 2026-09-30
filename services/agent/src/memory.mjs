@@ -6,11 +6,24 @@ import { loadLocalEnv } from "./env.mjs";
 const { Pool } = pg;
 loadLocalEnv();
 const pool = process.env.DATABASE_URL
-  ? new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined
-    })
+  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: databaseSsl(process.env.DATABASE_URL) })
   : null;
+
+// Production verifies the database certificate. A database reachable only on a
+// private network can opt out explicitly with sslmode=disable in its URL.
+export function databaseSsl(connectionString, env = process.env) {
+  let sslmode = null;
+  try { sslmode = new URL(connectionString).searchParams.get("sslmode"); } catch {}
+  if (sslmode === "disable") return false;
+  return env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined;
+}
+
+export async function databaseReady() {
+  if (!pool) return { durable: false };
+  await ensureSchema();
+  await queryDatabase("SELECT 1");
+  return { durable: true };
+}
 
 // Queries inside an advisory-lock scope reuse its connection. Otherwise a burst
 // of locked requests could hold every pool connection while waiting for another.
