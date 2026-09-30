@@ -66,6 +66,7 @@ class Pkce {
 /// Reads the value Moodish's server put on `moodish://auth-callback`, or turns
 /// its short failure reason into something a person can act on.
 String callbackValue(Uri callback, String parameter) {
+  // Keys are the server's LOGIN_ERRORS codes (services/agent/src/login-flows.mjs).
   const reasons = {
     'declined': 'Swiggy connection was cancelled. Nothing was changed.',
     'expired': 'That sign-in expired or was already used. Try again.',
