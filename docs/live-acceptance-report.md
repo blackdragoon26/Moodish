@@ -271,7 +271,7 @@ implementation conversation.
 | --- | --- | --- | --- |
 | 1 | `5b904d9` | FAIL | Found F1 (high: native OAuth bound the approver's Swiggy account to the flow starter), F2 (platform freshness and overclaimed tests), F3 (reconnect docs) and F4 (deploy skipped browser tests). It reproduced every suite and removed 30 protections, all caught by tests. |
 | 2 | `fa1cb4f` | PASS FOR DEFINED SCOPE | Confirmed F1–F4 fixed, with its own reproductions and repeated adversarial OAuth checks. Low items: N-a (concurrent mobile exchange untested), N-b (non-numeric platform timestamps skipped the freshness check), N-c (docs nuance). |
-| 3 | final commit | See below | N-a: cross-process race test added, and it catches the removed guard. N-b: timestamps must be numeric. N-c: docs qualified. Unpruned OAuth records added to residual risks. |
+| 3 | `9fe1520` | PASS FOR DEFINED SCOPE | Confirmed N-b (numeric, fresh timestamps only) and N-c. The cross-process race test for N-a caught a removed guard in 4 of 5 runs because it depends on process timing, so a deterministic in-process race test was added afterwards (test-only change). |
 
 The scope excludes live Swiggy, physical devices, real Slack/Teams/Discord, and
 (for the reviewer, because of disk space) the APK and container builds; those were run by the implementer.

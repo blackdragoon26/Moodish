@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { startLiveApp, cookieValue } from "./helpers/live-app.mjs";
 import { saveSecretSession, getSecretSession } from "../services/agent/src/memory.mjs";
-import { expireSwiggyConnection } from "../services/agent/src/swiggy-auth.mjs";
+import { expireSwiggyConnection, exchangeMobileCode } from "../services/agent/src/swiggy-auth.mjs";
 
 const sha = value => crypto.createHash("sha256").update(value).digest("base64url");
 const errorOf = location => new URL(location, "http://x").searchParams.get("swiggy_error") ?? new URL(location).searchParams.get("error");
@@ -125,6 +125,19 @@ test("a native flow never binds Swiggy access to its starter until the app prove
   assert.equal((await app.request("/api/swiggy/connection", { session: attacker, sessionHeader: "native" })).body.connected, false);
   assert.equal((await app.request("/api/auth/mobile/exchange", { body: { code, verifier } })).status, 200);
   assert.equal((await app.request("/api/swiggy/connection", { session: attacker, sessionHeader: "native" })).body.connected, true);
+});
+
+test("concurrent native exchanges redeem a code exactly once", async t => {
+  const app = await startLiveApp(t);
+  const verifier = crypto.randomBytes(32).toString("base64url");
+  const start = await app.request("/api/swiggy/oauth/start", { body: { mobileChallenge: sha(verifier) } });
+  const grant = app.fake.authorize(start.body.authorizationUrl);
+  const callback = await fetch(`${app.base}/api/auth/swiggy/callback?state=${grant.state}&code=${grant.code}`, { redirect: "manual" });
+  const code = new URL(callback.headers.get("location")).searchParams.get("code");
+  // Called directly so every attempt reads the record before any removes it,
+  // which HTTP requests handled one at a time would not reproduce.
+  const results = await Promise.allSettled(Array.from({ length: 5 }, () => exchangeMobileCode({ code, verifier })));
+  assert.deepEqual(results.map(result => result.status).sort(), ["fulfilled", "rejected", "rejected", "rejected", "rejected"]);
 });
 
 test("native exchange codes expire, and native denial returns to the app with a reason", async t => {
