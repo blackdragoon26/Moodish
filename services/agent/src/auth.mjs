@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { runtimeSigningSecret } from "./runtime-secrets.mjs";
-import { getSecretSession, saveSecretSession, takeSecretSession, pruneExpiredFlows } from "./memory.mjs";
+import { getSecretSession, saveSecretSession, takeSecretSession, pruneExpiredFlows, requireDurableLiveStorage } from "./memory.mjs";
 import { issueMobileExchange } from "./swiggy-auth.mjs";
 
 const hash = value => crypto.createHash("sha256").update(String(value)).digest("base64url");
@@ -20,6 +20,7 @@ export function authConfiguration() {
 // flows end in a PKCE-checked exchange code instead of a token in the URL.
 export async function startGoogleOAuth(publicOrigin, { mobileChallenge, browserBinding } = {}) {
   if (!authConfiguration().google) throw unavailable("Google login needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
+  requireDurableLiveStorage();
   if (mobileChallenge !== undefined && !/^[A-Za-z0-9_-]{43}$/.test(mobileChallenge)) throw loginFailure("Update the Moodish app to sign in with Google", "update_required", "mobile");
   if (!mobileChallenge && !browserBinding) throw loginFailure("A bound login flow is required", "failed");
   const state = crypto.randomBytes(24).toString("base64url");

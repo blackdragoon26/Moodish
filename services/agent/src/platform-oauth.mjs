@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
 import { signGroupAccessToken } from "./access-token.mjs";
-import { getGroupSession, getSecretSession, saveSecretSession, takeSecretSession, pruneExpiredFlows } from "./memory.mjs";
+import { getGroupSession, getSecretSession, saveSecretSession, takeSecretSession, pruneExpiredFlows, requireDurableLiveStorage } from "./memory.mjs";
 
 const hash = value => crypto.createHash("sha256").update(String(value)).digest("base64url");
 
 export async function startPlatformOAuth(platform, { sessionId, redirectUri } = {}) {
   const config = providerConfig(platform);
+  requireDurableLiveStorage();
   const state = crypto.randomBytes(24).toString("base64url");
   const verifier = crypto.randomBytes(32).toString("base64url");
   const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
