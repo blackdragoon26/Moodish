@@ -53,3 +53,20 @@ test("readiness reports storage, and unexpected errors are not described to clie
   assert.equal(malformed.status, 400);
   assert.equal((await malformed.json()).error, "Request body must be valid JSON");
 });
+
+test("a failed database connection during schema setup is retried, not cached", async () => {
+  // A local listener that accepts and immediately drops connections counts how
+  // often the app tries to reach PostgreSQL.
+  const net = await import("node:net");
+  let attempts = 0;
+  const server = net.createServer(socket => { attempts += 1; socket.destroy(); });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const memory = new URL("../services/agent/src/memory.mjs", import.meta.url).href;
+    const script = `import { getSecretSession } from ${JSON.stringify(memory)};
+      for (let i = 0; i < 3; i++) await getSecretSession("x").catch(() => {});`;
+    await promisify(execFile)(process.execPath, ["--input-type=module", "-e", script], {
+      env: { PATH: process.env.PATH, DATABASE_URL: `postgresql://u:p@127.0.0.1:${server.address().port}/db`, MOODISH_RUNTIME_ENV_FILE: "/nonexistent" }, timeout: 20000 });
+    assert.equal(attempts, 3, "each request tries to connect again");
+  } finally { server.close(); }
+});

@@ -77,6 +77,10 @@ export async function confirmPreparedCart({ preparationId, ownerId, recommendati
     }
   });
 }
+// Shared with the live acceptance harness so both judge availability the same way.
+export function isOrderable(item) {
+  return item.inStock !== false && item.inStock !== 0 && item.in_stock !== false && item.isAvailable !== false && Number.isFinite(item.price);
+}
 async function currentAddress(swiggy, addressId) {
   const address = (await swiggy.getAddresses()).find(a => a.id === addressId);
   return address && { id: address.id, label: address.label, display: address.display };
@@ -89,7 +93,7 @@ async function checkMenu(swiggy, restaurantId, addressId, requested) {
   return Promise.all(requested.map(async item => {
     const details = swiggy.mode === "live" ? await swiggy.searchMenu({ addressId, query: item.name, restaurantIdOfAddedItem: restaurantId }) : menu.items;
     const current = details.find(i => i.itemId === item.itemId);
-    if (!current || current.inStock === false || current.inStock === 0 || current.in_stock === false || current.isAvailable === false || !Number.isFinite(current.price)) throw fail("A selected item is unavailable. Get fresh recommendations.");
+    if (!current || !isOrderable(current)) throw fail("A selected item is unavailable. Get fresh recommendations.");
     if ((current.hasVariants === true || current.variations?.length || current.variants?.variantGroups?.length || current.variantsV2?.length || current.variantsV2?.variantGroups?.length || current.addons?.some?.(g => Number(g.minAddons) > 0))) throw fail("This dish needs customization. Choose a dish without required customization for this cart.", 422);
     const quantity = Number(item.quantity);
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 500) throw fail("Invalid item quantity", 422);

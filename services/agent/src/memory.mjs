@@ -349,8 +349,9 @@ async function ensureSchema() {
   // CREATE TABLE IF NOT EXISTS (duplicate pg_type rows), so creation runs in one
   // transaction under a database-wide advisory lock. A failure is retried later.
   schemaReady ||= (async () => {
-    const client = await pool.connect();
+    let client;
     try {
+      client = await pool.connect();
       await client.query("BEGIN");
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended('moodish:schema', 0))");
       await client.query(`
@@ -403,11 +404,13 @@ async function ensureSchema() {
     `);
       await client.query("COMMIT");
     } catch (error) {
-      await client.query("ROLLBACK").catch(() => {});
+      // Includes failing to get a connection: forget the attempt so a later
+      // request retries instead of reusing this rejection.
       schemaReady = undefined;
+      if (client) await client.query("ROLLBACK").catch(() => {});
       throw error;
     } finally {
-      client.release();
+      client?.release();
     }
   })();
   await schemaReady;

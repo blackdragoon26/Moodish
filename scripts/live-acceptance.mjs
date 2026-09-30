@@ -25,6 +25,7 @@ export async function runLiveAcceptance({ env = process.env, captureShapes } = {
   }
   const { getSwiggyConnectionStatus } = await import("../services/agent/src/swiggy-auth.mjs");
   const { createReadOnlyLiveGateway } = await import("../services/agent/src/swiggy-gateway.mjs");
+  const { isOrderable } = await import("../services/agent/src/cart-preparation.mjs");
   const userId = env.MOODISH_ACCEPTANCE_USER_ID;
   // The app's own gateway: same pagination, normalization and usability filters,
   // with writes refused. Raw results are seen only as row counts and shapes.
@@ -90,8 +91,8 @@ export async function runLiveAcceptance({ env = process.env, captureShapes } = {
     if (!restaurantId) throw blocked("Needs a usable dish from food search", "PREREQUISITE");
     const menu = await gateway.getRestaurantMenu({ restaurantId, addressId });
     const summary = { items: menu.items.length, priced: menu.items.filter(item => Number.isFinite(item.price)).length,
-      inStockKnown: menu.items.filter(item => item.inStock !== undefined).length, restaurantPresent: Boolean(menu.restaurant) };
-    if (!summary.priced) throw unusable("The restaurant menu has no priced items", "NO_USABLE_ITEMS", summary);
+      orderable: menu.items.filter(isOrderable).length, inStockKnown: menu.items.filter(item => item.inStock !== undefined).length, restaurantPresent: Boolean(menu.restaurant) };
+    if (!summary.orderable) throw unusable("The restaurant menu has no priced, in-stock items", "NO_USABLE_ITEMS", summary);
     return summary;
   });
 

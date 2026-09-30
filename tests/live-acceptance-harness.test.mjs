@@ -102,6 +102,17 @@ test("dishes without usable prices can never PASS", async t => {
   assert.equal(result.stages.find(stage => stage.stage === "menu-detail").status, "BLOCKED");
 });
 
+test("a menu with no priced, in-stock item cannot PASS even when search finds a dish", async t => {
+  const fake = await withConnection(t);
+  // Search rows stay available; the restaurant's own menu says everything is sold out.
+  fake.fault("get_restaurant_menu", { data: { restaurant: { id: "rest-1", name: "Fake Chaap House" }, items: [{ id: "dish-1", name: "Soya Chaap", price: 250, inStock: 0 }, { id: "dish-2", name: "Roti", price: 40, inStock: false }] } });
+  const result = await runLiveAcceptance({ env });
+  const menu = result.stages.find(stage => stage.stage === "menu-detail");
+  assert.equal(result.stages.find(stage => stage.stage === "food-search").status, "PASS");
+  assert.deepEqual([menu.status, menu.code, menu.summary.priced, menu.summary.orderable], ["FAIL", "NO_USABLE_ITEMS", 2, 0]);
+  assert.equal(result.result, "FAIL");
+});
+
 test("addresses are read across pages like the app, whichever address is used", async t => {
   const fake = await withConnection(t, { selectedAddressId: "addr-page-2" });
   fake.fault("get_addresses", ({ args }) => (args.page ?? 1) === 1
