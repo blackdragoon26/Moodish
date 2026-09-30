@@ -19,11 +19,21 @@ Future<String?> reviewLiveCart(BuildContext context, RecommendationOption option
   final existing = review['existingCart'] as Map<String, dynamic>;
   final summary = [review['note'], 'Deliver to: ${address['label']} · ${address['display']}',
     ...items.map((i) => "${i['quantity']} × ${i['name']} · ₹${i['price']}"),
-    "Items estimate: ₹${review['estimatedItemTotal']}",
-    if (review['replacesExistingCart'] == true) "Existing cart: ${existing['restaurant']} · ₹${existing['total']}. This update can replace those contents.",
-  ].join('\n\n');
+    "Items estimate (not the final bill): ₹${review['estimatedItemTotal']}",
+  ];
+  // The server decides whether this review can update the real cart.
+  if (review['canConfirm'] == false) {
+    await showDialog<void>(context: context, builder: (dialogContext) => AlertDialog(
+      title: const Text('Swiggy cart already has items'),
+      content: SingleChildScrollView(child: Text([...summary,
+        'Your Swiggy Food cart: ${existing['restaurant'] ?? 'another restaurant'} · ${(existing['items'] as List?)?.length ?? 0} item(s).',
+        review['blockedReason']].join('\n\n'))),
+      actions: [FilledButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('OK'))],
+    ));
+    return null;
+  }
   final confirmed = await showDialog<bool>(context: context, builder: (dialogContext) => AlertDialog(
-    title: const Text('Review Food cart'), content: SingleChildScrollView(child: Text(summary)),
+    title: const Text('Review Food cart'), content: SingleChildScrollView(child: Text([...summary, 'Your current Food cart is empty. No order will be placed.'].join('\n\n'))),
     actions: [TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancel')),
       FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Update Food cart'))],
   ));

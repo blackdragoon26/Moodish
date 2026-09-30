@@ -135,7 +135,29 @@ function formJson(form) {
   );
 }
 
+const SWIGGY_OAUTH_MESSAGES = {
+  declined: "Swiggy connection was cancelled. Nothing was changed. You can connect again at any time.",
+  expired: "That Swiggy sign-in link expired or was already used. Start the connection again.",
+  browser_mismatch: "Finish the Swiggy connection in the same browser where you started it.",
+  exchange_failed: "Swiggy did not complete the connection. Try connecting again.",
+  failed: "The Swiggy connection did not complete. Try connecting again."
+};
+let pendingSwiggyNotice = null;
+
+function readSwiggyOAuthResult() {
+  const params = new URLSearchParams(window.location.search);
+  const reason = params.get("swiggy_error");
+  const connected = params.get("login") === "swiggy";
+  if (!reason && !connected) return;
+  pendingSwiggyNotice = reason ? SWIGGY_OAUTH_MESSAGES[reason] || SWIGGY_OAUTH_MESSAGES.failed : "Swiggy connected. Choose a delivery address to continue.";
+  params.delete("swiggy_error");
+  params.delete("login");
+  const query = params.toString();
+  history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
+}
+
 async function boot() {
+  readSwiggyOAuthResult();
   const inviteSessionId = new URLSearchParams(window.location.search).get("group");
   const managerAccessToken = new URLSearchParams(window.location.hash.slice(1)).get("access_token");
   if (inviteSessionId && managerAccessToken) {
@@ -154,6 +176,12 @@ async function boot() {
       configureLogin(config, health);
       if (bootstrap.user) enterProduct(bootstrap.user, bootstrap.mealMemory || []);
       else $("#loginGate").classList.remove("hidden");
+      if (pendingSwiggyNotice) {
+        const target = bootstrap.user ? $("#connectionError") : $("#loginNote");
+        target.classList.remove("hidden");
+        target.textContent = pendingSwiggyNotice;
+        pendingSwiggyNotice = null;
+      }
       return;
     } catch (error) {
       lastError = error;
@@ -457,6 +485,7 @@ function renderRecommendationSelection() {
   $("#options").querySelectorAll(".option-card").forEach((card) => {
     const selected = card.dataset.option === selectedOptionId;
     card.classList.toggle("selected", selected);
+    card.setAttribute("aria-pressed", String(selected));
     card.querySelector(".select-pill").textContent = selected ? "Chosen" : "Choose";
   });
   renderCartReview();
@@ -506,7 +535,7 @@ function optionCard(option, index, selectedId) {
           .join("")}
       </div>`
     : "";
-  return `<article class="option-card ${option.optionId === selectedId ? "selected" : ""}" data-option="${option.optionId}">
+  return `<article class="option-card ${option.optionId === selectedId ? "selected" : ""}" data-option="${escapeHtml(option.optionId)}" tabindex="0" role="button" aria-pressed="${option.optionId === selectedId}" aria-label="Choose ${escapeHtml(option.restaurantName)}">
     <div class="option-rank">0${index + 1}</div>
     <div class="option-content">
       <div class="option-head"><div><p>${escapeHtml(option.cuisine)}</p><h4>${escapeHtml(option.restaurantName)}</h4></div><span class="select-pill">${option.optionId === selectedId ? "Chosen" : "Choose"}</span></div>
@@ -560,6 +589,10 @@ function renderCartReview() {
 
 $("#confirmCart").addEventListener("click", async () => {
   if (!currentRecommendation || !selectedOptionId) return;
+  const button = $("#confirmCart");
+  if (button.getAttribute("aria-busy") === "true") return;
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
   try {
   const review = await reviewLiveCart(currentRecommendation, selectedOptionId, [...selectedAddOnIds]);
   if (!review) return;
@@ -576,13 +609,13 @@ $("#confirmCart").addEventListener("click", async () => {
   $("#cartOutput").classList.remove("hidden");
   const instamart = cart.instamartCartPreview;
   $("#cartOutput").textContent = [
-    `FOOD CART · ${cart.foodCart.restaurant} · ₹${cart.foodCart.total}`,
+    `${isLiveSwiggy ? "SWIGGY FOOD CART" : "DEMO FOOD CART"} · ${cart.foodCart.restaurant} · ₹${cart.foodCart.total}`,
     ...cart.foodCart.items.map((item) => `${item.quantity}× ${item.name}`),
     "",
     `INSTAMART PREVIEW · ₹${instamart.total}`,
     ...(instamart.items.length ? instamart.items.map((item) => `1× ${item.name}`) : ["No add-ons selected"]),
     "",
-    "Food cart prepared. Instamart is a preview only. No order was placed."
+    cart.foodCart && isLiveSwiggy ? "Swiggy Food cart updated. The total above is Swiggy's cart total. Instamart is a preview only. No order was placed." : "Demo cart preview only. No real cart or order was created."
   ].join("\n");
   if (cart.mealMemoryEntry) {
     mealMemory = [cart.mealMemoryEntry, ...mealMemory.filter((item) => item.recommendationId !== cart.mealMemoryEntry.recommendationId)].slice(0, 6);
@@ -590,6 +623,7 @@ $("#confirmCart").addEventListener("click", async () => {
     renderRailNudge();
   }
   } catch (error) { $("#cartOutput").classList.remove("hidden"); $("#cartOutput").textContent = error.message; }
+  finally { button.removeAttribute("aria-busy"); renderCartReview(); }
 });
 
 $("#office").addEventListener("submit", async (event) => {
@@ -679,6 +713,10 @@ $("#voteGroup").addEventListener("click", async () => {
 });
 
 $("#confirmGroupCart").addEventListener("click", async () => {
+  const button = $("#confirmGroupCart");
+  if (button.getAttribute("aria-busy") === "true") return;
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
   try {
   const review = await reviewLiveCart(currentGroupSession.recommendation, currentGroupSession.selectedOptionId, [...selectedGroupAddOnIds], currentGroupSession.sessionId);
   if (!review) return;
@@ -699,6 +737,10 @@ $("#confirmGroupCart").addEventListener("click", async () => {
   }
   renderGroup(currentGroupSession);
   } catch (error) { window.alert(error.message); }
+  finally {
+    button.removeAttribute("aria-busy");
+    button.disabled = currentGroupSession?.state !== "awaiting_creator_confirmation";
+  }
 });
 
 async function groupApi(path, payload) {
@@ -1035,6 +1077,14 @@ function wait(milliseconds) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+// Option cards are custom controls; Enter and Space choose them like a button.
+document.addEventListener("keydown", (event) => {
+  const card = event.target.closest?.(".option-card");
+  if (!card || (event.key !== "Enter" && event.key !== " ")) return;
+  event.preventDefault();
+  card.click();
+});
+
 boot();
 
 async function refreshSwiggyConnection() {
@@ -1081,7 +1131,12 @@ async function reviewLiveCart(recommendation, optionId, addOnProductIds, groupSe
   }
   const args = { recommendationId: recommendation.recommendationId, optionId, addOnProductIds, restaurantId };
   const review = groupSessionId ? await groupApi(`/api/group-sessions/${groupSessionId}/prepare-cart`, args) : await api("/api/cart/prepare", { method: "POST", body: JSON.stringify(args) });
-  const text = [review.note, `Deliver to: ${review.address.label} · ${review.address.display}`, ...review.items.map(i => `${i.quantity} × ${i.name} · ₹${i.price}`), `Items estimate: ₹${review.estimatedItemTotal}`, review.replacesExistingCart ? `Existing cart: ${review.existingCart.restaurant} · ₹${review.existingCart.total}. This update can replace those contents.` : "Your current Food cart is empty.", "Update your Food cart?"].join("\n");
+  const summary = [review.note, `Deliver to: ${review.address.label} · ${review.address.display}`, ...review.items.map(i => `${i.quantity} × ${i.name} · ₹${i.price}`), `Items estimate (not the final bill): ₹${review.estimatedItemTotal}`];
+  if (review.canConfirm === false) {
+    window.alert([...summary, `Your Swiggy Food cart: ${review.existingCart.restaurant || "another restaurant"} · ${review.existingCart.items.length} item(s).`, review.blockedReason].join("\n"));
+    return null;
+  }
+  const text = [...summary, "Your current Food cart is empty.", "Update your Swiggy Food cart? No order will be placed."].join("\n");
   return window.confirm(text) ? { preparationId: review.preparationId, restaurantId } : null;
 }
 

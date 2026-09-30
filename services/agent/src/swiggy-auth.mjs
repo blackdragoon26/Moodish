@@ -1,8 +1,11 @@
 import crypto from "node:crypto";
-import { getSecretSession, saveSecretSession, takeSecretSession, deleteSecretSession, requireDurableLiveStorage } from "./memory.mjs";
+import { getSecretSession, saveSecretSession, takeSecretSession, deleteSecretSession, patchSecretSessionIfVersion, requireDurableLiveStorage } from "./memory.mjs";
 
 const hash = value => crypto.createHash("sha256").update(String(value)).digest("base64url");
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
+// `oauthError` is a short, non-secret reason the callback can hand back to the
+// web app or the native app; `flowKind` says which of the two started the flow.
+const oauthFailure = (message, oauthError, flowKind, status = 400) => Object.assign(fail(message, status), { oauthError, flowKind });
 
 export async function startSwiggyOAuth({ redirectUri, user, browserBinding, mobileChallenge, groupSessionId } = {}) {
   requireDurableLiveStorage();
@@ -28,26 +31,32 @@ export async function startSwiggyOAuth({ redirectUri, user, browserBinding, mobi
 
 export async function completeSwiggyOAuth({ code, state, browserBinding, denied } = {}) {
   const key = `swiggy-flow:${hash(state || "")}`;
-  const record = await getSecretSession(key);
-  if (!record) throw fail("Invalid or expired Swiggy OAuth state");
+  const record = state ? await getSecretSession(key) : null;
+  if (!record) throw oauthFailure("Invalid or expired Swiggy OAuth state", "expired");
   const pending = JSON.parse(decryptToken(record.encrypted));
-  if (pending.binding && pending.binding !== hash(browserBinding || "")) throw fail("Login browser does not match this OAuth flow", 403);
+  const flowKind = pending.mobileChallenge ? "mobile" : "browser";
+  if (pending.binding && pending.binding !== hash(browserBinding || "")) throw oauthFailure("Login browser does not match this OAuth flow", "browser_mismatch", flowKind, 403);
   const claimed = await takeSecretSession(key);
-  if (!claimed || pending.expiresAt <= Date.now()) throw fail("Invalid or expired Swiggy OAuth state");
-  if (denied || !code) throw fail("Swiggy connection was declined. You can try connecting again.");
-  const token = await authRequest("token", { grant_type: "authorization_code", code,
-    code_verifier: pending.verifier, redirect_uri: pending.redirectUri, client_id: pending.clientId });
-  if (!token.access_token || !Number.isFinite(Number(token.expires_in))) throw fail("Swiggy returned an invalid token response", 502);
-  await saveSecretSession(`swiggy:${pending.user.id}`, {
-    accessToken: encryptToken(token.access_token), expiresAt: Date.now() + Number(token.expires_in) * 1000,
-    scope: token.scope, version: crypto.randomUUID()
-  });
+  if (!claimed || pending.expiresAt <= Date.now()) throw oauthFailure("Invalid or expired Swiggy OAuth state", "expired", flowKind);
+  if (denied || !code) throw oauthFailure("Swiggy connection was declined. You can try connecting again.", "declined", flowKind);
+  let token;
+  try {
+    token = await authRequest("token", { grant_type: "authorization_code", code,
+      code_verifier: pending.verifier, redirect_uri: pending.redirectUri, client_id: pending.clientId });
+  } catch (error) { throw Object.assign(error, { oauthError: "exchange_failed", flowKind }); }
+  if (!token.access_token || !Number.isFinite(Number(token.expires_in))) throw oauthFailure("Swiggy returned an invalid token response", "exchange_failed", flowKind, 502);
+  const credential = { accessToken: encryptToken(token.access_token), expiresAt: Date.now() + Number(token.expires_in) * 1000,
+    scope: token.scope, version: crypto.randomUUID() };
   if (pending.mobileChallenge) {
+    // Whoever approves consent in a browser is not necessarily the device that
+    // started the flow. The credential waits in the single-use exchange record
+    // and is attached only when the starting app proves its PKCE verifier.
     const exchangeCode = crypto.randomBytes(32).toString("base64url");
     await saveSecretSession(`mobile:${hash(exchangeCode)}`, { user: pending.user,
-      challenge: pending.mobileChallenge, expiresAt: Date.now() + 60000 });
-    return { connected: true, user: pending.user, exchangeCode, groupSessionId: pending.groupSessionId };
+      challenge: pending.mobileChallenge, expiresAt: Date.now() + 60000, credential });
+    return { connected: false, user: pending.user, exchangeCode, groupSessionId: pending.groupSessionId };
   }
+  await saveSecretSession(`swiggy:${pending.user.id}`, credential);
   return { connected: true, user: pending.user, groupSessionId: pending.groupSessionId };
 }
 
@@ -57,14 +66,25 @@ export async function exchangeMobileCode({ code, verifier } = {}) {
   const record = await getSecretSession(key);
   if (!record || record.expiresAt <= Date.now() || record.challenge !== hash(verifier)) throw fail("Invalid or expired app login code", 401);
   if (!await takeSecretSession(key)) throw fail("App login code already used", 401);
+  if (record.credential) await saveSecretSession(`swiggy:${record.user.id}`, record.credential);
   return record.user;
 }
 
 export async function getSwiggyAccessToken(userId) {
-  if (!userId) return "";
+  return (await getSwiggyCredential(userId))?.token || "";
+}
+export async function getSwiggyCredential(userId) {
+  if (!userId) return null;
   const session = await getSecretSession(`swiggy:${userId}`);
-  if (!session || session.expiresAt <= Date.now() + 60000) return "";
-  return decryptToken(session.accessToken);
+  if (!session?.accessToken || session.expiresAt <= Date.now() + 60000) return null;
+  return { token: decryptToken(session.accessToken), version: session.version };
+}
+// Marks one specific credential as rejected by Swiggy. The record stays so the
+// account shows "expired". A reconnect starts fresh, including the address,
+// because it may be a different Swiggy account.
+export async function expireSwiggyConnection(userId, version) {
+  if (!userId || !version) return false;
+  return patchSecretSessionIfVersion(`swiggy:${userId}`, version, { accessToken: null, expiresAt: 0 });
 }
 export async function getSwiggyConnectionStatus(userId) {
   const session = userId ? await getSecretSession(`swiggy:${userId}`) : null;

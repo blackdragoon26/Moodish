@@ -6,11 +6,24 @@ import { loadLocalEnv } from "./env.mjs";
 const { Pool } = pg;
 loadLocalEnv();
 const pool = process.env.DATABASE_URL
-  ? new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined
-    })
+  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: databaseSsl(process.env.DATABASE_URL) })
   : null;
+
+// Production verifies the database certificate. A database reachable only on a
+// private network can opt out explicitly with sslmode=disable in its URL.
+export function databaseSsl(connectionString, env = process.env) {
+  let sslmode = null;
+  try { sslmode = new URL(connectionString).searchParams.get("sslmode"); } catch {}
+  if (sslmode === "disable") return false;
+  return env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined;
+}
+
+export async function databaseReady() {
+  if (!pool) return { durable: false };
+  await ensureSchema();
+  await queryDatabase("SELECT 1");
+  return { durable: true };
+}
 
 // Queries inside an advisory-lock scope reuse its connection. Otherwise a burst
 // of locked requests could hold every pool connection while waiting for another.
@@ -332,8 +345,16 @@ export async function getAuditLogs() {
 
 async function ensureSchema() {
   if (!pool) return;
-  if (!schemaReady) {
-    schemaReady = queryDatabase(`
+  // Separate processes starting on an empty database would otherwise race on
+  // CREATE TABLE IF NOT EXISTS (duplicate pg_type rows), so creation runs in one
+  // transaction under a database-wide advisory lock. A failure is retried later.
+  schemaReady ||= (async () => {
+    let client;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended('moodish:schema', 0))");
+      await client.query(`
       CREATE TABLE IF NOT EXISTS moodish_profiles (
         user_id_hash TEXT PRIMARY KEY,
         data JSONB NOT NULL,
@@ -381,7 +402,17 @@ async function ensureSchema() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
-  }
+      await client.query("COMMIT");
+    } catch (error) {
+      // Includes failing to get a connection: forget the attempt so a later
+      // request retries instead of reusing this rejection.
+      schemaReady = undefined;
+      if (client) await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client?.release();
+    }
+  })();
   await schemaReady;
 }
 
@@ -398,6 +429,23 @@ export async function takeSecretSession(key) {
   return value;
 }
 export async function deleteSecretSession(key) { await takeSecretSession(key); }
+// Compare-and-set on the record's `version`, so a stale caller cannot change a
+// record that was replaced after it read it.
+export async function patchSecretSessionIfVersion(key, version, patch) {
+  if (pool) {
+    await ensureSchema();
+    const result = await queryDatabase(
+      `UPDATE moodish_secret_sessions SET data = data || $3::jsonb, updated_at = NOW()
+       WHERE session_key = $1 AND data->>'version' = $2`,
+      [key, String(version), JSON.stringify(patch)]
+    );
+    return result.rowCount === 1;
+  }
+  const current = secretSessions.get(key);
+  if (!current || current.version !== version) return false;
+  secretSessions.set(key, { ...current, ...patch });
+  return true;
+}
 const locks = new Map();
 export async function withAccountLock(key, fn) {
   if (pool) {

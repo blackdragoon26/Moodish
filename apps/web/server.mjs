@@ -1,8 +1,10 @@
 import http from "node:http";
 import { readFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { extname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { handleAgentRequest } from "../../services/agent/src/server.mjs";
+import { assertRuntimeConfig } from "../../services/agent/src/config.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 
@@ -19,7 +21,7 @@ export function createWebServer() {
   return http.createServer(async (req, res) => {
     try {
       const pathname = new URL(req.url, "http://127.0.0.1").pathname;
-      if (pathname === "/health" || pathname === "/mcp" || pathname.startsWith("/api/")) {
+      if (pathname === "/health" || pathname.startsWith("/health/") || pathname === "/mcp" || pathname.startsWith("/api/")) {
         return handleAgentRequest(req, res);
       }
       const file = pathname === "/" ? "index.html" : pathname.slice(1);
@@ -38,7 +40,8 @@ export function createWebServer() {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+  try { assertRuntimeConfig(); } catch (error) { console.error(error.message); process.exit(1); }
   const port = Number(process.env.PORT || process.env.MOODISH_WEB_PORT || 8787);
   const host = process.env.HOST || "0.0.0.0";
   createWebServer().listen(port, host, () => {

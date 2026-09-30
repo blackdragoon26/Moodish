@@ -1,5 +1,5 @@
 import http from "node:http";
-import { URL } from "node:url";
+import { URL, pathToFileURL } from "node:url";
 import { loadLocalEnv } from "./env.mjs";
 import { createTools, createToolRuntime } from "./tools.mjs";
 import {
@@ -9,6 +9,7 @@ import {
   getGroupSession,
   saveGroupSession,
   withAccountLock,
+  databaseReady,
   getMealHistory,
   getPlatformEventResponse,
   getTasteProfile,
@@ -31,7 +32,15 @@ import {
 } from "./auth.mjs";
 import { continueMealConversation } from "./conversation.mjs";
 import crypto from "node:crypto";
+import { realpathSync } from "node:fs";
 import { resolvePublicOrigin } from "./public-origin.mjs";
+import { DEFAULT_USER_HASH } from "./contracts.mjs";
+import { assertRuntimeConfig } from "./config.mjs";
+
+// Only these tools are reachable through /mcp. Group tools take caller-supplied
+// actor and passcode arguments, so they stay behind the signed group API.
+const MCP_PERSONAL_TOOLS = new Set(["plan_personal_meal", "plan_office_lunch", "prepare_cart", "build_confirmed_cart", "update_taste_profile", "record_meal_feedback", "get_taste_memory"]);
+const OAUTH_ERROR_CODES = new Set(["expired", "browser_mismatch", "declined", "exchange_failed"]);
 
 loadLocalEnv();
 
@@ -51,7 +60,9 @@ export async function handleAgentRequest(req, res) {
     const personal = async body => {
       if (live) requireUser();
       const connection = await getSwiggyConnectionStatus(authUser?.id);
-      return { ...body, userIdHash: authUser?.id || body.userIdHash, addressId: body.addressId || connection.selectedAddressId || undefined };
+      // Personal data is keyed only by the signed session. Without one, requests
+      // share the anonymous demo profile and can never name another account.
+      return { ...body, userIdHash: authUser?.id || DEFAULT_USER_HASH, addressId: body.addressId || connection.selectedAddressId || undefined };
     };
     if (req.method === "POST" && req.headers.origin && req.headers.origin !== resolvePublicOrigin(req)) {
       throw Object.assign(new Error("Cross-origin browser requests are not accepted"), { status: 403 });
@@ -59,6 +70,11 @@ export async function handleAgentRequest(req, res) {
     if (req.method === "OPTIONS") return send(res, 204, {});
     if (req.method === "GET" && url.pathname === "/health") {
       return send(res, 200, healthPayload());
+    }
+    // Readiness includes storage; /health stays a cheap liveness check.
+    if (req.method === "GET" && url.pathname === "/health/ready") {
+      try { return send(res, 200, { ...healthPayload(), storage: await databaseReady() }); }
+      catch { return send(res, 503, { ...healthPayload(), ok: false, storage: { durable: true, reachable: false } }); }
     }
     if (req.method === "GET" && url.pathname === "/api/bootstrap") {
       const user = readAuthUser(req.headers.cookie, req.headers.authorization);
@@ -111,8 +127,18 @@ export async function handleAgentRequest(req, res) {
       return req.method === "GET" ? redirect(res, started.authorizationUrl, headers) : send(res, 200, started, headers);
     }
     if (req.method === "GET" && ["/api/auth/swiggy/callback", "/api/swiggy/oauth/callback"].includes(url.pathname)) {
-      const connected = await completeSwiggyOAuth({ code: url.searchParams.get("code"), state: url.searchParams.get("state"),
-        denied: url.searchParams.get("error"), browserBinding: readCookie(req, "moodish_swiggy_flow") });
+      let connected;
+      try {
+        connected = await completeSwiggyOAuth({ code: url.searchParams.get("code"), state: url.searchParams.get("state"),
+          denied: url.searchParams.get("error"), browserBinding: readCookie(req, "moodish_swiggy_flow") });
+      } catch (error) {
+        // Send people back to the app that started the flow with a short reason.
+        // No provider error text, code or state is reflected.
+        const reason = OAUTH_ERROR_CODES.has(error.oauthError) ? error.oauthError : "failed";
+        if (error.flowKind === "mobile") return redirect(res, `moodish://auth-callback?error=${reason}`);
+        const clear = error.oauthError === "browser_mismatch" ? {} : { "set-cookie": flowCookie("", 0) };
+        return redirect(res, `/?swiggy_error=${reason}`, clear);
+      }
       if (connected.exchangeCode) return redirect(res, `moodish://auth-callback?code=${encodeURIComponent(connected.exchangeCode)}`);
       return redirect(res, "/?login=swiggy", { "set-cookie": [issueAuthCookie(connected.user), flowCookie("", 0)] });
     }
@@ -122,7 +148,7 @@ export async function handleAgentRequest(req, res) {
     }
     if (req.method === "GET" && url.pathname === "/api/profile") {
       if (live) requireUser();
-      return send(res, 200, await getTasteProfile(authUser?.id || url.searchParams.get("userIdHash") || undefined));
+      return send(res, 200, await getTasteProfile(authUser?.id || DEFAULT_USER_HASH));
     }
     if (req.method === "GET" && url.pathname === "/api/swiggy/connection") {
       return send(res, 200, await getSwiggyConnectionStatus(requireUser().id));
@@ -294,14 +320,18 @@ export async function handleAgentRequest(req, res) {
     }
     if (req.method === "POST" && url.pathname === "/mcp") {
       const message = await readJson(req);
-      const allowed = new Set(["plan_personal_meal", "plan_office_lunch", "prepare_cart", "build_confirmed_cart", "update_taste_profile", "record_meal_feedback", "get_taste_memory"]);
-      if (live && !allowed.has(message.params?.name)) throw Object.assign(new Error("Use the authenticated group API for group operations"), { status: 403 });
+      if (message.method === "tools/call" && !MCP_PERSONAL_TOOLS.has(message.params?.name)) throw Object.assign(new Error("Use the authenticated group API for group operations"), { status: 403 });
       message.params = { ...message.params, arguments: await personal(message.params?.arguments || {}) };
       return send(res, 200, await handleJsonRpc(message, tools));
     }
     return send(res, 404, { error: "Not found" });
   } catch (error) {
-    return send(res, error.status || 500, { error: error.message, details: error.details });
+    // Unexpected failures (database, bugs) are logged, not described to clients.
+    if (!error.status) {
+      console.error(`[Moodish] ${req.method} ${String(req.url).split("?")[0]} failed: ${error.name}: ${error.message}`);
+      return send(res, 500, { error: "Moodish hit an unexpected problem. Please try again." });
+    }
+    return send(res, error.status, { error: error.message, details: error.details });
   }
 }
 
@@ -363,7 +393,7 @@ function healthPayload() {
 async function readJson(req) {
   const raw = await readRaw(req);
   if (!raw) return {};
-  return JSON.parse(raw);
+  try { return JSON.parse(raw); } catch { throw Object.assign(new Error("Request body must be valid JSON"), { status: 400 }); }
 }
 
 async function readRaw(req) {
@@ -372,7 +402,8 @@ async function readRaw(req) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+  try { assertRuntimeConfig(); } catch (error) { console.error(error.message); process.exit(1); }
   const port = Number(process.env.MOODISH_PORT || 8786);
   createServer().listen(port, "127.0.0.1", () => {
     console.log(`Moodish agent listening on http://127.0.0.1:${port}`);

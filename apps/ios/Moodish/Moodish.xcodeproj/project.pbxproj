@@ -13,6 +13,7 @@
 		10019C97CDDD555681DB68E6 /* RecommendationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D172AAEEA1BC952684D7645 /* RecommendationModels.swift */; };
 		106AC1009ED65A062A37A8AA /* RecommendationDeckView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6E98063DF012D7B4A44459F /* RecommendationDeckView.swift */; };
 		21378E2798753B483B17B270 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FD3F3C799430D582200B62F /* ChatView.swift */; };
+		31E7D50BB298ABC28D5153AB /* APIClientSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2628B52C562EF5489533C5CF /* APIClientSessionTests.swift */; };
 		3247A8907570522EC8A6F7D7 /* JSONValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E2FEE45236B728CFC96B6E8 /* JSONValue.swift */; };
 		38320DC1ABFB1F6431BB6830 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FF8312EF70B0D12892D9811 /* ChatViewModel.swift */; };
 		4173A6E99881C78FBFC07749 /* CartReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C897D7F4864DB2139395507 /* CartReviewView.swift */; };
@@ -25,6 +26,7 @@
 		788A25D49FC07CAB01B24D49 /* MealDialView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1B176EB6BD504534618136 /* MealDialView.swift */; };
 		89D60D22C8D952BF27434C40 /* MoodishApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8762037C059F3C7B5459535 /* MoodishApp.swift */; };
 		90CCDF2EEDF72B3F89273E13 /* GroupModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF450443E95BBF46C3450B7 /* GroupModels.swift */; };
+		965EB358229A732DAC07D70C /* CartPreparationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBFB5E9D811219F35B5F7BAC /* CartPreparationTests.swift */; };
 		986EA730F5E8FE403AF0FE94 /* GoogleAuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAF85D45BBF652C3280AE08C /* GoogleAuthSession.swift */; };
 		9EEF953C5E15CEACF843C983 /* CorporateHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03DF5B941A2EF950D4200223 /* CorporateHomeView.swift */; };
 		A71305D0FFD93D06CE9327C3 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74A7F69402E9569A16920B10 /* AppState.swift */; };
@@ -35,8 +37,19 @@
 		D87B94BA2CE3AA2019659B84 /* MealMemoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2B42C964C7BEB8C11FEF81 /* MealMemoryView.swift */; };
 		E40637678216123FC79B5242 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 889540067011DF7B6C8BD80A /* LoginView.swift */; };
 		E6DB2DCE225BB4B9690B35EA /* SessionLobbyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D853663F50654638BF285428 /* SessionLobbyView.swift */; };
+		F1BCB1A9D2EB15B340D707B1 /* AuthCallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5606B57F099A3F975A4BB4D3 /* AuthCallbackTests.swift */; };
 		F480843B5D4D8E54DD98B1DC /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF60100194E7C6414644B079 /* APIError.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0D8BEAAE8EB2C4B3793BBED9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = CDD1831D8C6C8201C00EE19D /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ED04A6F705070D848B60298E;
+			remoteInfo = Moodish;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		03DF5B941A2EF950D4200223 /* CorporateHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorporateHomeView.swift; sourceTree = "<group>"; };
@@ -45,9 +58,11 @@
 		14B726D1C316FF3534942734 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		1D1B176EB6BD504534618136 /* MealDialView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealDialView.swift; sourceTree = "<group>"; };
 		1FD3F3C799430D582200B62F /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		2628B52C562EF5489533C5CF /* APIClientSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientSessionTests.swift; sourceTree = "<group>"; };
 		2A2B42C964C7BEB8C11FEF81 /* MealMemoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MealMemoryView.swift; sourceTree = "<group>"; };
 		2C897D7F4864DB2139395507 /* CartReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartReviewView.swift; sourceTree = "<group>"; };
 		35EDCF119A67E484439FC98E /* SessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
+		5606B57F099A3F975A4BB4D3 /* AuthCallbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthCallbackTests.swift; sourceTree = "<group>"; };
 		5890DCFA57A5FC744A5F7C81 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		5DD778A2CC1E8BBAB5B8D690 /* ManagerReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagerReviewView.swift; sourceTree = "<group>"; };
 		6D172AAEEA1BC952684D7645 /* RecommendationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationModels.swift; sourceTree = "<group>"; };
@@ -60,6 +75,8 @@
 		AB7CCCA0AAD7158FAB0D0611 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ACF450443E95BBF46C3450B7 /* GroupModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupModels.swift; sourceTree = "<group>"; };
 		B9386B48AEAB4822573E794F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		B93FE7D9C2C2490B710E4E44 /* MoodishTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MoodishTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BBFB5E9D811219F35B5F7BAC /* CartPreparationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CartPreparationTests.swift; sourceTree = "<group>"; };
 		CAF85D45BBF652C3280AE08C /* GoogleAuthSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthSession.swift; sourceTree = "<group>"; };
 		CE53AF207F61B5D5947A1BC8 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		D853663F50654638BF285428 /* SessionLobbyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLobbyView.swift; sourceTree = "<group>"; };
@@ -87,6 +104,16 @@
 				EDDA0D6669D3A022B8894150 /* Theme.swift */,
 			);
 			path = Theme;
+			sourceTree = "<group>";
+		};
+		34FE93CE906E476C2CFF9E55 /* MoodishTests */ = {
+			isa = PBXGroup;
+			children = (
+				2628B52C562EF5489533C5CF /* APIClientSessionTests.swift */,
+				5606B57F099A3F975A4BB4D3 /* AuthCallbackTests.swift */,
+				BBFB5E9D811219F35B5F7BAC /* CartPreparationTests.swift */,
+			);
+			path = MoodishTests;
 			sourceTree = "<group>";
 		};
 		48F63EDBF6BB6C2135FA48AC /* Core */ = {
@@ -162,6 +189,7 @@
 			isa = PBXGroup;
 			children = (
 				52C57E09B145497F1A870F29 /* Moodish */,
+				34FE93CE906E476C2CFF9E55 /* MoodishTests */,
 				E4C933018626095719ACBF20 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -207,6 +235,7 @@
 			isa = PBXGroup;
 			children = (
 				DD995EBE16246505F4E01204 /* Moodish.app */,
+				B93FE7D9C2C2490B710E4E44 /* MoodishTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -225,6 +254,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		8E186DD2610E38E6199FB4BD /* MoodishTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E5C7B6F7E9A39B946089D3C6 /* Build configuration list for PBXNativeTarget "MoodishTests" */;
+			buildPhases = (
+				2CB3FFD016B667DB336110AC /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8B3FC2B9912F97C91EA0F559 /* PBXTargetDependency */,
+			);
+			name = MoodishTests;
+			packageProductDependencies = (
+			);
+			productName = MoodishTests;
+			productReference = B93FE7D9C2C2490B710E4E44 /* MoodishTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		ED04A6F705070D848B60298E /* Moodish */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 88CA5BBB187A7284B9E83B59 /* Build configuration list for PBXNativeTarget "Moodish" */;
@@ -269,6 +316,7 @@
 			projectRoot = "";
 			targets = (
 				ED04A6F705070D848B60298E /* Moodish */,
+				8E186DD2610E38E6199FB4BD /* MoodishTests */,
 			);
 		};
 /* End PBXProject section */
@@ -285,6 +333,16 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2CB3FFD016B667DB336110AC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				31E7D50BB298ABC28D5153AB /* APIClientSessionTests.swift in Sources */,
+				F1BCB1A9D2EB15B340D707B1 /* AuthCallbackTests.swift in Sources */,
+				965EB358229A732DAC07D70C /* CartPreparationTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		5F23B2F4F419E5A8D9024F79 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -321,6 +379,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8B3FC2B9912F97C91EA0F559 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ED04A6F705070D848B60298E /* Moodish */;
+			targetProxy = 0D8BEAAE8EB2C4B3793BBED9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		28F9FA7C7D54373A27C562F3 /* Release */ = {
@@ -409,6 +475,24 @@
 			};
 			name = Debug;
 		};
+		82F571E8499816866F772636 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.moodish.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Moodish.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Moodish";
+			};
+			name = Release;
+		};
 		BBCF20196AAE15FBB78135AB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -466,6 +550,24 @@
 			};
 			name = Release;
 		};
+		C8B649C19ABA8F84A069C209 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.moodish.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Moodish.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Moodish";
+			};
+			name = Debug;
+		};
 		D8DAB64C3A0725E6AB74BF3B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -505,6 +607,15 @@
 			buildConfigurations = (
 				6C238C3262D33E6CBEE7A275 /* Debug */,
 				BBCF20196AAE15FBB78135AB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E5C7B6F7E9A39B946089D3C6 /* Build configuration list for PBXNativeTarget "MoodishTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C8B649C19ABA8F84A069C209 /* Debug */,
+				82F571E8499816866F772636 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

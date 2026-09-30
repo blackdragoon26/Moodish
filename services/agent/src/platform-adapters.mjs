@@ -117,7 +117,7 @@ function verifySlack(headers, rawBody) {
   if (!secret) throw configuration("SLACK_SIGNING_SECRET is required");
   const timestamp = headers["x-slack-request-timestamp"];
   const signature = headers["x-slack-signature"];
-  if (!timestamp || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) throw unauthorized("Stale Slack request");
+  if (!isFresh(timestamp)) throw unauthorized("Stale Slack request");
   const expected = `v0=${crypto.createHmac("sha256", secret).update(`v0:${timestamp}:${rawBody}`).digest("hex")}`;
   if (!safeEqual(expected, signature)) throw unauthorized("Invalid Slack signature");
   return true;
@@ -129,6 +129,8 @@ function verifyDiscord(headers, rawBody) {
   const signature = headers["x-signature-ed25519"];
   const timestamp = headers["x-signature-timestamp"];
   if (!signature || !timestamp) throw unauthorized("Missing Discord signature");
+  // Discord signs a Unix timestamp in seconds; refuse replays of old requests.
+  if (!isFresh(timestamp)) throw unauthorized("Stale Discord request");
   const key = Buffer.concat([
     Buffer.from("302a300506032b6570032100", "hex"),
     Buffer.from(publicKey, "hex")
@@ -158,6 +160,12 @@ async function verifyTeams(headers, rawBody) {
     throw unauthorized("Teams serviceUrl claim does not match the activity");
   }
   return true;
+}
+
+// Platforms send Unix seconds; anything non-numeric is treated as stale.
+function isFresh(timestamp) {
+  const seconds = Number(timestamp);
+  return timestamp !== undefined && timestamp !== "" && Number.isFinite(seconds) && Math.abs(Date.now() / 1000 - seconds) <= 300;
 }
 
 function safeEqual(left, right = "") {

@@ -669,7 +669,11 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
   .docs-layout { grid-template-columns: 1fr; }.docs-toc { position: static; grid-template-columns: repeat(6, auto); overflow-x: auto; }
 }
 @media (max-width: 620px) {
-  .topbar { padding: 0 16px; }.user-chip strong, .text-button { display: none; }
+  .topbar { padding: 0 16px; gap: 10px; }.user-chip strong, .text-button { display: none; }
+  /* Icon-only theme toggle and tighter spacing keep the avatar on screen when
+     fonts render wider (e.g. Linux fallbacks). */
+  .topbar-actions { gap: 8px; min-width: 0; }
+  .theme-toggle [data-theme-label] { display: none; }
   .app-shell { padding: 16px 14px 70px; }
   .conversation-head h2, .group-hero h2 { font-size: 3rem; }
   .quick-replies { margin-left: 0; }
@@ -692,4 +696,7 @@ input:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px r
   .login-card { width: min(100% - 36px, 540px); }.brand-large { margin-bottom: 40px; }
   .group-addon-panel { grid-template-columns: 1fr; }
   .landing-meta { display: grid; grid-template-columns: 1fr auto; }
+}
+@media (max-width: 380px) {
+  .topbar .brand span { display: none; }
 }

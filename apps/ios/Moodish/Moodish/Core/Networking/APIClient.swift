@@ -10,11 +10,10 @@ final class APIClient {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    init(sessionStore: SessionStore) {
+    init(sessionStore: SessionStore, configuration: URLSessionConfiguration = .default) {
         self.sessionStore = sessionStore
         let configured = Bundle.main.object(forInfoDictionaryKey: "MoodishAPIBaseURL") as? String
         self.baseURL = URL(string: configured?.isEmpty == false ? configured! : "https://moodish.sankalpjha.dev")!
-        let configuration = URLSessionConfiguration.default
         configuration.httpShouldSetCookies = true
         configuration.httpCookieAcceptPolicy = .always
         configuration.httpCookieStorage = .shared
@@ -246,7 +245,11 @@ struct CartPreparation: Decodable {
     let estimatedItemTotal: Double
     let existingCart: CartSummary
     let replacesExistingCart: Bool
+    /// Absent from older servers; the server's decision wins when present.
+    let canConfirm: Bool?
+    let blockedReason: String?
     let note: String
+    var isConfirmable: Bool { canConfirm ?? true }
     struct PreparedItem: Decodable, Identifiable {
         var id: String { itemId }
         let itemId: String; let name: String; let quantity: Int; let price: Double

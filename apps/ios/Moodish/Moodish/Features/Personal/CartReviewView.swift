@@ -115,21 +115,28 @@ struct LiveCartReviewSheet: View {
                     Section("Delivery") { Text("\(review.address.label) · \(review.address.display)") }
                     Section("Food items") {
                         ForEach(review.items) { i in Text("\(i.quantity) × \(i.name) · ₹\(Int(i.price))") }
-                        Text("Items estimate: ₹\(Int(review.estimatedItemTotal))")
+                        Text("Items estimate (not the final bill): ₹\(Int(review.estimatedItemTotal))")
                     }
                     if review.replacesExistingCart {
-                        Section("Current cart will change") {
+                        Section("Your current Swiggy Food cart") {
                             Text(review.existingCart.restaurant ?? "Existing Food cart")
                             ForEach(review.existingCart.items ?? []) { i in Text(i.name) }
                         }
                     }
                     Text(review.note)
-                    Button("Confirm Food cart update") { Task {
-                        busy = true
-                        defer { busy = false }
-                        do { try await confirm(review.preparationId); dismiss() }
-                        catch { self.error = error.localizedDescription }
-                    } }.disabled(busy)
+                    if let reason = review.blockedReason, !review.isConfirmable {
+                        Text(reason).foregroundStyle(.orange).accessibilityIdentifier("cartBlockedReason")
+                    } else {
+                        Button("Confirm Food cart update") {
+                            // Set before the task starts so a second tap cannot slip in.
+                            busy = true
+                            Task {
+                                defer { busy = false }
+                                do { try await confirm(review.preparationId); dismiss() }
+                                catch { self.error = error.localizedDescription }
+                            }
+                        }.disabled(busy)
+                    }
                 } else {
                     Button("Load current cart and prices") { Task {
                         busy = true

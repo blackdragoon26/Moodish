@@ -1,0 +1,72 @@
+{
+  "_source": "Minimized payloads written from the official Swiggy Builders tool reference (mcp.swiggy.com/builders/docs/reference), checked 2026-09-30. Every value is synthetic. These are documented shapes, not live captures; live captures come from scripts/live-acceptance.mjs --capture-shapes.",
+  "get_addresses": {
+    "success": true,
+    "data": {
+      "addresses": [
+        { "id": "addr-a", "addressLine": "Synthetic line A", "phoneNumber": "+910000000000", "addressCategory": "Home", "addressTag": "Home" },
+        { "id": "addr-b", "addressLine": "Synthetic line B", "phoneNumber": "+910000000001" },
+        { "addressLine": "Record without an id" }
+      ],
+      "pagination": { "page": 1, "pageSize": 10, "total": 3, "totalPages": 1, "hasMore": false }
+    }
+  },
+  "search_menu": {
+    "success": true,
+    "data": {
+      "items": [
+        { "menu_item_id": "item-a", "name": "Synthetic Paneer Bowl", "price": 240, "isVeg": true, "restaurant_id": "rest-a", "restaurant_name": "Synthetic Kitchen", "inStock": true, "hasVariants": false, "hasAddons": false },
+        { "menu_item_id": "item-b", "name": "Synthetic Thali", "price": 320, "isVeg": true, "restaurant_id": "rest-a", "restaurant_name": "Synthetic Kitchen", "inStock": true, "hasVariants": true, "hasAddons": true,
+          "variantsV2": [{ "id": "v-1", "name": "Large", "price": 40, "groupId": "g-1", "inStock": true }],
+          "addons": [{ "groupId": "a-1", "groupName": "Sides", "minAddons": 1, "maxAddons": 2, "choices": [{ "id": "c-1", "name": "Raita", "price": 30 }] }] },
+        { "menu_item_id": "item-c", "name": "Synthetic Sold Out", "price": 150, "isVeg": false, "restaurant_id": "rest-a", "restaurant_name": "Synthetic Kitchen", "inStock": false },
+        { "name": "Row without ids", "price": 99 }
+      ],
+      "hasMore": false, "nextOffset": 0, "totalItems": 4
+    }
+  },
+  "get_restaurant_menu": {
+    "success": true,
+    "data": {
+      "restaurant": { "id": "rest-a", "name": "Synthetic Kitchen", "cuisines": ["North Indian", "Healthy"], "avgRating": 4.3, "isOpen": true },
+      "items": [
+        { "id": "item-a", "name": "Synthetic Paneer Bowl", "price": 240, "inStock": 1, "isVeg": true, "hasVariants": false, "hasAddons": false, "categories": ["Recommended", "Bowls"] },
+        { "id": "item-c", "name": "Synthetic Sold Out", "price": 150, "inStock": 0, "isVeg": false, "categories": ["Mains/Curries"] },
+        { "name": "Row without an id", "price": 10, "categories": [] }
+      ],
+      "categoryLabels": ["Recommended", "Bowls", "Mains/Curries"], "totalItems": 3, "totalCategories": 3
+    }
+  },
+  "get_food_cart": {
+    "success": true,
+    "data": {
+      "cart_id": "cart-a", "result": "ok",
+      "restaurant": { "id": "rest-a", "name": "Synthetic Kitchen", "area": "Synthetic Area" },
+      "items": [{ "menu_item_id": "item-a", "name": "Synthetic Paneer Bowl", "quantity": 2, "is_veg": "1", "subtotal": 480, "total": 480, "final_price": 480, "in_stock": true, "variants": [], "addons": [], "valid_addons": [] }],
+      "item_count": 1,
+      "pricing": { "item_total": 480, "delivery_charge": 35, "delivery_charge_strikeoff": 0, "taxes_and_charges": 24, "to_pay": 539 },
+      "offers": { "coupon_applied": null, "coupon_discount": 0, "free_delivery_applied": false },
+      "addressId": "addr-a", "availablePaymentMethods": ["COD"], "gpoError": ""
+    }
+  },
+  "get_food_cart_empty": {
+    "success": true,
+    "data": { "cart_id": "", "restaurant": null, "items": [], "item_count": 0, "pricing": { "item_total": 0, "delivery_charge": 0, "taxes_and_charges": 0, "to_pay": 0 }, "offers": { "coupon_applied": null, "coupon_discount": 0, "free_delivery_applied": false } }
+  },
+  "search_products": {
+    "success": true,
+    "data": {
+      "nextOffset": "",
+      "products": [
+        { "displayName": "Synthetic Lime Soda", "productId": "prod-a", "inStock": true, "isAvail": true,
+          "variations": [
+            { "spinId": "spin-a1", "displayName": "Synthetic Lime Soda", "quantityDescription": "300 ml", "price": { "mrp": 40, "offerPrice": 35 }, "isInStockAndAvailable": true },
+            { "spinId": "spin-a2", "displayName": "Synthetic Lime Soda", "quantityDescription": "1 L", "price": { "mrp": 90, "offerPrice": 80 }, "isInStockAndAvailable": false },
+            { "displayName": "Variation without spinId", "quantityDescription": "2 L", "price": { "offerPrice": 120 }, "isInStockAndAvailable": true }
+          ] },
+        { "displayName": "Synthetic Unavailable", "productId": "prod-b", "inStock": false, "isAvail": false, "variations": [] }
+      ]
+    }
+  },
+  "error_envelope": { "success": false, "error": { "message": "Synthetic upstream refusal" } }
+}

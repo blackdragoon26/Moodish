@@ -18,6 +18,23 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       digest: ${{ steps.build.outputs.digest }}
+    # The release gate runs the durable-state tests too; they fail in CI
+    # without a database rather than skipping.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: moodish-ci-only
+          POSTGRES_DB: moodish_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MOODISH_TEST_DATABASE_URL: postgresql://postgres:moodish-ci-only@localhost:5432/moodish_test
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +44,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - run: npm run test:postgres
+      # The image serves the web app, so its browser journeys gate the deploy.
+      # Native apps are not in the image; their checks run in test.yml.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
 
       - uses: docker/setup-qemu-action@v3
 

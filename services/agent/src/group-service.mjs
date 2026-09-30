@@ -188,6 +188,8 @@ export async function confirmGroupCart(args = {}, runtime) {
     error.status = 403;
     throw error;
   }
+  // A repeated click after success returns the stored result instead of a conflict.
+  if (session.state === "cart_built" && args.preparationId && session.cartPreparationId === args.preparationId) return privateSessionView(session);
   assertState(session, "awaiting_creator_confirmation");
   if (args.confirmed !== true) throw stateError("Explicit creator confirmation is required");
   const build = restaurantId => buildConfirmedCart({
@@ -233,6 +235,7 @@ export async function confirmGroupCart(args = {}, runtime) {
     headcount: session.headcount
   });
   session.state = "cart_built";
+  session.cartPreparationId = args.preparationId || null;
   session.updatedAt = nowIso();
   await saveGroupSession(session);
   await logAudit("group_cart_built", { sessionId: session.sessionId });

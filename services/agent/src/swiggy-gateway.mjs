@@ -351,6 +351,13 @@ export function createSwiggyGateway({ userId } = {}) {
   return fixtureGateway();
 }
 
+// The live acceptance harness uses the app's own normalization, pagination and
+// filtering. `observe` sees each raw tool result (for value-free shape capture)
+// and the gateway refuses every write.
+export function createReadOnlyLiveGateway({ userId, observe } = {}) {
+  return liveGateway(userId, { readOnly: true, observe });
+}
+
 function fixtureGateway() {
   return {
     mode: "fixture",
@@ -477,8 +484,14 @@ export function expandIntentTokens(value = "") {
   return [...new Set([...baseTokens, ...phraseTokens, ...expanded].filter((token) => token.length > 1))];
 }
 
-function liveGateway(userId) {
-  const callTool = createLiveCaller(userId);
+function liveGateway(userId, { readOnly = false, observe } = {}) {
+  const liveCall = createLiveCaller(userId);
+  const callTool = async (server, name, args) => {
+    if (readOnly && name === "update_food_cart") throw upstreamError("This gateway is read-only", 403, "READ_ONLY");
+    const data = await liveCall(server, name, args);
+    observe?.(name, data);
+    return data;
+  };
   const warnings = [];
   const menus = new Map();
   const menuFor = async args => {
@@ -488,7 +501,16 @@ function liveGateway(userId) {
   };
   return {
     mode: "live", userId, warnings,
-    getAddresses: async () => normalizeAddresses(await callTool("food", "get_addresses")),
+    getAddresses: async () => {
+      // get_addresses pages at most 10 records; read a bounded number of pages.
+      const addresses = [];
+      for (let page = 1; page <= 5; page++) {
+        const data = await callTool("food", "get_addresses", page === 1 ? {} : { page });
+        addresses.push(...normalizeAddresses(data));
+        if (data?.pagination?.hasMore !== true) break;
+      }
+      return addresses;
+    },
     searchMenu: async args => {
       const items = normalizeMenuSearch(await callTool("food", "search_menu", args));
       for (const id of [...new Set(items.map(i => i.restaurant.id))].slice(0, 12)) {
@@ -503,7 +525,7 @@ function liveGateway(userId) {
       try { return normalizeProducts(await callTool("im", "search_products", args)); }
       catch (error) {
         if (error.status === 401) throw error;
-        if (!warnings.some(w => w.service === "instamart")) warnings.push({ service: "instamart", message: "Instamart suggestions are unavailable. Food results are still live." });
+        if (!warnings.some(w => w.service === "instamart")) warnings.push({ service: "instamart", code: error.code, message: "Instamart suggestions are unavailable. Food results are still live." });
         return [];
       }
     },
@@ -520,106 +542,128 @@ function liveGateway(userId) {
   };
 }
 
+const malformed = message => upstreamError(message, 502, "SWIGGY_MALFORMED_RESPONSE");
+
 export function normalizeFoodCart(data) {
-  if (!data || typeof data !== "object" || Array.isArray(data) || (data.items !== undefined && !Array.isArray(data.items))) throw upstreamError("Swiggy returned an unrecognized cart. Check your Swiggy cart before continuing.");
-  const items = arrayFrom(data, ["items"]).map(item => ({ ...item,
-    itemId: validId(item.menu_item_id ?? item.itemId ?? item.id), quantity: Number(item.quantity),
-    price: Number(item.final_price ?? item.price ?? item.subtotal), name: String(item.name || "Item")
+  if (!data || typeof data !== "object" || Array.isArray(data) || (data.items !== undefined && !Array.isArray(data.items))) throw malformed("Swiggy returned an unrecognized cart. Check your Swiggy cart before continuing.");
+  const items = (data.items || []).map(item => ({
+    itemId: validId(item?.menu_item_id ?? item?.itemId ?? item?.id), quantity: Number(item.quantity),
+    price: Number(item.final_price ?? item.price ?? item.subtotal), name: String(item.name || "Item"),
+    ...(item.variants ? { variants: item.variants } : {}), ...(item.variantsV2 ? { variantsV2: item.variantsV2 } : {}),
+    ...(item.addons ? { addons: item.addons } : {}), ...(item.in_stock === false ? { inStock: false } : {})
   }));
+  if (items.some(item => !Number.isInteger(item.quantity) || item.quantity < 1)) throw malformed("Swiggy returned a cart item without a valid quantity. Check your Swiggy cart before continuing.");
   const total = Number(data.pricing?.to_pay ?? data.total ?? (items.length === 0 ? 0 : NaN));
-  if (!Number.isFinite(total)) throw upstreamError("Swiggy cart total is missing");
+  if (!Number.isFinite(total)) throw malformed("Swiggy cart total is missing");
   return { cartId: data.cart_id ?? data.cartId, restaurantId: String(data.restaurant?.id ?? data.restaurantId ?? ""),
     restaurant: data.restaurant?.name ?? data.restaurantName ?? (typeof data.restaurant === "string" ? data.restaurant : ""),
     items, total, pricing: data.pricing, offers: data.offers, mode: "live" };
 }
 function validId(value) {
-  if (value === undefined || value === null || String(value) === "") throw upstreamError("Swiggy returned an item without an identifier");
+  if (value === undefined || value === null || String(value).trim() === "") throw malformed("Swiggy returned an item without an identifier");
   return String(value);
 }
 
-function normalizeAddresses(data) {
-  const addresses = arrayFrom(data, ["addresses", "items"]);
-  return addresses.map((address) => ({
-    ...address,
+// Only these fields leave the gateway. Swiggy's address records also carry the
+// account's phone number, which Moodish never needs to show or store.
+export function normalizeAddresses(data) {
+  return keepValid(recordsFrom(data, ["addresses", "items"], "saved addresses"), address => ({
     id: validId(address.id ?? address.addressId),
-    label: address.label || address.type || "Saved address",
-    display: address.display || address.address || address.formattedAddress || ""
-  }));
+    label: String(address.addressTag || address.addressCategory || address.label || address.type || "Saved address"),
+    display: String(address.addressLine || address.display || address.address || address.formattedAddress || "")
+  }), "saved addresses");
 }
 
 function normalizeRestaurants(data) {
-  return arrayFrom(data, ["restaurants", "items"]).map((restaurant) => ({
+  return keepValid(recordsFrom(data, ["restaurants", "items"], "restaurants"), (restaurant) => ({
     ...restaurant,
     id: validId(restaurant.id ?? restaurant.restaurantId),
     name: restaurant.name || restaurant.restaurantName,
-    cuisine: Array.isArray(restaurant.cuisines) ? restaurant.cuisines.join(", ") : restaurant.cuisine || "Mixed",
+    cuisine: optionalList(restaurant.cuisines, "cuisines").join(", ") || restaurant.cuisine || "Mixed",
     rating: Number(restaurant.rating || restaurant.avgRating || 0),
     distanceKm: Number(restaurant.distanceKm || restaurant.distance || 0),
     priceBand: Number(restaurant.priceBand || restaurant.costForTwo / 2 || 0),
     availabilityStatus: restaurant.availabilityStatus || (restaurant.isOpen === true ? "OPEN" : "UNKNOWN"),
-    tags: [...new Set([...(restaurant.tags || []), ...(restaurant.cuisines || [])].map(String))],
-    items: restaurant.items || []
-  }));
+    tags: [...new Set([...optionalList(restaurant.tags, "tags"), ...optionalList(restaurant.cuisines, "cuisines")].map(String))],
+    items: optionalList(restaurant.items, "items")
+  }), "restaurants");
 }
 
-function normalizeMenuSearch(data) {
-  return arrayFrom(data, ["items", "menuItems", "results"]).flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
+export function normalizeMenuSearch(data) {
+  return keepValid(recordsFrom(data, ["items", "menuItems", "results"], "menu search results"), (entry) => {
     const rawRestaurant = entry.restaurant || entry.restaurantInfo || { id: entry.restaurant_id, name: entry.restaurant_name };
-    const itemId = entry.menu_item_id ?? entry.itemId ?? entry.id;
-    const restaurantId = rawRestaurant.id ?? rawRestaurant.restaurantId;
-    if ([itemId, restaurantId].some(id => id === undefined || id === null || String(id).trim() === "")) return [];
     return {
       ...entry,
-      itemId: validId(itemId),
+      itemId: validId(entry.menu_item_id ?? entry.itemId ?? entry.id),
       name: entry.name || entry.itemName,
       price: Number(entry.price ?? entry.defaultPrice ?? NaN),
       tags: normalizeItemTags(entry),
       restaurant: normalizeRestaurants({ restaurants: [rawRestaurant] })[0]
     };
-  }).filter((entry) => entry.restaurant?.id && entry.itemId);
+  }, "menu search results");
 }
 
-function normalizeRestaurantMenu(data, args) {
-  const items = arrayFrom(data, ["items", "menuItems", "results", "categories"]).flatMap((entry) =>
-    Array.isArray(entry.items) ? entry.items : [entry]
+export function normalizeRestaurantMenu(data, args) {
+  const items = recordsFrom(data, ["items", "menuItems", "results", "categories"], "a restaurant menu").flatMap((entry) =>
+    Array.isArray(entry?.items) ? entry.items : [entry]
   );
   return {
     restaurantId: args.restaurantId,
     restaurant: data.restaurant,
-    items: items.map((item) => ({
+    items: keepValid(items, (item) => ({
       ...item,
       itemId: validId(item.menu_item_id ?? item.itemId ?? item.id),
       name: item.name || item.itemName,
       price: Number(item.price ?? item.defaultPrice ?? NaN),
       tags: normalizeItemTags(item)
-    }))
+    }), "menu items")
   };
 }
 
-function normalizeProducts(data) {
-  return arrayFrom(data, ["products", "items", "results"]).flatMap(product => {
+export function normalizeProducts(data) {
+  return keepValid(recordsFrom(data, ["products", "items", "results"], "Instamart products"), product => {
     if (product.inStock === false || product.isAvail === false) return [];
-    if (Array.isArray(product.variations)) return product.variations
-      .filter(v => v.isInStockAndAvailable === true && Number.isFinite(v.price?.offerPrice))
+    const tags = optionalList(product.tags, "tags").map(String);
+    if (product.variations !== undefined && product.variations !== null) return optionalList(product.variations, "variations")
+      .filter(v => v?.isInStockAndAvailable === true && Number.isFinite(v.price?.offerPrice) && v.spinId != null && String(v.spinId) !== "")
       .map(v => ({ ...v, productId: validId(v.spinId), parentProductId: product.productId,
-        name: `${v.displayName || product.displayName} · ${v.quantityDescription}`, price: v.price.offerPrice,
-        tags: (product.tags || []).map(String) }));
+        name: `${v.displayName || product.displayName} · ${v.quantityDescription}`, price: v.price.offerPrice, tags }));
     const price = Number(product.price ?? product.finalPrice ?? NaN);
     return Number.isFinite(price) ? [{ ...product, productId: validId(product.productId ?? product.id ?? product.spinId),
-      name: product.name || product.displayName || product.productName, price, tags: (product.tags || []).map(String) }] : [];
-  });
+      name: product.name || product.displayName || product.productName, price, tags }] : [];
+  }, "Instamart products").flat();
+}
+
+// Optional list fields may be absent, but a present non-list makes the record
+// malformed rather than crashing the whole result.
+function optionalList(value, field) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw malformed(`Swiggy returned a record with an invalid ${field} field`);
+  return value;
 }
 
 function normalizeItemTags(item) {
-  const tags = [...(item.tags || [])].map((tag) => String(tag).toLowerCase());
+  const tags = optionalList(item.tags, "tags").map((tag) => String(tag).toLowerCase());
   if (item.isVeg === true || item.veg === true || item.is_veg === true || item.is_veg === 1 || item.is_veg === "1") tags.push("veg");
   if (item.isVeg === false || item.veg === false || item.is_veg === false || item.is_veg === 0 || item.is_veg === "0") tags.push("non-veg");
   return [...new Set(tags)];
 }
 
-function arrayFrom(data, keys) {
+// An unrecognized payload is an error, never a silently empty result.
+function recordsFrom(data, keys, what) {
   if (Array.isArray(data)) return data;
   for (const key of keys) if (Array.isArray(data?.[key])) return data[key];
-  return [];
+  throw malformed(`Swiggy returned ${what} in an unrecognized format`);
+}
+
+// Malformed rows are dropped so one bad record cannot hide the valid ones, but a
+// payload where every row is malformed is reported instead of looking empty.
+function keepValid(records, normalize, what) {
+  const valid = [];
+  for (const record of records) {
+    if (!record || typeof record !== "object") continue;
+    try { valid.push(normalize(record)); } catch (error) { if (error.code !== "SWIGGY_MALFORMED_RESPONSE") throw error; }
+  }
+  if (records.length && !valid.length) throw malformed(`Swiggy returned no usable ${what}`);
+  return valid;
 }

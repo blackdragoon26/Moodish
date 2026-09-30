@@ -52,10 +52,13 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
       })
     )
   );
+  // With no Food match there is no meal to accompany; say so instead of
+  // presenting an Instamart item as if it completed a plan.
+  const noFoodMatch = options.length === 0;
   const explicitAddOnRequest = isExplicitAddOnRequest(effectiveAddOnKind);
-  const addOnSatisfiedByRestaurant = explicitAddOnRequest
+  const addOnSatisfiedByRestaurant = noFoodMatch || (explicitAddOnRequest
     ? optionHasRequestedAddOn(options[0], effectiveAddOnKind, request.addOnPreferences)
-    : optionHasAccompaniment(options[0]);
+    : optionHasAccompaniment(options[0]));
   const remainingBudget = Math.max(0, budget - (options[0]?.estimatedTotal || 0));
   const addOns = request.includeInstamartAddOns && !addOnSatisfiedByRestaurant
     ? await complementaryProducts(
@@ -67,7 +70,7 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
         request.addOnPreferences
       )
     : [];
-  const addOnResolution = await resolveAddOnResolution({
+  const addOnResolution = noFoodMatch ? { status: "no_food_match", message: "" } : await resolveAddOnResolution({
     swiggy,
     addressId: address.id,
     option: options[0],
@@ -84,8 +87,10 @@ export async function planPersonalMeal({ request, tasteProfile, swiggy, ai }) {
     intent.hasExplicitDish && !discovery.exactMatch
       ? `No exact ${intent.primaryDish} match was available; these are clearly labelled similar alternatives.`
       : "";
-  const aiSummary = await summarizeShortlist(ai, { mode: "solo", options, matchNotice });
-  const summary = formatPlanSummary(matchNotice ? `${matchNotice} ${aiSummary.text}` : aiSummary.text);
+  const aiSummary = noFoodMatch
+    ? { text: `I couldn't find a ${swiggy.mode === "live" ? "Swiggy" : "demo"} dish that fits this craving, diet and budget near your selected address right now. Try a different craving or a higher budget.` }
+    : await summarizeShortlist(ai, { mode: "solo", options, matchNotice });
+  const summary = formatPlanSummary(matchNotice && !noFoodMatch ? `${matchNotice} ${aiSummary.text}` : aiSummary.text);
   const run = {
     recommendationId: makeRecommendationId("solo"),
     mode: "solo",
