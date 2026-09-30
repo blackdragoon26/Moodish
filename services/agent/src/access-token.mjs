@@ -4,6 +4,7 @@ import { runtimeSigningSecret } from "./runtime-secrets.mjs";
 export function signGroupAccessToken({ sessionId, actorId, expiresInSeconds = 3600 }) {
   const payload = Buffer.from(
     JSON.stringify({
+      typ: "group",
       sessionId,
       actorId,
       exp: Math.floor(Date.now() / 1000) + expiresInSeconds
@@ -24,6 +25,7 @@ export function verifyGroupAccessToken(token, expectedSessionId) {
   } catch {
     throw unauthorized("Invalid group access token payload");
   }
+  if (decoded.typ !== "group") throw unauthorized("Not a group access token");
   if (decoded.exp <= Math.floor(Date.now() / 1000)) throw unauthorized("Expired group access token");
   if (expectedSessionId && decoded.sessionId !== expectedSessionId) throw unauthorized("Group access token session mismatch");
   return decoded;

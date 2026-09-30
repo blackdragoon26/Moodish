@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { getSecretSession, saveSecretSession, takeSecretSession, deleteSecretSession, patchSecretSessionIfVersion, requireDurableLiveStorage } from "./memory.mjs";
+import { getSecretSession, saveSecretSession, takeSecretSession, deleteSecretSession, patchSecretSessionIfVersion, pruneExpiredFlows, requireDurableLiveStorage } from "./memory.mjs";
 
 const hash = value => crypto.createHash("sha256").update(String(value)).digest("base64url");
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
@@ -22,7 +22,8 @@ export async function startSwiggyOAuth({ redirectUri, user, browserBinding, mobi
   const flow = { user, redirectUri: callback, verifier, clientId: client.client_id,
     binding: browserBinding ? hash(browserBinding) : null, mobileChallenge, groupSessionId,
     expiresAt: Date.now() + 600000 };
-  await saveSecretSession(`swiggy-flow:${hash(state)}`, { encrypted: encryptToken(JSON.stringify(flow)) });
+  await saveSecretSession(`swiggy-flow:${hash(state)}`, { encrypted: encryptToken(JSON.stringify(flow)), expiresAt: flow.expiresAt });
+  await pruneExpiredFlows();
   const authorize = new URL("https://mcp.swiggy.com/auth/authorize");
   authorize.search = new URLSearchParams({ response_type: "code", client_id: client.client_id,
     redirect_uri: callback, code_challenge: hash(verifier), code_challenge_method: "S256", state, scope: "mcp:tools" }).toString();
@@ -51,13 +52,19 @@ export async function completeSwiggyOAuth({ code, state, browserBinding, denied 
     // Whoever approves consent in a browser is not necessarily the device that
     // started the flow. The credential waits in the single-use exchange record
     // and is attached only when the starting app proves its PKCE verifier.
-    const exchangeCode = crypto.randomBytes(32).toString("base64url");
-    await saveSecretSession(`mobile:${hash(exchangeCode)}`, { user: pending.user,
-      challenge: pending.mobileChallenge, expiresAt: Date.now() + 60000, credential });
+    const exchangeCode = await issueMobileExchange({ user: pending.user, challenge: pending.mobileChallenge, credential });
     return { connected: false, user: pending.user, exchangeCode, groupSessionId: pending.groupSessionId };
   }
   await saveSecretSession(`swiggy:${pending.user.id}`, credential);
   return { connected: true, user: pending.user, groupSessionId: pending.groupSessionId };
+}
+
+// A one-minute, single-use code the app redeems with its PKCE verifier. Used by
+// both Swiggy and Google native sign-in so no session token travels in a URL.
+export async function issueMobileExchange({ user, challenge, credential }) {
+  const exchangeCode = crypto.randomBytes(32).toString("base64url");
+  await saveSecretSession(`mobile:${hash(exchangeCode)}`, { user, challenge, expiresAt: Date.now() + 60000, ...(credential ? { credential } : {}) });
+  return exchangeCode;
 }
 
 export async function exchangeMobileCode({ code, verifier } = {}) {

@@ -189,3 +189,31 @@ test('app processes starting together on an empty database create the schema onc
     await admin.end();
   }
 });
+
+test('a Google login started on one app process finishes on another, once', { skip }, async () => {
+  const google = `globalThis.fetch = async url => new Response(JSON.stringify(String(url).includes('/token') ? { access_token: 'g' } : { sub: 'pg-google', name: 'PG' }));
+    process.env.GOOGLE_CLIENT_ID = 'c'; process.env.GOOGLE_CLIENT_SECRET = 's';
+    const auth = await import(${src('auth.mjs')});`;
+  const started = await json(`${google}
+    const url = await auth.startGoogleOAuth('https://moodish.example', { browserBinding: 'browser-1' });
+    console.log(JSON.stringify({ state: new URL(url).searchParams.get('state') }));`);
+  const finish = `${google}
+    let ok = false; try { ok = (await auth.completeGoogleOAuth({ code: 'c', state: ${JSON.stringify(started.state)}, browserBinding: 'browser-1' })).user.id === 'google:pg-google'; } catch {}
+    console.log(JSON.stringify({ ok }));`;
+  const results = await Promise.all([json(finish), json(finish)]);
+  assert.equal(results.filter(result => result.ok).length, 1);
+});
+
+test('expired flow records older than a day are pruned from PostgreSQL', { skip }, async () => {
+  const key = `mobile:prune-${crypto.randomUUID()}`;
+  const cart = `cart-prepare:prune-${crypto.randomUUID()}`;
+  await run(`await saveSecretSession('${key}', { expiresAt: 0 }); await saveSecretSession('${cart}', { state: 'uncertain' });`);
+  const pg = (await import('pg')).default;
+  const client = new pg.Client({ connectionString: database });
+  await client.connect();
+  await client.query("UPDATE moodish_secret_sessions SET updated_at = NOW() - INTERVAL '2 days' WHERE session_key = ANY($1)", [[key, cart]]);
+  await client.end();
+  await run(`const { pruneExpiredFlows } = await import(${src('memory.mjs')}); await pruneExpiredFlows();`);
+  assert.equal(await run(`console.log(Boolean(await getSecretSession('${key}')))`), 'false');
+  assert.equal(await run(`console.log(Boolean(await getSecretSession('${cart}')))`), 'true', 'cart attempt markers are never pruned');
+});
