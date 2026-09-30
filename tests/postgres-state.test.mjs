@@ -138,3 +138,16 @@ test('an attempt interrupted mid-write stays blocked after restart', { skip }, a
   assert.match(result.error, /uncertain result/);
   assert.equal(result.writes, 0);
 });
+
+test('a 401 for an older credential cannot expire a reconnect made by another process', { skip }, async () => {
+  const userId = `pg-expire-${crypto.randomUUID()}`;
+  await run(`await saveSecretSession('swiggy:${userId}', { accessToken: encryptToken('new'), expiresAt: Date.now() + 3600000, version: 'v2', selectedAddressId: 'addr-1' });`);
+  const result = await json(`
+    const { expireSwiggyConnection } = await import(${src('swiggy-auth.mjs')});
+    const stale = await expireSwiggyConnection('${userId}', 'v1');
+    const afterStale = await getSwiggyConnectionStatus('${userId}');
+    const current = await expireSwiggyConnection('${userId}', 'v2');
+    const afterCurrent = await getSwiggyConnectionStatus('${userId}');
+    console.log(JSON.stringify({ stale, afterStale: afterStale.connected, current, afterCurrent: afterCurrent.state, address: afterCurrent.selectedAddressId }));`);
+  assert.deepEqual(result, { stale: false, afterStale: true, current: true, afterCurrent: 'expired', address: 'addr-1' });
+});
