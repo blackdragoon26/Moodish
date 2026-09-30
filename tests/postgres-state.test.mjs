@@ -217,3 +217,14 @@ test('expired flow records older than a day are pruned from PostgreSQL', { skip 
   assert.equal(await run(`console.log(Boolean(await getSecretSession('${key}')))`), 'false');
   assert.equal(await run(`console.log(Boolean(await getSecretSession('${cart}')))`), 'true', 'cart attempt markers are never pruned');
 });
+
+test('with PostgreSQL, login flows and other secret records are not also kept in process memory', { skip }, async () => {
+  const count = await run(`
+    const { localSecretSessionCount, saveSecretSession: save, takeSecretSession: take } = await import(${src('memory.mjs')});
+    for (let i = 0; i < 200; i++) await save('google-flow:leak-' + i + '-' + process.pid, { expiresAt: Date.now() + 600000 });
+    await save('swiggy:leak-' + process.pid, { version: 'v1' });
+    for (let i = 0; i < 200; i++) await take('google-flow:leak-' + i + '-' + process.pid);
+    await take('swiggy:leak-' + process.pid);
+    console.log(localSecretSessionCount());`);
+  assert.equal(count, '0');
+});

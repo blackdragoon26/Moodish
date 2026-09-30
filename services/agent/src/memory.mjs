@@ -307,7 +307,9 @@ export async function getSecretSession(sessionKey) {
 }
 
 export async function saveSecretSession(sessionKey, data) {
-  secretSessions.set(sessionKey, data);
+  // With PostgreSQL the database is the only copy; an in-process copy would
+  // never be read and would grow with every unauthenticated login start.
+  if (!pool) secretSessions.set(sessionKey, data);
   if (pool) {
     await ensureSchema();
     await queryDatabase(
@@ -421,7 +423,6 @@ export async function takeSecretSession(key) {
   if (pool) {
     await ensureSchema();
     const result = await queryDatabase("DELETE FROM moodish_secret_sessions WHERE session_key = $1 RETURNING data", [key]);
-    secretSessions.delete(key);
     return result.rows[0]?.data;
   }
   const value = secretSessions.get(key);
@@ -432,19 +433,23 @@ export async function deleteSecretSession(key) { await takeSecretSession(key); }
 // Login flow and app exchange records expire within minutes. Remove leftovers
 // older than a day, at most once an hour per process. Cart reviews are never
 // pruned here: their attempt markers must survive.
+// For tests: records held in process memory (always 0 with PostgreSQL).
+export function localSecretSessionCount() { return secretSessions.size; }
 const FLOW_PREFIXES = ["swiggy-flow:", "google-flow:", "platform-flow:", "mobile:"];
 let lastPrune = 0;
 export async function pruneExpiredFlows(now = Date.now()) {
   if (now - lastPrune < 3_600_000) return 0;
-  lastPrune = now;
   if (pool) {
     await ensureSchema();
     const result = await queryDatabase(
       `DELETE FROM moodish_secret_sessions WHERE updated_at < NOW() - INTERVAL '1 day' AND (${FLOW_PREFIXES.map((_, i) => `session_key LIKE $${i + 1}`).join(" OR ")})`,
       FLOW_PREFIXES.map(prefix => `${prefix}%`)
     );
+    // Only a successful sweep starts the hourly wait, so a failed one is retried.
+    lastPrune = now;
     return result.rowCount;
   }
+  lastPrune = now;
   let removed = 0;
   for (const [key, value] of secretSessions) {
     if (FLOW_PREFIXES.some(prefix => key.startsWith(prefix)) && Number(value?.expiresAt) < now - 86_400_000) { secretSessions.delete(key); removed += 1; }
