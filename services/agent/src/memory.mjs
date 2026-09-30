@@ -5,9 +5,32 @@ import { loadLocalEnv } from "./env.mjs";
 
 const { Pool } = pg;
 loadLocalEnv();
+const POOL_MAX = Math.max(3, Number(process.env.DATABASE_POOL_MAX) || 10);
 const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: databaseSsl(process.env.DATABASE_URL) })
+  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: databaseSsl(process.env.DATABASE_URL), max: POOL_MAX,
+      // Fail a request that cannot get a connection instead of hanging it.
+      connectionTimeoutMillis: Number(process.env.DATABASE_CONNECT_TIMEOUT_MS) || 15_000 })
   : null;
+
+// An account lock keeps its connection while it calls Swiggy (tens of seconds
+// at worst). Cap how many run at once so two connections always stay free for
+// every other request, and bound every wait so callers get an answer.
+const LOCK_WAIT_MS = Number(process.env.MOODISH_LOCK_WAIT_MS) || 15_000;
+const lockSlots = { free: POOL_MAX - 2, waiting: [] };
+async function takeLockSlot() {
+  if (lockSlots.free > 0) { lockSlots.free -= 1; return; }
+  await new Promise((resolve, reject) => {
+    const waiter = { resolve, timer: setTimeout(() => {
+      lockSlots.waiting.splice(lockSlots.waiting.indexOf(waiter), 1);
+      reject(Object.assign(new Error("Moodish is busy with other checkouts. Try again in a moment."), { status: 503 }));
+    }, LOCK_WAIT_MS) };
+    lockSlots.waiting.push(waiter);
+  });
+}
+function releaseLockSlot() {
+  const next = lockSlots.waiting.shift();
+  if (next) { clearTimeout(next.timer); next.resolve(); } else lockSlots.free += 1;
+}
 
 // Production verifies the database certificate. A database reachable only on a
 // private network can opt out explicitly with sslmode=disable in its URL.
@@ -479,15 +502,30 @@ export async function withAccountLock(key, fn) {
   if (pool) {
     await ensureSchema();
     const inherited = connectionContext.getStore();
-    const client = inherited || await pool.connect();
+    if (!inherited) await takeLockSlot();
+    let client;
     let failedUnlock = false;
+    let locked = false;
     try {
-      await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [key]);
+      client = inherited || await pool.connect();
+      // Wait for a busy account only as long as LOCK_WAIT_MS, then report it.
+      await client.query("SELECT set_config('lock_timeout', $1, false)", [`${LOCK_WAIT_MS}ms`]);
+      try { await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [key]); }
+      catch (error) {
+        if (error.code === "55P03") throw Object.assign(new Error("Another request for this account is still in progress. Try again in a moment."), { status: 409 });
+        throw error;
+      } finally { await client.query("SELECT set_config('lock_timeout', '0', false)").catch(() => { failedUnlock = true; }); }
+      locked = true;
       return await connectionContext.run(client, fn);
     } finally {
-      try { await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]); }
-      catch { failedUnlock = true; }
-      if (!inherited) client.release(failedUnlock);
+      if (locked) {
+        try { await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]); }
+        catch { failedUnlock = true; }
+      }
+      if (!inherited) {
+        client?.release(failedUnlock);
+        releaseLockSlot();
+      }
     }
   }
   const previous = locks.get(key) || Promise.resolve();

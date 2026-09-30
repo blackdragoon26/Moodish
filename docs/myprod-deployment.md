@@ -74,6 +74,13 @@ a `-pooler.` hostname such as Neon's pooled endpoints). The log names the settin
 cart locks are session advisory locks, so use a direct connection or session
 pooling.
 
+Optional tuning: `DATABASE_POOL_MAX` (default 10) sets connections per app
+process. At most two fewer than that run account locks at once, so ordinary
+requests always have a connection even while cart confirmations wait on
+Swiggy. `MOODISH_LOCK_WAIT_MS` (default 15000) bounds how long a request waits
+for a busy account or a free lock slot before it gets a "try again" answer;
+`DATABASE_CONNECT_TIMEOUT_MS` (default 15000) does the same for connections.
+
 Production verifies the database TLS certificate. A database reachable only on a
 private network without TLS must say so explicitly with `?sslmode=disable` in
 `DATABASE_URL`; otherwise every database request fails and `/health/ready`

@@ -228,3 +228,44 @@ test('with PostgreSQL, login flows and other secret records are not also kept in
     console.log(localSecretSessionCount());`);
   assert.equal(count, '0');
 });
+
+test('a busy account lock answers with a retry message instead of waiting forever', { skip }, async () => {
+  const key = JSON.stringify(`integration:${crypto.randomUUID()}:busy`);
+  const holder = run(`await withAccountLock(${key}, () => new Promise(resolve => setTimeout(resolve, 3000)));`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const started = Date.now();
+  const waiter = await json(`
+    let status = 200, message = '';
+    try { await withAccountLock(${key}, async () => {}); } catch (error) { status = error.status; message = error.message; }
+    console.log(JSON.stringify({ status, message }));`, { MOODISH_LOCK_WAIT_MS: '400' });
+  assert.equal(waiter.status, 409);
+  assert.match(waiter.message, /still in progress/);
+  assert.ok(Date.now() - started < 2500, 'the waiter gave up before the holder finished');
+  await holder;
+});
+
+test('slow account locks leave database connections free for other requests', { skip }, async () => {
+  // More slow locks than the default pool of 10: without the cap they would hold
+  // every connection and ordinary queries would queue behind them.
+  const result = await json(`
+    const locks = Array.from({ length: 12 }, (_, i) => withAccountLock('integration:slow:' + i + ':' + process.pid, () => new Promise(resolve => setTimeout(resolve, 1500))).catch(() => {}));
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const started = Date.now();
+    await getSecretSession('integration:unrelated');
+    const unrelatedMs = Date.now() - started;
+    await Promise.all(locks);
+    console.log(JSON.stringify({ unrelatedMs }));`, { MOODISH_LOCK_WAIT_MS: '5000' });
+  assert.ok(result.unrelatedMs < 1000, `an unrelated query waited ${result.unrelatedMs}ms`);
+});
+
+test('waiting for a free lock slot is bounded too', { skip }, async () => {
+  const result = await json(`
+    const first = withAccountLock('integration:slot:a:' + process.pid, () => new Promise(resolve => setTimeout(resolve, 1500)));
+    await new Promise(resolve => setTimeout(resolve, 100));
+    let status = 200;
+    try { await withAccountLock('integration:slot:b:' + process.pid, async () => {}); } catch (error) { status = error.status; }
+    await first;
+    const afterwards = await withAccountLock('integration:slot:c:' + process.pid, async () => 'ok');
+    console.log(JSON.stringify({ status, afterwards }));`, { DATABASE_POOL_MAX: '3', MOODISH_LOCK_WAIT_MS: '300' });
+  assert.deepEqual(result, { status: 503, afterwards: 'ok' });
+});
