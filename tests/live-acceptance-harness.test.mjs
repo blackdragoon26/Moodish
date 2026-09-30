@@ -54,7 +54,8 @@ test("each stage reports its own outcome", async t => {
   const cases = [
     [{ get_addresses: { http: 401 } }, "addresses", "FAIL", "expired"],
     [{ search_menu: { http: 403 } }, "food-search", "FAIL", "denied"],
-    [{ get_restaurant_menu: { data: { unexpected: true } } }, "menu-detail", "FAIL", "malformed"],
+    // Search reads each result's menu, so a malformed menu fails the search stage.
+    [{ get_restaurant_menu: { data: { unexpected: true } } }, "food-search", "FAIL", "malformed"],
     [{ get_food_cart: "timeout" }, "current-cart", "FAIL", "timeout"],
     [{ search_products: "success-false" }, "instamart", "FAIL", "tool-error"]
   ];
@@ -74,11 +75,46 @@ test("each stage reports its own outcome", async t => {
 });
 
 test("missing prerequisites are BLOCKED, never PASS", async t => {
-  await withConnection(t, { selectedAddressId: undefined });
-  const noAddress = await runLiveAcceptance({ env });
-  assert.equal(noAddress.result, "BLOCKED");
-  assert.deepEqual(noAddress.stages.filter(stage => stage.status === "BLOCKED").map(stage => stage.stage), ["addresses", "food-search", "menu-detail", "current-cart", "instamart"]);
+  const fake = await withConnection(t);
+  fake.state.catalog.addresses = [];
+  const noAddresses = await runLiveAcceptance({ env });
+  assert.equal(noAddresses.result, "BLOCKED");
+  assert.deepEqual(noAddresses.stages.filter(stage => stage.status === "BLOCKED").map(stage => stage.stage), ["addresses", "food-search", "menu-detail", "current-cart", "instamart"]);
+  fake.restore();
+  await withConnection(t);
+  const unknown = await runLiveAcceptance({ env: { ...env, MOODISH_ACCEPTANCE_ADDRESS_ID: "addr-not-in-account" } });
+  assert.deepEqual([unknown.result, unknown.stages[1].code], ["BLOCKED", "ADDRESS_NOT_FOUND"]);
+  const noMatch = await runLiveAcceptance({ env: { ...env, MOODISH_ACCEPTANCE_QUERY: "zzzz" } });
+  assert.deepEqual([noMatch.result, noMatch.stages[2].status, noMatch.stages[2].code], ["BLOCKED", "BLOCKED", "NO_RESULTS"]);
   await saveSecretSession(`swiggy:${userId}`, { accessToken: null, expiresAt: 0, version: "v2" });
   const expired = await runLiveAcceptance({ env });
   assert.deepEqual([expired.result, expired.stages[0].code], ["BLOCKED", "SWIGGY_REAUTH_REQUIRED"]);
+});
+
+test("dishes without usable prices can never PASS", async t => {
+  const fake = await withConnection(t);
+  for (const item of fake.state.catalog.restaurants["rest-1"].items) delete item.price;
+  const result = await runLiveAcceptance({ env });
+  assert.equal(result.result, "FAIL");
+  const search = result.stages.find(stage => stage.stage === "food-search");
+  assert.deepEqual([search.status, search.outcome, search.code], ["FAIL", "unusable", "NO_USABLE_DISHES"]);
+  assert.deepEqual([search.summary.rows > 0, search.summary.usable], [true, 0]);
+  assert.equal(result.stages.find(stage => stage.stage === "menu-detail").status, "BLOCKED");
+});
+
+test("addresses are read across pages like the app, whichever address is used", async t => {
+  const fake = await withConnection(t, { selectedAddressId: "addr-page-2" });
+  fake.fault("get_addresses", ({ args }) => (args.page ?? 1) === 1
+    ? { data: { addresses: [{ id: "addr-1", addressLine: "Line 1" }], pagination: { page: 1, hasMore: true } } }
+    : { data: { addresses: [{ id: "addr-page-2", addressLine: "Line 2" }], pagination: { page: 2, hasMore: false } } });
+  const result = await runLiveAcceptance({ env });
+  assert.deepEqual(result.stages[1].summary, { count: 2, source: "app-selected", appSelectionFound: true, displayPresent: true });
+  assert.ok(fake.calls("search_menu").every(call => call.args.addressId === "addr-page-2"));
+});
+
+test("before live mode, a demo address in the app falls back to the account's first saved address", async t => {
+  await withConnection(t, { selectedAddressId: "addr-home" });
+  const result = await runLiveAcceptance({ env });
+  assert.equal(result.result, "PASS", JSON.stringify(result.stages));
+  assert.deepEqual([result.stages[1].summary.source, result.stages[1].summary.appSelectionFound], ["first-saved", false]);
 });

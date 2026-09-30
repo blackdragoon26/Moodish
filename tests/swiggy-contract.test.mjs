@@ -54,6 +54,15 @@ test("Instamart keeps only in-stock SKU variations with a spin id", () => {
   assert.equal(products[0].name, "Synthetic Lime Soda · 300 ml");
 });
 
+test("a row with a malformed optional field is dropped without losing valid rows", () => {
+  const valid = { menu_item_id: "ok", name: "Valid", price: 100, restaurant_id: "r1", restaurant_name: "R" };
+  assert.deepEqual(normalizeMenuSearch({ items: [{ ...valid, menu_item_id: "bad", tags: 17 }, valid] }).map(item => item.itemId), ["ok"]);
+  assert.deepEqual(normalizeMenuSearch({ items: [{ ...valid, menu_item_id: "bad", restaurant: { id: "r2", cuisines: "Thai" } }, valid] }).map(item => item.itemId), ["ok"]);
+  assert.deepEqual(normalizeRestaurantMenu({ items: [{ id: "bad", price: 5, tags: { a: 1 } }, { id: "ok", price: 5 }] }, { restaurantId: "r" }).items.map(item => item.itemId), ["ok"]);
+  assert.deepEqual(normalizeProducts({ products: [{ productId: "bad", price: 5, tags: "x" }, { productId: "bad2", variations: "x" }, { productId: "ok", price: 5 }] }).map(product => product.productId), ["ok"]);
+  assert.throws(() => normalizeMenuSearch({ items: [{ ...valid, tags: 17 }] }), { code: "SWIGGY_MALFORMED_RESPONSE" }, "all rows malformed is an explicit error");
+});
+
 test("unrecognized or entirely malformed payloads are errors, not empty results", () => {
   for (const [normalize, data] of [
     [normalizeAddresses, { unexpected: [] }],

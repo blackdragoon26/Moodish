@@ -136,12 +136,19 @@ known limitations: live Swiggy MCP remains gated by Swiggy approval; real checko
 1. Deploy the candidate with `SWIGGY_MODE=fixture` and `SWIGGY_OAUTH_ENABLED=false`.
    Check `/health` and `/health/ready`.
 2. Set `SWIGGY_OAUTH_ENABLED=true` (still fixture). Connect the intended test
-   account through the production callback and select an address.
+   account through the production callback. Do not choose an address yet: in
+   fixture mode the app lists demo addresses only.
 3. Run the read-only live acceptance harness against that account
-   ([live-swiggy.md](live-swiggy.md#live-acceptance-harness)). Every stage must PASS.
-4. Set `SWIGGY_MODE=live`. Repeat personal and group reviews on web and both
-   native apps. Run the single approved real Food cart test. Record evidence in
-   [live-acceptance-report.md](live-acceptance-report.md).
+   ([live-swiggy.md](live-swiggy.md#live-acceptance-harness)). It reads the real
+   account through the live adapter and uses `MOODISH_ACCEPTANCE_ADDRESS_ID` if
+   set, otherwise the first saved address. Every stage must PASS.
+4. Set `SWIGGY_MODE=live`. Choose the real delivery address in the app (a demo
+   address chosen earlier is reported as no longer available). Repeat personal
+   and group reviews on web and both native apps. Run the single approved real
+   Food cart test. Record evidence in [live-acceptance-report.md](live-acceptance-report.md).
+
+`tests/rollout-sequence.test.mjs` exercises steps 2 to 4 against the simulated
+Swiggy boundary.
 5. Watch `/health/ready` and the `[Moodish] ... failed:` log lines. To stop live
    use quickly, set `SWIGGY_MODE=fixture` and apply; no data migration is needed.
 

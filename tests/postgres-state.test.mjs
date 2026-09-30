@@ -171,3 +171,21 @@ test('a native exchange code is redeemed once even when app processes race', { s
   assert.equal(results.filter(r => r.ok).length, 1);
   assert.equal((await json(`console.log(JSON.stringify(await getSwiggyConnectionStatus('${userId}')));`)).connected, true);
 });
+
+test('app processes starting together on an empty database create the schema once without errors', { skip }, async () => {
+  const pg = (await import('pg')).default;
+  const admin = new pg.Client({ connectionString: database });
+  await admin.connect();
+  const name = `moodish_fresh_${crypto.randomUUID().replaceAll('-', '')}`;
+  await admin.query(`CREATE DATABASE ${name}`);
+  const fresh = new URL(database);
+  fresh.pathname = `/${name}`;
+  try {
+    const start = `await saveSecretSession('fresh:' + process.pid, { ok: true }); console.log(JSON.stringify({ ok: true }));`;
+    const results = await Promise.allSettled(Array.from({ length: 8 }, () => json(start, { DATABASE_URL: fresh.toString() })));
+    assert.deepEqual(results.map(result => result.status === 'fulfilled' ? 'ok' : String(result.reason?.stderr || result.reason).split('\n').find(line => /error/i.test(line)) || 'failed'), Array(8).fill('ok'));
+  } finally {
+    await admin.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+    await admin.end();
+  }
+});

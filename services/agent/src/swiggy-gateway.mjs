@@ -351,6 +351,13 @@ export function createSwiggyGateway({ userId } = {}) {
   return fixtureGateway();
 }
 
+// The live acceptance harness uses the app's own normalization, pagination and
+// filtering. `observe` sees each raw tool result (for value-free shape capture)
+// and the gateway refuses every write.
+export function createReadOnlyLiveGateway({ userId, observe } = {}) {
+  return liveGateway(userId, { readOnly: true, observe });
+}
+
 function fixtureGateway() {
   return {
     mode: "fixture",
@@ -477,8 +484,14 @@ export function expandIntentTokens(value = "") {
   return [...new Set([...baseTokens, ...phraseTokens, ...expanded].filter((token) => token.length > 1))];
 }
 
-function liveGateway(userId) {
-  const callTool = createLiveCaller(userId);
+function liveGateway(userId, { readOnly = false, observe } = {}) {
+  const liveCall = createLiveCaller(userId);
+  const callTool = async (server, name, args) => {
+    if (readOnly && name === "update_food_cart") throw upstreamError("This gateway is read-only", 403, "READ_ONLY");
+    const data = await liveCall(server, name, args);
+    observe?.(name, data);
+    return data;
+  };
   const warnings = [];
   const menus = new Map();
   const menuFor = async args => {
@@ -566,13 +579,13 @@ function normalizeRestaurants(data) {
     ...restaurant,
     id: validId(restaurant.id ?? restaurant.restaurantId),
     name: restaurant.name || restaurant.restaurantName,
-    cuisine: Array.isArray(restaurant.cuisines) ? restaurant.cuisines.join(", ") : restaurant.cuisine || "Mixed",
+    cuisine: optionalList(restaurant.cuisines, "cuisines").join(", ") || restaurant.cuisine || "Mixed",
     rating: Number(restaurant.rating || restaurant.avgRating || 0),
     distanceKm: Number(restaurant.distanceKm || restaurant.distance || 0),
     priceBand: Number(restaurant.priceBand || restaurant.costForTwo / 2 || 0),
     availabilityStatus: restaurant.availabilityStatus || (restaurant.isOpen === true ? "OPEN" : "UNKNOWN"),
-    tags: [...new Set([...(restaurant.tags || []), ...(restaurant.cuisines || [])].map(String))],
-    items: restaurant.items || []
+    tags: [...new Set([...optionalList(restaurant.tags, "tags"), ...optionalList(restaurant.cuisines, "cuisines")].map(String))],
+    items: optionalList(restaurant.items, "items")
   }), "restaurants");
 }
 
@@ -610,19 +623,27 @@ export function normalizeRestaurantMenu(data, args) {
 export function normalizeProducts(data) {
   return keepValid(recordsFrom(data, ["products", "items", "results"], "Instamart products"), product => {
     if (product.inStock === false || product.isAvail === false) return [];
-    if (Array.isArray(product.variations)) return product.variations
+    const tags = optionalList(product.tags, "tags").map(String);
+    if (product.variations !== undefined && product.variations !== null) return optionalList(product.variations, "variations")
       .filter(v => v?.isInStockAndAvailable === true && Number.isFinite(v.price?.offerPrice) && v.spinId != null && String(v.spinId) !== "")
       .map(v => ({ ...v, productId: validId(v.spinId), parentProductId: product.productId,
-        name: `${v.displayName || product.displayName} · ${v.quantityDescription}`, price: v.price.offerPrice,
-        tags: (product.tags || []).map(String) }));
+        name: `${v.displayName || product.displayName} · ${v.quantityDescription}`, price: v.price.offerPrice, tags }));
     const price = Number(product.price ?? product.finalPrice ?? NaN);
     return Number.isFinite(price) ? [{ ...product, productId: validId(product.productId ?? product.id ?? product.spinId),
-      name: product.name || product.displayName || product.productName, price, tags: (product.tags || []).map(String) }] : [];
+      name: product.name || product.displayName || product.productName, price, tags }] : [];
   }, "Instamart products").flat();
 }
 
+// Optional list fields may be absent, but a present non-list makes the record
+// malformed rather than crashing the whole result.
+function optionalList(value, field) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw malformed(`Swiggy returned a record with an invalid ${field} field`);
+  return value;
+}
+
 function normalizeItemTags(item) {
-  const tags = [...(item.tags || [])].map((tag) => String(tag).toLowerCase());
+  const tags = optionalList(item.tags, "tags").map((tag) => String(tag).toLowerCase());
   if (item.isVeg === true || item.veg === true || item.is_veg === true || item.is_veg === 1 || item.is_veg === "1") tags.push("veg");
   if (item.isVeg === false || item.veg === false || item.is_veg === false || item.is_veg === 0 || item.is_veg === "0") tags.push("non-veg");
   return [...new Set(tags)];

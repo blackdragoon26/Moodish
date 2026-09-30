@@ -345,8 +345,15 @@ export async function getAuditLogs() {
 
 async function ensureSchema() {
   if (!pool) return;
-  if (!schemaReady) {
-    schemaReady = queryDatabase(`
+  // Separate processes starting on an empty database would otherwise race on
+  // CREATE TABLE IF NOT EXISTS (duplicate pg_type rows), so creation runs in one
+  // transaction under a database-wide advisory lock. A failure is retried later.
+  schemaReady ||= (async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended('moodish:schema', 0))");
+      await client.query(`
       CREATE TABLE IF NOT EXISTS moodish_profiles (
         user_id_hash TEXT PRIMARY KEY,
         data JSONB NOT NULL,
@@ -394,7 +401,15 @@ async function ensureSchema() {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `);
-  }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      schemaReady = undefined;
+      throw error;
+    } finally {
+      client.release();
+    }
+  })();
   await schemaReady;
 }
 

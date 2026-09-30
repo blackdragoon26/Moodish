@@ -24,8 +24,8 @@ production secret or Swiggy credential was used.
 
 | Suite | Command | Result |
 | --- | --- | --- |
-| Backend, in-memory storage plus cross-process PostgreSQL | `MOODISH_TEST_DATABASE_URL=<disposable> npm test` | 124 tests: 123 pass, 1 skipped (the CI-only "database present" guard) |
-| Backend on PostgreSQL | `npm run test:postgres` | 124 tests: 122 pass, 2 skipped (the CI-only guard; the no-database refusal test) |
+| Backend, in-memory storage plus cross-process PostgreSQL | `MOODISH_TEST_DATABASE_URL=<disposable> npm test` | 130 tests: 129 pass, 1 skipped (the CI-only "database present" guard) |
+| Backend on PostgreSQL | `npm run test:postgres` | 130 tests: 128 pass, 2 skipped (the CI-only guard; the no-database refusal test), including a run against a brand-new database |
 | Missing database in CI | `CI=true npm test` without the variable | Fails (8 tests), by design |
 | Smoke | `npm run smoke` | OK, `checkoutBlocked: true` |
 | Browser journeys | `npm run test:e2e` | 10 of 10 pass (narrow screens at 375 and 320 px with wide fallback fonts) |
@@ -103,6 +103,7 @@ Test files are under `tests/` unless noted. "e2e" means `tests/e2e/journeys.spec
 | Connection survives restart; a reconnect invalidates older reviews | PASS | postgres-state; container restart |
 | An attempt interrupted mid-write stays blocked after restart | PASS | postgres-state |
 | A failing locked operation releases its lock and pool connection | PASS | postgres-state |
+| Processes starting together on an empty database create the schema without errors | PASS | postgres-state (failed 3 of 3 runs before the fix) |
 
 ### Cart invariants
 
@@ -123,7 +124,7 @@ Test files are under `tests/` unless noted. "e2e" means `tests/e2e/journeys.spec
 | Case | Status | Evidence |
 | --- | --- | --- |
 | Documented shapes for addresses, menu search, menu, cart, empty cart, Instamart | PASS | swiggy-contract, `tests/fixtures/swiggy-documented-shapes.json` (synthetic, written from the docs) |
-| Malformed rows skipped; all-malformed or unknown shapes are errors | PASS | swiggy-contract |
+| Malformed rows skipped, including rows with malformed optional fields; all-malformed or unknown shapes are errors | PASS | swiggy-contract |
 | Distinct failure codes; only transient reads retried; cart writes never retried | PASS | swiggy-contract; cart-invariants |
 | Missing tool or schema drift reported before any call | PASS | swiggy-contract |
 | Instamart failure leaves Food usable; no fixture data in live results | PASS | swiggy-contract |
@@ -136,6 +137,8 @@ Test files are under `tests/` unless noted. "e2e" means `tests/e2e/journeys.spec
 | Opt-in only; missing configuration is BLOCKED | PASS | live-acceptance-harness |
 | Each stage reports its own outcome | PASS | live-acceptance-harness |
 | No cart write, token, id, name, address or phone in the output | PASS | live-acceptance-harness |
+| Uses the app's gateway: address pagination, usable-dish filtering, writes refused | PASS | live-acceptance-harness: page-two address; unpriced dishes FAIL as `unusable` |
+| Works in the OAuth-only rollout phase (no real address chosen in the app) | PASS | `rollout-sequence.test.mjs` |
 | Live run: connection, addresses, search, menu, cart, Instamart | BLOCKED | Needs the owner's connected account |
 
 ### User journeys
@@ -220,6 +223,11 @@ Baseline defects D1–D9 are described in [post-merge-baseline.md](post-merge-ba
 | F2 | Medium | Discord requests had no timestamp freshness check; docs overstated platform test coverage | 5-minute window; real rejection, replay and handoff tests |
 | F3 | Low | Docs said a reconnect keeps the chosen address; it does not | Docs corrected; behaviour kept as the safer one and tested |
 | F4 | Medium | The deploy gate skipped the browser journeys | Deploy runs `test:e2e`; native checks stay in test.yml |
+| R1 | Medium | The live harness could PASS with dishes the app cannot use (no prices), because it bypassed the app's gateway. Found in the PR #2 review. | Harness uses the app's read-only gateway and requires usable results |
+| R2 | Medium | The harness read one address page, so an address on page two was reported missing | Same paginated reader as the app |
+| R3 | Medium | The staged rollout asked for a real address while fixture mode served demo addresses | Harness needs no app-selected address; rollout steps corrected and tested |
+| R4 | Medium | A malformed optional field (for example `tags: 17`) crashed a whole result with a TypeError | Optional lists validated; the row is dropped as malformed |
+| R5 | Medium (pre-existing) | Processes starting on an empty database raced on schema creation (duplicate `pg_type` rows); a failed attempt was also cached forever | Schema created in one transaction under an advisory lock; failures retried |
 
 ## Limitations and residual risks
 

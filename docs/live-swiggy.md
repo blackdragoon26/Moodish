@@ -112,8 +112,14 @@ MOODISH_ACCEPTANCE_USER_ID=<moodish user id> npm run acceptance:live -- --out re
 ```
 
 Stages: connection, addresses, food-search, menu-detail, current-cart, instamart.
-Each is PASS, FAIL or BLOCKED with an outcome (success, expired, denied,
-unavailable, malformed, timeout, tool-error, blocked). The report contains
+The harness uses the app's own live gateway (the same address pagination,
+normalization and usable-dish filtering) with writes refused. Each stage is
+PASS, FAIL or BLOCKED with an outcome (success, expired, denied, unavailable,
+malformed, timeout, tool-error, unusable, blocked). Search and menu pass only
+with at least one priced, in-stock item; rows the app cannot use are FAIL
+(`unusable`), and no matches for the query are BLOCKED. The address is
+`MOODISH_ACCEPTANCE_ADDRESS_ID` if set, else the address chosen in the app if
+the account still has it, else the first saved address. The report contains
 counts, flags and codes only, plus a short account fingerprint; it never prints
 tokens, ids, names or addresses. It never calls `update_food_cart`. Exit codes:
 0 PASS, 2 BLOCKED, 1 FAIL. `--capture-shapes <dir>` writes value-free payload
