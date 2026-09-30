@@ -226,7 +226,7 @@ test("selected Instamart pairings are carried into a separate cart preview", asy
 
 test("confirmed personal carts become user-scoped meal context", async () => {
   const tools = createTools();
-  const userIdHash = "memory-test-user";
+  const userIdHash = `memory-test-user-${Date.now()}-${Math.random()}`;
   const run = await tools.plan_personal_meal({
     userIdHash,
     mood: "rainy spicy biryani",

@@ -31,9 +31,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Default in-memory storage, with the cross-process PostgreSQL tests.
       - run: npm test
+      # The whole suite again with PostgreSQL as the app's storage.
+      - run: npm run test:postgres
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
 
-  flutter-analyze:
+  flutter:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -45,3 +56,19 @@ jobs:
           channel: stable
       - run: flutter pub get
       - run: flutter analyze
+      - run: flutter test
+
+  ios:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/ios/Moodish
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests on an available iPhone simulator
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
+          # Ad-hoc signing gives the simulator test host Keychain access.
+          xcodebuild test -project Moodish.xcodeproj -scheme Moodish \
+            -destination "id=${device}" CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO
