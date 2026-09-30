@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'models/auth_models.dart';
+import 'session_store.dart';
 import 'models/group_models.dart';
 import 'models/recommendation_models.dart';
 
@@ -48,11 +49,12 @@ class ApiClient {
     await _persistCookie();
   }
 
-  /// `/api/auth/google/start` redirects the browser straight to Google;
-  /// `client=mobile` tells the backend to complete the flow by redirecting
-  /// to `moodish://auth-callback?token=...` instead of a web cookie+redirect.
-  Uri get googleMobileAuthorizeUrl => Uri.parse('$baseUrl/api/auth/google/start').replace(
-        queryParameters: {'client': 'mobile'},
+  /// `/api/auth/google/start` redirects straight to Google. With
+  /// `client=mobile` and a PKCE challenge, the backend finishes at
+  /// `moodish://auth-callback?code=...`, a one-minute code the app redeems
+  /// with its verifier; no session token ever travels in a URL.
+  Uri googleMobileAuthorizeUrl(String challenge) => Uri.parse('$baseUrl/api/auth/google/start').replace(
+        queryParameters: {'client': 'mobile', 'challenge': challenge},
       );
 
   Future<void> _persistCookie() async {
@@ -214,20 +216,29 @@ class ApiClient {
     String? invitePasscode,
     String? bearerToken,
   }) =>
-      _send(
-        '/api/group-sessions/$sessionId/preferences',
-        method: 'POST',
-        body: {
-          'participantId': participantId,
-          'dietMode': dietMode,
-          'mood': mood,
-          if (dietaryRules != null) 'dietaryRules': dietaryRules,
-          if (allergies != null) 'allergies': allergies,
-          if (invitePasscode != null) 'invitePasscode': invitePasscode,
-        },
-        bearerToken: bearerToken,
-        parse: (j) => GroupSession.fromJson(j as Map<String, dynamic>),
-      );
+      _participantCall('/api/group-sessions/$sessionId/preferences', sessionId, participantId, {
+        'participantId': participantId,
+        'dietMode': dietMode,
+        'mood': mood,
+        if (dietaryRules != null) 'dietaryRules': dietaryRules,
+        if (allergies != null) 'allergies': allergies,
+        if (invitePasscode != null) 'invitePasscode': invitePasscode,
+      }, bearerToken);
+
+  /// Sends the participant's private token, if this device has one, and keeps
+  /// the token the server issues on a name's first answer or vote.
+  Future<GroupSession> _participantCall(String path, String sessionId, String participantId, Map<String, dynamic> body, String? bearerToken) async {
+    final store = SessionStore();
+    final token = await store.participantToken(sessionId, participantId);
+    String? issued;
+    final session = await _send(path, method: 'POST', body: {...body, if (token != null) 'participantToken': token}, bearerToken: bearerToken, parse: (j) {
+      final json = j as Map<String, dynamic>;
+      issued = json['participantToken'] as String?;
+      return GroupSession.fromJson(json);
+    });
+    if (issued != null) await store.setParticipantToken(sessionId, participantId, issued!);
+    return session;
+  }
 
   Future<GroupSession> rankGroupSession({required String sessionId, required String bearerToken}) => _send(
         '/api/group-sessions/$sessionId/rank',
@@ -243,17 +254,11 @@ class ApiClient {
     String? invitePasscode,
     String? bearerToken,
   }) =>
-      _send(
-        '/api/group-sessions/$sessionId/vote',
-        method: 'POST',
-        body: {
-          'participantId': participantId,
-          'optionId': optionId,
-          if (invitePasscode != null) 'invitePasscode': invitePasscode,
-        },
-        bearerToken: bearerToken,
-        parse: (j) => GroupSession.fromJson(j as Map<String, dynamic>),
-      );
+      _participantCall('/api/group-sessions/$sessionId/vote', sessionId, participantId, {
+        'participantId': participantId,
+        'optionId': optionId,
+        if (invitePasscode != null) 'invitePasscode': invitePasscode,
+      }, bearerToken);
 
   Future<GroupSession> selectGroupOption({required String sessionId, required String optionId, required String bearerToken}) =>
       _send(

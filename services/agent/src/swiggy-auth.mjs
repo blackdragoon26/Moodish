@@ -1,19 +1,15 @@
 import crypto from "node:crypto";
 import { getSecretSession, saveSecretSession, takeSecretSession, deleteSecretSession, patchSecretSessionIfVersion, requireDurableLiveStorage } from "./memory.mjs";
+import { LOGIN_ERRORS, claimFlow, hashValue as hash, loginFailure, newFlowSecrets, peekFlow, saveFlow } from "./login-flows.mjs";
 
-const hash = value => crypto.createHash("sha256").update(String(value)).digest("base64url");
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
-// `oauthError` is a short, non-secret reason the callback can hand back to the
-// web app or the native app; `flowKind` says which of the two started the flow.
-const oauthFailure = (message, oauthError, flowKind, status = 400) => Object.assign(fail(message, status), { oauthError, flowKind });
 
 export async function startSwiggyOAuth({ redirectUri, user, browserBinding, mobileChallenge, groupSessionId } = {}) {
   requireDurableLiveStorage();
   if (!user?.id || (!browserBinding && !mobileChallenge)) throw fail("A bound login flow is required");
   if (mobileChallenge && !/^[A-Za-z0-9_-]{43}$/.test(mobileChallenge)) throw fail("Invalid mobile PKCE challenge");
   const callback = redirectUri || `${process.env.MOODISH_PUBLIC_URL || "http://localhost:8787"}/api/auth/swiggy/callback`;
-  const verifier = crypto.randomBytes(32).toString("base64url");
-  const state = crypto.randomBytes(32).toString("base64url");
+  const { state, verifier, challenge } = newFlowSecrets({ stateBytes: 32 });
   const client = await authRequest("register", {
     client_name: "Moodish", redirect_uris: [callback], grant_types: ["authorization_code"],
     response_types: ["code"], token_endpoint_auth_method: "none"
@@ -22,42 +18,47 @@ export async function startSwiggyOAuth({ redirectUri, user, browserBinding, mobi
   const flow = { user, redirectUri: callback, verifier, clientId: client.client_id,
     binding: browserBinding ? hash(browserBinding) : null, mobileChallenge, groupSessionId,
     expiresAt: Date.now() + 600000 };
-  await saveSecretSession(`swiggy-flow:${hash(state)}`, { encrypted: encryptToken(JSON.stringify(flow)) });
+  await saveFlow("swiggy", state, { encrypted: encryptToken(JSON.stringify(flow)), expiresAt: flow.expiresAt });
   const authorize = new URL("https://mcp.swiggy.com/auth/authorize");
   authorize.search = new URLSearchParams({ response_type: "code", client_id: client.client_id,
-    redirect_uri: callback, code_challenge: hash(verifier), code_challenge_method: "S256", state, scope: "mcp:tools" }).toString();
+    redirect_uri: callback, code_challenge: challenge, code_challenge_method: "S256", state, scope: "mcp:tools" }).toString();
   return { authorizationUrl: authorize.toString(), expiresIn: 600 };
 }
 
 export async function completeSwiggyOAuth({ code, state, browserBinding, denied } = {}) {
-  const key = `swiggy-flow:${hash(state || "")}`;
-  const record = state ? await getSecretSession(key) : null;
-  if (!record) throw oauthFailure("Invalid or expired Swiggy OAuth state", "expired");
+  const record = await peekFlow("swiggy", state);
+  if (!record) throw loginFailure("Invalid or expired Swiggy OAuth state", LOGIN_ERRORS.EXPIRED);
   const pending = JSON.parse(decryptToken(record.encrypted));
   const flowKind = pending.mobileChallenge ? "mobile" : "browser";
-  if (pending.binding && pending.binding !== hash(browserBinding || "")) throw oauthFailure("Login browser does not match this OAuth flow", "browser_mismatch", flowKind, 403);
-  const claimed = await takeSecretSession(key);
-  if (!claimed || pending.expiresAt <= Date.now()) throw oauthFailure("Invalid or expired Swiggy OAuth state", "expired", flowKind);
-  if (denied || !code) throw oauthFailure("Swiggy connection was declined. You can try connecting again.", "declined", flowKind);
+  if (pending.binding && pending.binding !== hash(browserBinding || "")) throw loginFailure("Login browser does not match this OAuth flow", LOGIN_ERRORS.BROWSER_MISMATCH, flowKind, 403);
+  const claimed = await claimFlow("swiggy", state);
+  if (!claimed || pending.expiresAt <= Date.now()) throw loginFailure("Invalid or expired Swiggy OAuth state", LOGIN_ERRORS.EXPIRED, flowKind);
+  if (denied || !code) throw loginFailure("Swiggy connection was declined. You can try connecting again.", LOGIN_ERRORS.DECLINED, flowKind);
   let token;
   try {
     token = await authRequest("token", { grant_type: "authorization_code", code,
       code_verifier: pending.verifier, redirect_uri: pending.redirectUri, client_id: pending.clientId });
-  } catch (error) { throw Object.assign(error, { oauthError: "exchange_failed", flowKind }); }
-  if (!token.access_token || !Number.isFinite(Number(token.expires_in))) throw oauthFailure("Swiggy returned an invalid token response", "exchange_failed", flowKind, 502);
+  } catch (error) { throw Object.assign(error, { loginError: LOGIN_ERRORS.EXCHANGE_FAILED, flowKind }); }
+  if (!token.access_token || !Number.isFinite(Number(token.expires_in))) throw loginFailure("Swiggy returned an invalid token response", LOGIN_ERRORS.EXCHANGE_FAILED, flowKind, 502);
   const credential = { accessToken: encryptToken(token.access_token), expiresAt: Date.now() + Number(token.expires_in) * 1000,
     scope: token.scope, version: crypto.randomUUID() };
   if (pending.mobileChallenge) {
     // Whoever approves consent in a browser is not necessarily the device that
     // started the flow. The credential waits in the single-use exchange record
     // and is attached only when the starting app proves its PKCE verifier.
-    const exchangeCode = crypto.randomBytes(32).toString("base64url");
-    await saveSecretSession(`mobile:${hash(exchangeCode)}`, { user: pending.user,
-      challenge: pending.mobileChallenge, expiresAt: Date.now() + 60000, credential });
+    const exchangeCode = await issueMobileExchange({ user: pending.user, challenge: pending.mobileChallenge, credential });
     return { connected: false, user: pending.user, exchangeCode, groupSessionId: pending.groupSessionId };
   }
   await saveSecretSession(`swiggy:${pending.user.id}`, credential);
   return { connected: true, user: pending.user, groupSessionId: pending.groupSessionId };
+}
+
+// A one-minute, single-use code the app redeems with its PKCE verifier. Used by
+// both Swiggy and Google native sign-in so no session token travels in a URL.
+export async function issueMobileExchange({ user, challenge, credential }) {
+  const exchangeCode = crypto.randomBytes(32).toString("base64url");
+  await saveSecretSession(`mobile:${hash(exchangeCode)}`, { user, challenge, expiresAt: Date.now() + 60000, ...(credential ? { credential } : {}) });
+  return exchangeCode;
 }
 
 export async function exchangeMobileCode({ code, verifier } = {}) {

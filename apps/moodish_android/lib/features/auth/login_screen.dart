@@ -144,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       final state = context.read<AppState>();
-      final token = await _googleAuthSession.signIn(state.api.googleMobileAuthorizeUrl);
+      final token = await _googleAuthSession.signInWithGoogle(state.api);
       await state.loginWithGoogleToken(token);
     } on GoogleAuthException catch (error) {
       setState(() => _errorMessage = error.message);

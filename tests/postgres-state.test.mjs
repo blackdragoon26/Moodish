@@ -189,3 +189,83 @@ test('app processes starting together on an empty database create the schema onc
     await admin.end();
   }
 });
+
+test('a Google login started on one app process finishes on another, once', { skip }, async () => {
+  const google = `globalThis.fetch = async url => new Response(JSON.stringify(String(url).includes('/token') ? { access_token: 'g' } : { sub: 'pg-google', name: 'PG' }));
+    process.env.GOOGLE_CLIENT_ID = 'c'; process.env.GOOGLE_CLIENT_SECRET = 's';
+    const auth = await import(${src('auth.mjs')});`;
+  const started = await json(`${google}
+    const url = await auth.startGoogleOAuth('https://moodish.example', { browserBinding: 'browser-1' });
+    console.log(JSON.stringify({ state: new URL(url).searchParams.get('state') }));`);
+  const finish = `${google}
+    let ok = false; try { ok = (await auth.completeGoogleOAuth({ code: 'c', state: ${JSON.stringify(started.state)}, browserBinding: 'browser-1' })).user.id === 'google:pg-google'; } catch {}
+    console.log(JSON.stringify({ ok }));`;
+  const results = await Promise.all([json(finish), json(finish)]);
+  assert.equal(results.filter(result => result.ok).length, 1);
+});
+
+test('expired flow records older than a day are pruned from PostgreSQL', { skip }, async () => {
+  const key = `mobile:prune-${crypto.randomUUID()}`;
+  const cart = `cart-prepare:prune-${crypto.randomUUID()}`;
+  await run(`await saveSecretSession('${key}', { expiresAt: 0 }); await saveSecretSession('${cart}', { state: 'uncertain' });`);
+  const pg = (await import('pg')).default;
+  const client = new pg.Client({ connectionString: database });
+  await client.connect();
+  await client.query("UPDATE moodish_secret_sessions SET updated_at = NOW() - INTERVAL '2 days' WHERE session_key = ANY($1)", [[key, cart]]);
+  await client.end();
+  await run(`const { pruneExpiredFlows } = await import(${src('memory.mjs')}); await pruneExpiredFlows();`);
+  assert.equal(await run(`console.log(Boolean(await getSecretSession('${key}')))`), 'false');
+  assert.equal(await run(`console.log(Boolean(await getSecretSession('${cart}')))`), 'true', 'cart attempt markers are never pruned');
+});
+
+test('with PostgreSQL, login flows and other secret records are not also kept in process memory', { skip }, async () => {
+  const count = await run(`
+    const { localSecretSessionCount, saveSecretSession: save, takeSecretSession: take } = await import(${src('memory.mjs')});
+    for (let i = 0; i < 200; i++) await save('google-flow:leak-' + i + '-' + process.pid, { expiresAt: Date.now() + 600000 });
+    await save('swiggy:leak-' + process.pid, { version: 'v1' });
+    for (let i = 0; i < 200; i++) await take('google-flow:leak-' + i + '-' + process.pid);
+    await take('swiggy:leak-' + process.pid);
+    console.log(localSecretSessionCount());`);
+  assert.equal(count, '0');
+});
+
+test('a busy account lock answers with a retry message instead of waiting forever', { skip }, async () => {
+  const key = JSON.stringify(`integration:${crypto.randomUUID()}:busy`);
+  const holder = run(`await withAccountLock(${key}, () => new Promise(resolve => setTimeout(resolve, 3000)));`);
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const started = Date.now();
+  const waiter = await json(`
+    let status = 200, message = '';
+    try { await withAccountLock(${key}, async () => {}); } catch (error) { status = error.status; message = error.message; }
+    console.log(JSON.stringify({ status, message }));`, { MOODISH_LOCK_WAIT_MS: '400' });
+  assert.equal(waiter.status, 409);
+  assert.match(waiter.message, /still in progress/);
+  assert.ok(Date.now() - started < 2500, 'the waiter gave up before the holder finished');
+  await holder;
+});
+
+test('slow account locks leave database connections free for other requests', { skip }, async () => {
+  // More slow locks than the default pool of 10: without the cap they would hold
+  // every connection and ordinary queries would queue behind them.
+  const result = await json(`
+    const locks = Array.from({ length: 12 }, (_, i) => withAccountLock('integration:slow:' + i + ':' + process.pid, () => new Promise(resolve => setTimeout(resolve, 1500))).catch(() => {}));
+    await new Promise(resolve => setTimeout(resolve, 150));
+    const started = Date.now();
+    await getSecretSession('integration:unrelated');
+    const unrelatedMs = Date.now() - started;
+    await Promise.all(locks);
+    console.log(JSON.stringify({ unrelatedMs }));`, { MOODISH_LOCK_WAIT_MS: '5000' });
+  assert.ok(result.unrelatedMs < 1000, `an unrelated query waited ${result.unrelatedMs}ms`);
+});
+
+test('waiting for a free lock slot is bounded too', { skip }, async () => {
+  const result = await json(`
+    const first = withAccountLock('integration:slot:a:' + process.pid, () => new Promise(resolve => setTimeout(resolve, 1500)));
+    await new Promise(resolve => setTimeout(resolve, 100));
+    let status = 200;
+    try { await withAccountLock('integration:slot:b:' + process.pid, async () => {}); } catch (error) { status = error.status; }
+    await first;
+    const afterwards = await withAccountLock('integration:slot:c:' + process.pid, async () => 'ok');
+    console.log(JSON.stringify({ status, afterwards }));`, { DATABASE_POOL_MAX: '3', MOODISH_LOCK_WAIT_MS: '300' });
+  assert.deepEqual(result, { status: 503, afterwards: 'ok' });
+});

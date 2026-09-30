@@ -68,19 +68,19 @@ test("platform creator handoff grants a manager token only to the session's mana
   };
   t.after(() => { globalThis.fetch = original; });
   const session = await createTools().create_group_meal_session({ platform: "slack", creatorId: "U-creator", coManagerIds: ["U-co"] });
-  const flow = () => startPlatformOAuth("slack", { sessionId: session.sessionId, redirectUri: "https://moodish.example/cb" }).state;
+  const flow = async () => (await startPlatformOAuth("slack", { sessionId: session.sessionId, redirectUri: "https://moodish.example/cb" })).state;
 
-  const state = flow();
+  const state = await flow();
   const granted = await completePlatformOAuth("slack", { code: "c", state });
   assert.equal(verifyGroupAccessToken(granted.accessToken, session.sessionId).actorId, "U-creator");
   await assert.rejects(completePlatformOAuth("slack", { code: "c", state }), { status: 400 }, "state is single use");
 
   slackUser = "U-co";
-  assert.equal((await completePlatformOAuth("slack", { code: "c", state: flow() })).actorId, "U-co");
+  assert.equal((await completePlatformOAuth("slack", { code: "c", state: await flow() })).actorId, "U-co");
   slackUser = "U-stranger";
-  await assert.rejects(completePlatformOAuth("slack", { code: "c", state: flow() }), { status: 403 });
+  await assert.rejects(completePlatformOAuth("slack", { code: "c", state: await flow() }), { status: 403 });
   // The same user id on another platform is a different identity.
-  const discordState = startPlatformOAuth("discord", { sessionId: session.sessionId, redirectUri: "https://moodish.example/cb" }).state;
+  const discordState = (await startPlatformOAuth("discord", { sessionId: session.sessionId, redirectUri: "https://moodish.example/cb" })).state;
   await assert.rejects(completePlatformOAuth("discord", { code: "c", state: discordState }), { status: 403 });
-  await assert.rejects(completePlatformOAuth("discord", { code: "c", state: flow() }), { status: 400 }, "a Slack state cannot finish a Discord flow");
+  await assert.rejects(completePlatformOAuth("discord", { code: "c", state: await flow() }), { status: 400 }, "a Slack state cannot finish a Discord flow");
 });

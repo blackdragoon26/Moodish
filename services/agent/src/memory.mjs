@@ -5,9 +5,32 @@ import { loadLocalEnv } from "./env.mjs";
 
 const { Pool } = pg;
 loadLocalEnv();
+const POOL_MAX = Math.max(3, Number(process.env.DATABASE_POOL_MAX) || 10);
 const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: databaseSsl(process.env.DATABASE_URL) })
+  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: databaseSsl(process.env.DATABASE_URL), max: POOL_MAX,
+      // Fail a request that cannot get a connection instead of hanging it.
+      connectionTimeoutMillis: Number(process.env.DATABASE_CONNECT_TIMEOUT_MS) || 15_000 })
   : null;
+
+// An account lock keeps its connection while it calls Swiggy (tens of seconds
+// at worst). Cap how many run at once so two connections always stay free for
+// every other request, and bound every wait so callers get an answer.
+const LOCK_WAIT_MS = Number(process.env.MOODISH_LOCK_WAIT_MS) || 15_000;
+const lockSlots = { free: POOL_MAX - 2, waiting: [] };
+async function takeLockSlot() {
+  if (lockSlots.free > 0) { lockSlots.free -= 1; return; }
+  await new Promise((resolve, reject) => {
+    const waiter = { resolve, timer: setTimeout(() => {
+      lockSlots.waiting.splice(lockSlots.waiting.indexOf(waiter), 1);
+      reject(Object.assign(new Error("Moodish is busy with other checkouts. Try again in a moment."), { status: 503 }));
+    }, LOCK_WAIT_MS) };
+    lockSlots.waiting.push(waiter);
+  });
+}
+function releaseLockSlot() {
+  const next = lockSlots.waiting.shift();
+  if (next) { clearTimeout(next.timer); next.resolve(); } else lockSlots.free += 1;
+}
 
 // Production verifies the database certificate. A database reachable only on a
 // private network can opt out explicitly with sslmode=disable in its URL.
@@ -307,7 +330,9 @@ export async function getSecretSession(sessionKey) {
 }
 
 export async function saveSecretSession(sessionKey, data) {
-  secretSessions.set(sessionKey, data);
+  // With PostgreSQL the database is the only copy; an in-process copy would
+  // never be read and would grow with every unauthenticated login start.
+  if (!pool) secretSessions.set(sessionKey, data);
   if (pool) {
     await ensureSchema();
     await queryDatabase(
@@ -421,7 +446,6 @@ export async function takeSecretSession(key) {
   if (pool) {
     await ensureSchema();
     const result = await queryDatabase("DELETE FROM moodish_secret_sessions WHERE session_key = $1 RETURNING data", [key]);
-    secretSessions.delete(key);
     return result.rows[0]?.data;
   }
   const value = secretSessions.get(key);
@@ -429,6 +453,33 @@ export async function takeSecretSession(key) {
   return value;
 }
 export async function deleteSecretSession(key) { await takeSecretSession(key); }
+// Login flow and app exchange records expire within minutes. Remove leftovers
+// older than a day, at most once an hour per process. Cart reviews are never
+// pruned here: their attempt markers must survive.
+// For tests: records held in process memory (always 0 with PostgreSQL).
+export function localSecretSessionCount() { return secretSessions.size; }
+const FLOW_PREFIXES = ["swiggy-flow:", "google-flow:", "platform-flow:", "mobile:"];
+let lastPrune = 0;
+export async function pruneExpiredFlows(now = Date.now()) {
+  if (now - lastPrune < 3_600_000) return 0;
+  if (pool) {
+    await ensureSchema();
+    const result = await queryDatabase(
+      `DELETE FROM moodish_secret_sessions WHERE updated_at < NOW() - INTERVAL '1 day' AND (${FLOW_PREFIXES.map((_, i) => `session_key LIKE $${i + 1}`).join(" OR ")})`,
+      FLOW_PREFIXES.map(prefix => `${prefix}%`)
+    );
+    // Only a successful sweep starts the hourly wait, so a failed one is retried.
+    lastPrune = now;
+    return result.rowCount;
+  }
+  lastPrune = now;
+  let removed = 0;
+  for (const [key, value] of secretSessions) {
+    if (FLOW_PREFIXES.some(prefix => key.startsWith(prefix)) && Number(value?.expiresAt) < now - 86_400_000) { secretSessions.delete(key); removed += 1; }
+  }
+  return removed;
+}
+
 // Compare-and-set on the record's `version`, so a stale caller cannot change a
 // record that was replaced after it read it.
 export async function patchSecretSessionIfVersion(key, version, patch) {
@@ -451,15 +502,30 @@ export async function withAccountLock(key, fn) {
   if (pool) {
     await ensureSchema();
     const inherited = connectionContext.getStore();
-    const client = inherited || await pool.connect();
+    if (!inherited) await takeLockSlot();
+    let client;
     let failedUnlock = false;
+    let locked = false;
     try {
-      await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [key]);
+      client = inherited || await pool.connect();
+      // Wait for a busy account only as long as LOCK_WAIT_MS, then report it.
+      await client.query("SELECT set_config('lock_timeout', $1, false)", [`${LOCK_WAIT_MS}ms`]);
+      try { await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [key]); }
+      catch (error) {
+        if (error.code === "55P03") throw Object.assign(new Error("Another request for this account is still in progress. Try again in a moment."), { status: 409 });
+        throw error;
+      } finally { await client.query("SELECT set_config('lock_timeout', '0', false)").catch(() => { failedUnlock = true; }); }
+      locked = true;
       return await connectionContext.run(client, fn);
     } finally {
-      try { await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]); }
-      catch { failedUnlock = true; }
-      if (!inherited) client.release(failedUnlock);
+      if (locked) {
+        try { await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]); }
+        catch { failedUnlock = true; }
+      }
+      if (!inherited) {
+        client?.release(failedUnlock);
+        releaseLockSlot();
+      }
     }
   }
   const previous = locks.get(key) || Promise.resolve();

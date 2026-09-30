@@ -135,6 +135,7 @@ function formJson(form) {
   );
 }
 
+// Keys are the server's LOGIN_ERRORS codes (services/agent/src/login-flows.mjs).
 const SWIGGY_OAUTH_MESSAGES = {
   declined: "Swiggy connection was cancelled. Nothing was changed. You can connect again at any time.",
   expired: "That Swiggy sign-in link expired or was already used. Start the connection again.",
@@ -142,22 +143,32 @@ const SWIGGY_OAUTH_MESSAGES = {
   exchange_failed: "Swiggy did not complete the connection. Try connecting again.",
   failed: "The Swiggy connection did not complete. Try connecting again."
 };
-let pendingSwiggyNotice = null;
+const GOOGLE_LOGIN_MESSAGES = {
+  declined: "Google sign-in was cancelled.",
+  expired: "That Google sign-in link expired or was already used. Try again.",
+  browser_mismatch: "Finish Google sign-in in the same browser where you started it.",
+  exchange_failed: "Google did not complete the sign-in. Try again.",
+  failed: "Google sign-in did not complete. Try again."
+};
+let pendingAuthNotice = null;
 
-function readSwiggyOAuthResult() {
+function readAuthResult() {
   const params = new URLSearchParams(window.location.search);
   const reason = params.get("swiggy_error");
+  const loginError = params.get("login_error");
   const connected = params.get("login") === "swiggy";
-  if (!reason && !connected) return;
-  pendingSwiggyNotice = reason ? SWIGGY_OAUTH_MESSAGES[reason] || SWIGGY_OAUTH_MESSAGES.failed : "Swiggy connected. Choose a delivery address to continue.";
+  if (!reason && !loginError && !connected) return;
+  pendingAuthNotice = loginError ? GOOGLE_LOGIN_MESSAGES[loginError] || GOOGLE_LOGIN_MESSAGES.failed
+    : reason ? SWIGGY_OAUTH_MESSAGES[reason] || SWIGGY_OAUTH_MESSAGES.failed : "Swiggy connected. Choose a delivery address to continue.";
   params.delete("swiggy_error");
+  params.delete("login_error");
   params.delete("login");
   const query = params.toString();
   history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);
 }
 
 async function boot() {
-  readSwiggyOAuthResult();
+  readAuthResult();
   const inviteSessionId = new URLSearchParams(window.location.search).get("group");
   const managerAccessToken = new URLSearchParams(window.location.hash.slice(1)).get("access_token");
   if (inviteSessionId && managerAccessToken) {
@@ -176,11 +187,11 @@ async function boot() {
       configureLogin(config, health);
       if (bootstrap.user) enterProduct(bootstrap.user, bootstrap.mealMemory || []);
       else $("#loginGate").classList.remove("hidden");
-      if (pendingSwiggyNotice) {
+      if (pendingAuthNotice) {
         const target = bootstrap.user ? $("#connectionError") : $("#loginNote");
         target.classList.remove("hidden");
-        target.textContent = pendingSwiggyNotice;
-        pendingSwiggyNotice = null;
+        target.textContent = pendingAuthNotice;
+        pendingAuthNotice = null;
       }
       return;
     } catch (error) {
@@ -996,13 +1007,31 @@ $("#participantAccessForm").addEventListener("submit", async (event) => {
   }
 });
 
+// The server hands out a private token the first time a name answers or votes;
+// only this browser can change that name's answer afterwards.
+const participantTokenKey = (sessionId, participantId) => `moodish-participant-token:${sessionId}:${participantId}`;
+function readParticipantToken(sessionId, participantId) {
+  try { return window.localStorage.getItem(participantTokenKey(sessionId, participantId)) || undefined; } catch { return undefined; }
+}
+function rememberParticipantToken(sessionId, participantId, response) {
+  if (!response.participantToken) return;
+  try { window.localStorage.setItem(participantTokenKey(sessionId, participantId), response.participantToken); } catch {}
+}
+
 $("#participantPreferenceForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = formJson(event.currentTarget);
-  participantSession = await api(`/api/group-sessions/${participantSession.sessionId}/preferences`, {
-    method: "POST",
-    body: JSON.stringify({ ...payload, invitePasscode: participantInvitePasscode })
-  });
+  const sessionId = participantSession.sessionId;
+  try {
+    participantSession = await api(`/api/group-sessions/${sessionId}/preferences`, {
+      method: "POST",
+      body: JSON.stringify({ ...payload, invitePasscode: participantInvitePasscode, participantToken: readParticipantToken(sessionId, payload.participantId) })
+    });
+  } catch (error) {
+    $("#participantStage").innerHTML = `<div class="stage-message error"><strong>Your answer was not saved.</strong><span>${escapeHtml(error.message)}</span></div>`;
+    return;
+  }
+  rememberParticipantToken(sessionId, payload.participantId, participantSession);
   participantSubmitted = true;
   window.localStorage.setItem(`moodish-participant:${participantSession.sessionId}`, payload.participantId);
   renderParticipantSession();
@@ -1025,10 +1054,17 @@ $("#participantVoteButton").addEventListener("click", async () => {
     $("#participantVoterId").focus();
     return;
   }
-  participantSession = await api(`/api/group-sessions/${participantSession.sessionId}/vote`, {
-    method: "POST",
-    body: JSON.stringify({ participantId, optionId: participantSelectedOptionId, invitePasscode: participantInvitePasscode })
-  });
+  const sessionId = participantSession.sessionId;
+  try {
+    participantSession = await api(`/api/group-sessions/${sessionId}/vote`, {
+      method: "POST",
+      body: JSON.stringify({ participantId, optionId: participantSelectedOptionId, invitePasscode: participantInvitePasscode, participantToken: readParticipantToken(sessionId, participantId) })
+    });
+  } catch (error) {
+    $("#participantStage").innerHTML = `<div class="stage-message error"><strong>Your vote was not saved.</strong><span>${escapeHtml(error.message)}</span></div>`;
+    return;
+  }
+  rememberParticipantToken(sessionId, participantId, participantSession);
   participantVoted = true;
   renderParticipantSession();
 });

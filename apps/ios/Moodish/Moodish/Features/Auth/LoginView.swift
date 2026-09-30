@@ -109,7 +109,7 @@ struct LoginView: View {
         isSigningIn = true
         defer { isSigningIn = false }
         do {
-            let token = try await googleAuthSession.signIn(authorizeURL: appState.api.googleMobileAuthorizeURL)
+            let token = try await googleAuthSession.signInWithGoogle(api: appState.api)
             appState.loginWithGoogleToken(token)
         } catch {
             errorMessage = error.localizedDescription

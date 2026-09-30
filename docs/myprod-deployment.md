@@ -74,6 +74,13 @@ a `-pooler.` hostname such as Neon's pooled endpoints). The log names the settin
 cart locks are session advisory locks, so use a direct connection or session
 pooling.
 
+Optional tuning: `DATABASE_POOL_MAX` (default 10) sets connections per app
+process. At most two fewer than that run account locks at once, so ordinary
+requests always have a connection even while cart confirmations wait on
+Swiggy. `MOODISH_LOCK_WAIT_MS` (default 15000) bounds how long a request waits
+for a busy account or a free lock slot before it gets a "try again" answer;
+`DATABASE_CONNECT_TIMEOUT_MS` (default 15000) does the same for connections.
+
 Production verifies the database TLS certificate. A database reachable only on a
 private network without TLS must say so explicitly with `?sslmode=disable` in
 `DATABASE_URL`; otherwise every database request fails and `/health/ready`
@@ -166,6 +173,13 @@ curl --fail-with-body -X POST -H "Authorization: Bearer $MYPROD_DEPLOY_TOKEN" \
 
 Find the previous digest in the earlier run's "Build and deploy Moodish" summary.
 
+- Rolling back from the auth-hardening follow-up to the release before it keeps
+  the server consistent: typed session and group tokens are still accepted by
+  older images, and login flows in progress simply expire. **It breaks Google
+  sign-in on app builds released with the follow-up**: the older server returns
+  a token in the `moodish://` link, which those builds no longer accept. People
+  already signed in keep their sessions. Roll forward again, or ask users to
+  sign in with Swiggy, until the follow-up is redeployed.
 - There are no schema migrations. Tables are created with `IF NOT EXISTS`, and
   new fields live inside existing JSON records, so older images read them.
 - Swiggy credentials stay encrypted in `moodish_secret_sessions` under the same

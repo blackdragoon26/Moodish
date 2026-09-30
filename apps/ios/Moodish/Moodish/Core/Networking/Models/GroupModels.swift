@@ -65,6 +65,8 @@ struct GroupSubmission: Codable, Equatable, Identifiable {
 struct GroupSession: Codable, Equatable, Identifiable {
     var id: String { sessionId }
     let sessionId: String
+    /// Present only in the response to a participant's first answer or vote.
+    let participantToken: String?
     let platform: String?
     let state: GroupSessionState
     let headcount: Int

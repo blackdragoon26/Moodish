@@ -1,16 +1,13 @@
-import crypto from "node:crypto";
 import { signGroupAccessToken } from "./access-token.mjs";
-import { getGroupSession } from "./memory.mjs";
+import { getGroupSession, requireDurableLiveStorage } from "./memory.mjs";
+import { claimFlow, newFlowSecrets, peekFlow, saveFlow } from "./login-flows.mjs";
 
-const flows = new Map();
-
-export function startPlatformOAuth(platform, { sessionId, redirectUri } = {}) {
+export async function startPlatformOAuth(platform, { sessionId, redirectUri } = {}) {
   const config = providerConfig(platform);
-  const state = crypto.randomBytes(24).toString("base64url");
-  const verifier = crypto.randomBytes(32).toString("base64url");
-  const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
+  requireDurableLiveStorage();
+  const { state, verifier, challenge } = newFlowSecrets();
   const callback = redirectUri || `${publicBase()}/api/platforms/${platform}/oauth/callback`;
-  flows.set(state, { platform, sessionId, redirectUri: callback, verifier, expiresAt: Date.now() + 10 * 60_000 });
+  await saveFlow("platform", state, { platform, sessionId, redirectUri: callback, verifier, expiresAt: Date.now() + 10 * 60_000 });
   const url = new URL(config.authorizeUrl);
   url.search = new URLSearchParams({
     client_id: config.clientId,
@@ -24,9 +21,8 @@ export function startPlatformOAuth(platform, { sessionId, redirectUri } = {}) {
 }
 
 export async function completePlatformOAuth(platform, { code, state } = {}) {
-  const flow = flows.get(String(state || ""));
-  if (!flow || flow.platform !== platform || flow.expiresAt <= Date.now()) {
-    flows.delete(String(state || ""));
+  const flow = await peekFlow("platform", state);
+  if (!flow || flow.platform !== platform || !await claimFlow("platform", state) || flow.expiresAt <= Date.now()) {
     throw badRequest("Invalid or expired platform OAuth state");
   }
   const config = providerConfig(platform);
@@ -51,7 +47,6 @@ export async function completePlatformOAuth(platform, { code, state } = {}) {
     error.status = 403;
     throw error;
   }
-  flows.delete(state);
   return {
     sessionId: flow.sessionId,
     actorId,
