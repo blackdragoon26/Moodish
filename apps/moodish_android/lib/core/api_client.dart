@@ -48,11 +48,12 @@ class ApiClient {
     await _persistCookie();
   }
 
-  /// `/api/auth/google/start` redirects the browser straight to Google;
-  /// `client=mobile` tells the backend to complete the flow by redirecting
-  /// to `moodish://auth-callback?token=...` instead of a web cookie+redirect.
-  Uri get googleMobileAuthorizeUrl => Uri.parse('$baseUrl/api/auth/google/start').replace(
-        queryParameters: {'client': 'mobile'},
+  /// `/api/auth/google/start` redirects straight to Google. With
+  /// `client=mobile` and a PKCE challenge, the backend finishes at
+  /// `moodish://auth-callback?code=...`, a one-minute code the app redeems
+  /// with its verifier; no session token ever travels in a URL.
+  Uri googleMobileAuthorizeUrl(String challenge) => Uri.parse('$baseUrl/api/auth/google/start').replace(
+        queryParameters: {'client': 'mobile', 'challenge': challenge},
       );
 
   Future<void> _persistCookie() async {

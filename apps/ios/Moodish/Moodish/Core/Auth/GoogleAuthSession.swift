@@ -40,7 +40,8 @@ final class GoogleAuthSession: NSObject, ASWebAuthenticationPresentationContextP
             "declined": "Swiggy connection was cancelled. Nothing was changed.",
             "expired": "That sign-in expired or was already used. Try again.",
             "browser_mismatch": "Finish sign-in in the window where you started it.",
-            "exchange_failed": "Swiggy did not complete the connection. Try again."
+            "exchange_failed": "Swiggy did not complete the connection. Try again.",
+            "update_required": "Update Moodish to sign in."
         ]
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
         if let reason = items.first(where: { $0.name == "error" })?.value {
@@ -53,15 +54,18 @@ final class GoogleAuthSession: NSObject, ASWebAuthenticationPresentationContextP
     }
 
     func connectSwiggy(api: APIClient) async throws -> String {
-        var bytes = [UInt8](repeating: 0, count: 32)
-        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw APIError.server(status: 0, message: "Could not start secure login") }
-        func base64url(_ data: Data) -> String { data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "") }
-        let verifier = base64url(Data(bytes))
-        let challenge = base64url(Data(SHA256.hash(data: Data(verifier.utf8))))
-        let started = try await api.startSwiggy(challenge: challenge)
+        let pkce = try PKCE.generate()
+        let started = try await api.startSwiggy(challenge: pkce.challenge)
         guard let url = URL(string: started.authorizationUrl) else { throw APIError.server(status: 0, message: "Invalid login URL") }
         let code = try await signIn(authorizeURL: url, parameter: "code")
-        return try await api.exchangeMobile(code: code, verifier: verifier).token
+        return try await api.exchangeMobile(code: code, verifier: pkce.verifier).token
+    }
+
+    /// Google sign-in ends in the same verifier-checked exchange as Swiggy.
+    func signInWithGoogle(api: APIClient) async throws -> String {
+        let pkce = try PKCE.generate()
+        let code = try await signIn(authorizeURL: api.googleMobileAuthorizeURL(challenge: pkce.challenge), parameter: "code")
+        return try await api.exchangeMobile(code: code, verifier: pkce.verifier).token
     }
 
     nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
@@ -70,5 +74,22 @@ final class GoogleAuthSession: NSObject, ASWebAuthenticationPresentationContextP
                 .compactMap { ($0 as? UIWindowScene)?.keyWindow }
                 .first ?? ASPresentationAnchor()
         }
+    }
+}
+
+/// A PKCE verifier and its S256 challenge.
+struct PKCE {
+    let verifier: String
+    let challenge: String
+
+    static func generate() throws -> PKCE {
+        var bytes = [UInt8](repeating: 0, count: 32)
+        guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { throw APIError.server(status: 0, message: "Could not start secure login") }
+        let verifier = base64url(Data(bytes))
+        return PKCE(verifier: verifier, challenge: base64url(Data(SHA256.hash(data: Data(verifier.utf8)))))
+    }
+
+    static func base64url(_ data: Data) -> String {
+        data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
     }
 }

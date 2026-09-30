@@ -97,9 +97,11 @@ final class APIClient {
         let _: EmptyResponse = try await send("/api/auth/logout", method: "POST")
     }
 
-    var googleMobileAuthorizeURL: URL {
+    /// Native Google sign-in ends at `moodish://auth-callback?code=...`, a
+    /// one-minute code redeemed with the PKCE verifier; no token in the URL.
+    func googleMobileAuthorizeURL(challenge: String) -> URL {
         var components = URLComponents(url: baseURL.appendingPathComponent("/api/auth/google/start"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [URLQueryItem(name: "client", value: "mobile")]
+        components.queryItems = [URLQueryItem(name: "client", value: "mobile"), URLQueryItem(name: "challenge", value: challenge)]
         return components.url!
     }
 
