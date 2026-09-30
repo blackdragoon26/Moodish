@@ -68,6 +68,7 @@ export async function submitGroupPreference(args = {}) {
   expireIfNeeded(session);
   assertState(session, "collecting");
   const participantId = required(args.participantId, "participantId");
+  const participantToken = claimParticipant(session, participantId, args.participantToken, args.bypassInvitePasscode);
   session.submissions[participantId] = {
     participantId,
     dietMode: normalizeDietMode(args.dietMode),
@@ -82,7 +83,7 @@ export async function submitGroupPreference(args = {}) {
   session.updatedAt = nowIso();
   await saveGroupSession(session);
   await logAudit("group_preference_submitted", { sessionId: session.sessionId, participantIdHash: safeActor(participantId) });
-  return publicSessionView(session);
+  return withParticipantToken(publicSessionView(session), participantToken);
 }
 
 export async function lockAndRankGroupSession(args = {}, runtime) {
@@ -150,10 +151,11 @@ export async function voteGroupOption(args = {}) {
   assertState(session, "voting");
   const participantId = required(args.participantId, "participantId");
   const optionId = validOption(session, args.optionId);
+  const participantToken = claimParticipant(session, participantId, args.participantToken, args.bypassInvitePasscode);
   session.votes[participantId] = { optionId, votedAt: nowIso() };
   session.updatedAt = nowIso();
   await saveGroupSession(session);
-  return publicSessionView(session);
+  return withParticipantToken(publicSessionView(session), participantToken);
 }
 
 export async function selectGroupOption(args = {}) {
@@ -456,6 +458,35 @@ function createInvitePasscode() {
 
 function hashInvitePasscode(passcode, salt) {
   return crypto.scryptSync(String(passcode).trim().toUpperCase(), salt, 32).toString("hex");
+}
+
+// A participant name is only a label, and everyone with the passcode can type
+// any name. The first answer or vote under a name gets a private token; later
+// changes under that name need it. Managers acting with their group token
+// (e.g. adding teammates' answers) are not bound by it.
+function claimParticipant(session, participantId, token, isManager) {
+  if (isManager === true) return null;
+  session.participantKeys ||= {};
+  const existing = session.participantKeys[participantId];
+  if (!existing) {
+    const issued = crypto.randomBytes(24).toString("base64url");
+    session.participantKeys[participantId] = hashParticipantToken(issued);
+    return issued;
+  }
+  const expected = Buffer.from(existing, "hex");
+  const actual = Buffer.from(hashParticipantToken(String(token || "")), "hex");
+  if (!crypto.timingSafeEqual(expected, actual)) {
+    throw Object.assign(new Error("That name is already used in this group. Pick another name, or continue on the device you used before."), { status: 403 });
+  }
+  return null;
+}
+
+function hashParticipantToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function withParticipantToken(view, participantToken) {
+  return participantToken ? { ...view, participantToken } : view;
 }
 
 function requireInvitePasscode(session, passcode, bypass) {
