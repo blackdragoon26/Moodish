@@ -233,6 +233,9 @@ Baseline defects D1–D9 are described in [post-merge-baseline.md](post-merge-ba
 - Demo users share one identity (`demo:moodish`) by design; demo data is shared.
 - Auth session and group tokens are signed with the same key and told apart only
   by their payload fields. This is safe today; a type claim would be clearer.
+- Unredeemed `swiggy-flow:` and `mobile:` records (the latter holding an
+  encrypted Swiggy credential) expire logically but are never deleted from
+  `moodish_secret_sessions`. Add periodic pruning as a follow-up.
 - Google and platform OAuth flows are held in process memory, so a callback that
   reaches another replica, or arrives after a restart, fails and must be retried.
   Swiggy flows are durable.
@@ -260,4 +263,15 @@ Baseline defects D1–D9 are described in [post-merge-baseline.md](post-merge-ba
 
 ## Independent review
 
-Pending; see the reviewer section below once recorded.
+A separate reviewer agent ran with fresh context, a detached checkout pinned to
+each candidate, and its own disposable database. It did not see the
+implementation conversation.
+
+| Round | Candidate | Verdict | Summary |
+| --- | --- | --- | --- |
+| 1 | `5b904d9` | FAIL | Found F1 (high: native OAuth bound the approver's Swiggy account to the flow starter), F2 (platform freshness and overclaimed tests), F3 (reconnect docs) and F4 (deploy skipped browser tests). It reproduced every suite and removed 30 protections, all caught by tests. |
+| 2 | `fa1cb4f` | PASS FOR DEFINED SCOPE | Confirmed F1–F4 fixed, with its own reproductions and repeated adversarial OAuth checks. Low items: N-a (concurrent mobile exchange untested), N-b (non-numeric platform timestamps skipped the freshness check), N-c (docs nuance). |
+| 3 | final commit | See below | N-a: cross-process race test added, and it catches the removed guard. N-b: timestamps must be numeric. N-c: docs qualified. Unpruned OAuth records added to residual risks. |
+
+The scope excludes live Swiggy, physical devices, real Slack/Teams/Discord, and
+(for the reviewer, because of disk space) the APK and container builds; those were run by the implementer.

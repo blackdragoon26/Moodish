@@ -34,6 +34,7 @@ test("Discord rejects forged and stale requests", async t => {
   const sign = (timestamp, key = privateKey) => crypto.sign(null, Buffer.from(`${timestamp}${body}`), key).toString("hex");
   const other = crypto.generateKeyPairSync("ed25519").privateKey;
   await assert.rejects(verifyPlatformRequest("discord", { headers: { "x-signature-ed25519": sign(now(), other), "x-signature-timestamp": String(now()) }, rawBody: body }), { status: 401 });
+  await assert.rejects(verifyPlatformRequest("discord", { headers: { "x-signature-ed25519": sign("abc"), "x-signature-timestamp": "abc" }, rawBody: body }), { status: 401 }, "non-numeric timestamps are stale");
   const stale = now() - 30 * 24 * 3600;
   await assert.rejects(verifyPlatformRequest("discord", { headers: { "x-signature-ed25519": sign(stale), "x-signature-timestamp": String(stale) }, rawBody: body }), { status: 401 });
   assert.equal(await verifyPlatformRequest("discord", { headers: { "x-signature-ed25519": sign(now()), "x-signature-timestamp": String(now()) }, rawBody: body }), true);

@@ -151,3 +151,23 @@ test('a 401 for an older credential cannot expire a reconnect made by another pr
     console.log(JSON.stringify({ stale, afterStale: afterStale.connected, current, afterCurrent: afterCurrent.state, address: afterCurrent.selectedAddressId }));`);
   assert.deepEqual(result, { stale: false, afterStale: true, current: true, afterCurrent: 'expired', address: 'addr-1' });
 });
+
+test('a native exchange code is redeemed once even when app processes race', { skip }, async () => {
+  const verifier = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  const userId = `pg-mobile-${crypto.randomUUID()}`;
+  const started = await json(`
+    const fake = installFakeSwiggy({ tokenResponse: () => ({ access_token: 'pg-mobile-token', expires_in: 3600 }) });
+    const start = await startSwiggyOAuth({ user: { id: '${userId}' }, mobileChallenge: '${challenge}', redirectUri: 'https://moodish.example/api/auth/swiggy/callback' });
+    const done = await completeSwiggyOAuth({ state: new URL(start.authorizationUrl).searchParams.get('state'), code: 'code' });
+    console.log(JSON.stringify({ code: done.exchangeCode, connectedBeforeExchange: (await getSwiggyConnectionStatus('${userId}')).connected }));`);
+  assert.equal(started.connectedBeforeExchange, false);
+  const redeem = `
+    const { exchangeMobileCode } = await import(${src('swiggy-auth.mjs')});
+    let ok = false;
+    try { await exchangeMobileCode({ code: ${JSON.stringify(started.code)}, verifier: '${verifier}' }); ok = true; } catch {}
+    console.log(JSON.stringify({ ok }));`;
+  const results = await Promise.all(Array.from({ length: 4 }, () => json(redeem)));
+  assert.equal(results.filter(r => r.ok).length, 1);
+  assert.equal((await json(`console.log(JSON.stringify(await getSwiggyConnectionStatus('${userId}')));`)).connected, true);
+});

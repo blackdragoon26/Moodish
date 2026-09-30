@@ -43,7 +43,9 @@ may be a different Swiggy account.
 
 In the native flow, the Swiggy credential stays in the single-use exchange
 record until the app that started the flow redeems the code with its PKCE
-verifier. Approving consent in some other browser connects nothing.
+verifier. Approving consent in some other browser connects nothing unless that
+browser's `moodish://auth-callback?code=` link is also handed to the app that
+holds the verifier, so treat that link like a password.
 
 Swiggy access tokens never reach the clients. They are encrypted in PostgreSQL under
 the shared `TOKEN_ENCRYPTION_KEY`, with separate records for each account. Use a direct PostgreSQL connection or session pooling;
