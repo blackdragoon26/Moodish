@@ -129,6 +129,8 @@ function verifyDiscord(headers, rawBody) {
   const signature = headers["x-signature-ed25519"];
   const timestamp = headers["x-signature-timestamp"];
   if (!signature || !timestamp) throw unauthorized("Missing Discord signature");
+  // Discord signs a Unix timestamp in seconds; refuse replays of old requests.
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) throw unauthorized("Stale Discord request");
   const key = Buffer.concat([
     Buffer.from("302a300506032b6570032100", "hex"),
     Buffer.from(publicKey, "hex")

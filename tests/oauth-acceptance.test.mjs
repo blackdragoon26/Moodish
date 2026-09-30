@@ -106,6 +106,27 @@ test("native OAuth returns a short-lived single-use code that needs the app's PK
   assert.equal((await app.request("/api/auth/mobile/exchange", { body: { code, verifier } })).status, 401, "codes are single use");
 });
 
+test("a native flow never binds Swiggy access to its starter until the app proves its verifier", async t => {
+  const app = await startLiveApp(t);
+  // An attacker starts a native flow and gets someone else to approve it.
+  const attacker = app.user(`google:attacker-${crypto.randomUUID()}`);
+  const verifier = crypto.randomBytes(32).toString("base64url");
+  const start = await app.request("/api/swiggy/oauth/start", { body: { mobileChallenge: sha(verifier) }, session: attacker, sessionHeader: "native" });
+  const grant = app.fake.authorize(start.body.authorizationUrl, { accessToken: "VICTIM-SWIGGY-TOKEN" });
+  const callback = await fetch(`${app.base}/api/auth/swiggy/callback?state=${grant.state}&code=${grant.code}`, { redirect: "manual" });
+  const code = new URL(callback.headers.get("location")).searchParams.get("code");
+  // The exchange code went to the approving browser, not to the attacker.
+  const status = await app.request("/api/swiggy/connection", { session: attacker, sessionHeader: "native" });
+  assert.equal(status.body.connected, false);
+  assert.equal((await app.request("/api/swiggy/addresses", { session: attacker, sessionHeader: "native" })).status, 401);
+  assert.equal(app.fake.calls().filter(call => call.token === "VICTIM-SWIGGY-TOKEN").length, 0, "the approving account's token was never used");
+  // A wrong verifier does not bind it either; only the starting app's verifier does.
+  assert.equal((await app.request("/api/auth/mobile/exchange", { body: { code, verifier: crypto.randomBytes(32).toString("base64url") } })).status, 401);
+  assert.equal((await app.request("/api/swiggy/connection", { session: attacker, sessionHeader: "native" })).body.connected, false);
+  assert.equal((await app.request("/api/auth/mobile/exchange", { body: { code, verifier } })).status, 200);
+  assert.equal((await app.request("/api/swiggy/connection", { session: attacker, sessionHeader: "native" })).body.connected, true);
+});
+
 test("native exchange codes expire, and native denial returns to the app with a reason", async t => {
   const app = await startLiveApp(t);
   const verifier = crypto.randomBytes(32).toString("base64url");
@@ -143,7 +164,7 @@ test("production live mode refuses to start OAuth without durable storage", { sk
   assert.equal(app.fake.state.registered, 0);
 });
 
-test("revoked Swiggy access expires only that credential and keeps the chosen address for reconnect", async t => {
+test("revoked Swiggy access expires only that credential; reconnecting starts fresh", async t => {
   const app = await startLiveApp(t);
   const alice = app.user(`google:alice-7-${crypto.randomUUID()}`);
   await app.connect(alice, { accessToken: "alice-first" });
@@ -159,6 +180,8 @@ test("revoked Swiggy access expires only that credential and keeps the chosen ad
   assert.equal(stored.accessToken, null, "the rejected token is not kept");
   app.fake.clearFaults();
   await app.connect(alice, { accessToken: "alice-second" });
+  // A reconnect may be a different Swiggy account, so the address is chosen again.
+  assert.equal((await app.request("/api/swiggy/connection", { session: alice })).body.selectedAddressId, null);
   assert.equal((await app.request("/api/swiggy/addresses", { session: alice })).status, 200);
   assert.equal(app.fake.calls("get_addresses").at(-1).token, "alice-second");
 });

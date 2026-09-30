@@ -19,6 +19,7 @@ test("live or OAuth-enabled production names each unsafe setting without printin
   for (const expected of [/TOKEN_ENCRYPTION_KEY must be at least 32/, /must be different/, /public HTTPS origin/, /transaction-mode pooler/]) assert.match(text, expected);
   assert.equal(text.includes("super-secret"), false);
   assert.match(runtimeConfigProblems({ ...production, DATABASE_URL: "postgresql://h/db?pgbouncer=true" }).join(), /transaction-mode/);
+  assert.match(runtimeConfigProblems({ ...production, DATABASE_URL: "postgresql://u:p@ep-cool-name-pooler.region.aws.neon.tech/db" }).join(), /transaction-mode/);
   assert.match(runtimeConfigProblems({ ...production, DATABASE_URL: "" }).join(), /DATABASE_URL is required/);
   assert.match(runtimeConfigProblems({ SWIGGY_MODE: "production" }).join(), /fixture or live/);
 });

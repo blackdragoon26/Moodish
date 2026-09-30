@@ -37,8 +37,13 @@ service warning.
 
 Addresses expose only `id`, `label` and `display`. Swiggy's address records also
 include the account's phone number; Moodish drops it at the adapter. A 401 from
-Swiggy expires only the credential that was rejected and keeps the chosen
-address, so the account shows "expired" and a reconnect restores the setup.
+Swiggy expires only the credential that was rejected, so the account shows
+"expired". A reconnect starts fresh and the address is chosen again, because it
+may be a different Swiggy account.
+
+In the native flow, the Swiggy credential stays in the single-use exchange
+record until the app that started the flow redeems the code with its PKCE
+verifier. Approving consent in some other browser connects nothing.
 
 Swiggy access tokens never reach the clients. They are encrypted in PostgreSQL under
 the shared `TOKEN_ENCRYPTION_KEY`, with separate records for each account. Use a direct PostgreSQL connection or session pooling;
@@ -131,7 +136,7 @@ Before enabling production live mode:
 - Exercise denial, expiry, revoked access, changed cart, and partial Instamart failure.
 
 Slack, Teams and Discord are not configured in production and are not part of
-this release; their adapters stay covered by local signature tests only.
+this release; their adapters are covered only by local tests.
 
 `npm test`, `npm run test:postgres` and `npm run test:e2e` cover the mocked
 protocol, auth isolation, cart retry safety and browser journeys. They do not

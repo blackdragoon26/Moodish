@@ -33,7 +33,7 @@ test("Discord requests require Ed25519 verification and map to the shared sessio
   const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
   const rawPublic = publicKey.export({ format: "der", type: "spki" }).subarray(-32).toString("hex");
   process.env.DISCORD_PUBLIC_KEY = rawPublic;
-  const timestamp = String(Date.now());
+  const timestamp = String(Math.floor(Date.now() / 1000));
   const payload = {
     id: "interaction-1",
     type: 2,

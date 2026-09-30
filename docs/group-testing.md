@@ -57,7 +57,7 @@ Fixture mode can now create test sessions even if the keys are temporarily missi
 
 ## Slack, Teams, and Discord
 
-Slack, Teams and Discord are not configured in production and are unsupported for the current live release; their endpoints return 503 until credentials are installed. Only the local signature, replay and creator-handoff tests cover them.
+Slack, Teams and Discord are not configured in production and are unsupported for the current live release; their endpoints return 503 until credentials are installed. Only local tests cover them (`tests/platform-security.test.mjs`): forged, unsigned and stale Slack and Discord requests are rejected, a replayed signed command returns the first response, and manager OAuth hands a token only to the session's creator or co-manager on the same platform. Teams JWT verification has no automated test.
 
 Each platform needs its own installation and request-verification credentials. Configure the variables in `.env.example`, register the matching event URL, then run the adapter conformance tests:
 

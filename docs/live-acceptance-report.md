@@ -76,7 +76,8 @@ Test files are under `tests/` unless noted. "e2e" means `tests/e2e/journeys.spec
 | Native denial returns `moodish://auth-callback?error=declined` | PASS | oauth-acceptance; Flutter `auth_callback_test.dart`; iOS `AuthCallbackTests` |
 | Redirect URI fixed to the configured origin; cross-origin POST refused | PASS | oauth-acceptance; `public-origin.test.mjs` |
 | Production live without a database refuses OAuth | PASS | oauth-acceptance |
-| Revoked access expires only the rejected credential; address kept | PASS | oauth-acceptance; postgres-state (cross-process) |
+| Revoked access expires only the rejected credential; status shows expired; reconnect starts fresh | PASS | oauth-acceptance; postgres-state (cross-process) |
+| Native flow binds Swiggy access only after the starting app proves its verifier | PASS | oauth-acceptance: "a native flow never binds…" (defect F1 from the independent review) |
 | Disconnect and reconnect create a new connection version | PASS | oauth-acceptance; e2e "disconnect and reconnect…" |
 | Standalone Swiggy login creates its own identity | PASS | oauth-acceptance. Recovery after the app session is cleared is still not supported (see Limitations). |
 | Production consent through the canonical production callback | BLOCKED | Needs the owner's Swiggy login |
@@ -160,8 +161,10 @@ Test files are under `tests/` unless noted. "e2e" means `tests/e2e/journeys.spec
 
 | Case | Status | Evidence |
 | --- | --- | --- |
-| Forged and replayed Slack and Discord requests rejected | PASS | `platform-adapters.test.mjs` |
-| Manager OAuth must match the session's platform | PASS | Code change (D9); covered by `platform-oauth.test.mjs` configuration checks |
+| Forged, unsigned and stale Slack and Discord requests rejected | PASS | `platform-security.test.mjs` |
+| Replayed signed Slack command returns the first response | PASS | `platform-security.test.mjs` |
+| Manager OAuth hands a token only to the creator or co-manager on the same platform; state single use | PASS | `platform-security.test.mjs` |
+| Teams JWT verification | NOT APPLICABLE | Teams is not configured; no automated test exists |
 | Real Slack, Teams or Discord callbacks | NOT APPLICABLE | Not configured in production (all routes return 503); unsupported for this release |
 
 ### Operations
@@ -213,6 +216,10 @@ Baseline defects D1–D9 are described in [post-merge-baseline.md](post-merge-ba
 | O3 | Low | Unexpected errors, such as database errors, were returned to clients | Generic message; logged server-side |
 | O4 | Low | Malformed JSON bodies returned 500 | 400 |
 | O5 | Medium | The deploy workflow's test gate had no database | Disposable PostgreSQL service |
+| F1 | High | Native OAuth saved the Swiggy credential to the Moodish account that started the flow at callback time, so whoever approved consent in any browser connected their Swiggy account to the starter's Moodish account. Found by the independent review. | Credential held in the single-use exchange record until the starting app proves its verifier |
+| F2 | Medium | Discord requests had no timestamp freshness check; docs overstated platform test coverage | 5-minute window; real rejection, replay and handoff tests |
+| F3 | Low | Docs said a reconnect keeps the chosen address; it does not | Docs corrected; behaviour kept as the safer one and tested |
+| F4 | Medium | The deploy gate skipped the browser journeys | Deploy runs `test:e2e`; native checks stay in test.yml |
 
 ## Limitations and residual risks
 
@@ -233,6 +240,20 @@ Baseline defects D1–D9 are described in [post-merge-baseline.md](post-merge-ba
 - Standalone Swiggy login cannot recover its identity after the app session is
   cleared (a follow-up; Google login is stable).
 - A required dish customization is rejected with an explanation; there is no picker.
+- Mobile Google login still returns the Moodish session token in the
+  `moodish://auth-callback?token=` URL, without the PKCE-bound exchange the Swiggy
+  flow uses. Another Android app registering the `moodish` scheme could
+  intercept it. This is pre-existing; move it to the same exchange as a follow-up.
+- Transaction-pooler detection is heuristic (port 6543, `pgbouncer=true`,
+  `-pooler.` hosts). Other transaction poolers would break the advisory locks.
+- A cart confirmation holds a pool connection and an account lock across several
+  Swiggy calls (up to about 30 s each). Many slow concurrent confirmations can
+  exhaust the pool of 10.
+- Live cart checks find each item again by name with `search_menu`. An item that
+  is not on the first page reads as unavailable (fails closed). Addresses are
+  read up to 5 pages (50).
+- Co-managers can rank plans, which reads Swiggy with the purchasing creator's
+  connection, and see the creator's delivery address in the manager view.
 - During test development, a missed browser intercept loaded Swiggy's public
   consent page once, using a throwaway registered test client. Nothing was
   entered or approved. The browser tests now resolve only local hosts.

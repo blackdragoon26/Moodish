@@ -24,7 +24,7 @@ export function runtimeConfigProblems(env = process.env) {
       const url = new URL(env.DATABASE_URL);
       // Account and cart locks are session advisory locks; a transaction-mode
       // pooler can run the lock and unlock on different server sessions.
-      if (url.port === "6543" || url.searchParams.get("pgbouncer") === "true") problems.push("DATABASE_URL must be a direct or session-pooled PostgreSQL connection, not a transaction-mode pooler");
+      if (url.port === "6543" || url.searchParams.get("pgbouncer") === "true" || /-pooler\./.test(url.hostname)) problems.push("DATABASE_URL must be a direct or session-pooled PostgreSQL connection, not a transaction-mode pooler");
     } catch { problems.push("DATABASE_URL is not a valid connection URL"); }
   }
   return problems;
