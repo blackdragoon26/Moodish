@@ -67,11 +67,12 @@ class Pkce {
 /// its short failure reason into something a person can act on.
 String callbackValue(Uri callback, String parameter) {
   // Keys are the server's LOGIN_ERRORS codes (services/agent/src/login-flows.mjs).
+  // Wording is provider-neutral: Swiggy and Google sign-in share these.
   const reasons = {
-    'declined': 'Swiggy connection was cancelled. Nothing was changed.',
+    'declined': 'Sign-in was cancelled. Nothing was changed.',
     'expired': 'That sign-in expired or was already used. Try again.',
     'browser_mismatch': 'Finish sign-in in the window where you started it.',
-    'exchange_failed': 'Swiggy did not complete the connection. Try again.',
+    'exchange_failed': 'The sign-in did not complete. Try again.',
     'update_required': 'Update Moodish to sign in.',
   };
   final error = callback.queryParameters['error'];

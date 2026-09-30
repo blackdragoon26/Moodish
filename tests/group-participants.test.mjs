@@ -53,6 +53,10 @@ test("votes are bound to the same name token, and managers can still add teammat
     assert.equal(added.status, 200);
     assert.equal(added.body.participantToken, undefined);
   }
+  // A name the manager entered cannot be claimed by someone with the passcode.
+  const claim = await call(`/api/group-sessions/${group.sessionId}/preferences`, { participantId: "Ben", invitePasscode: group.invitePasscode, mood: "salad" });
+  assert.equal(claim.status, 403);
+  assert.match(claim.body.error, /ask the organiser/);
   const dia = await call(`/api/group-sessions/${group.sessionId}/preferences`, { participantId: "Dia", invitePasscode: group.invitePasscode, mood: "pizza" });
   const ranked = await call(`/api/group-sessions/${group.sessionId}/rank`, {}, managerHeaders);
   assert.equal(ranked.status, 200, ranked.body.error);
@@ -63,4 +67,20 @@ test("votes are bound to the same name token, and managers can still add teammat
   const fresh = await vote({ participantId: "Eli", optionId, invitePasscode: group.invitePasscode });
   assert.equal(fresh.status, 200);
   assert.ok(fresh.body.participantToken, "a first vote under a new name also gets a token");
+});
+
+test("answers saved before participant tokens existed can only be changed by a manager", async t => {
+  const { call, group } = await groupApp(t);
+  const { getGroupSession, saveGroupSession } = await import("../services/agent/src/memory.mjs");
+  await call(`/api/group-sessions/${group.sessionId}/preferences`, { participantId: "Farah", invitePasscode: group.invitePasscode, mood: "dosa" });
+  // Simulate a session stored by the previous release: answers, but no tokens.
+  const stored = await getGroupSession(group.sessionId);
+  delete stored.participantKeys;
+  await saveGroupSession(stored);
+  const takeover = await call(`/api/group-sessions/${group.sessionId}/preferences`, { participantId: "Farah", invitePasscode: group.invitePasscode, mood: "salad" });
+  assert.equal(takeover.status, 403);
+  const managerEdit = await call(`/api/group-sessions/${group.sessionId}/preferences`, { participantId: "Farah", mood: "masala dosa" }, { authorization: `Bearer ${group.accessToken}` });
+  assert.equal(managerEdit.status, 200);
+  const fresh = await call(`/api/group-sessions/${group.sessionId}/preferences`, { participantId: "Gita", invitePasscode: group.invitePasscode, mood: "idli" });
+  assert.ok(fresh.body.participantToken, "brand-new names still get a token");
 });

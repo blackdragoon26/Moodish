@@ -498,11 +498,15 @@ export async function patchSecretSessionIfVersion(key, version, patch) {
   return true;
 }
 const locks = new Map();
-export async function withAccountLock(key, fn) {
+// `longRunning` marks locks held across Swiggy calls (cart review and
+// confirmation, group ranking). Only those count against the lock-slot cap,
+// so quick locks such as a participant's answer or vote never queue behind them.
+export async function withAccountLock(key, fn, { longRunning = false } = {}) {
   if (pool) {
     await ensureSchema();
     const inherited = connectionContext.getStore();
-    if (!inherited) await takeLockSlot();
+    const usesSlot = !inherited && longRunning;
+    if (usesSlot) await takeLockSlot();
     let client;
     let failedUnlock = false;
     let locked = false;
@@ -512,7 +516,7 @@ export async function withAccountLock(key, fn) {
       await client.query("SELECT set_config('lock_timeout', $1, false)", [`${LOCK_WAIT_MS}ms`]);
       try { await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [key]); }
       catch (error) {
-        if (error.code === "55P03") throw Object.assign(new Error("Another request for this account is still in progress. Try again in a moment."), { status: 409 });
+        if (error.code === "55P03") throw Object.assign(new Error("Something else is updating this right now. Try again in a moment."), { status: 409 });
         throw error;
       } finally { await client.query("SELECT set_config('lock_timeout', '0', false)").catch(() => { failedUnlock = true; }); }
       locked = true;
@@ -522,10 +526,8 @@ export async function withAccountLock(key, fn) {
         try { await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]); }
         catch { failedUnlock = true; }
       }
-      if (!inherited) {
-        client?.release(failedUnlock);
-        releaseLockSlot();
-      }
+      if (!inherited) client?.release(failedUnlock);
+      if (usesSlot) releaseLockSlot();
     }
   }
   const previous = locks.get(key) || Promise.resolve();

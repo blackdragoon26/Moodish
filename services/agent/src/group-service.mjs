@@ -464,10 +464,16 @@ function hashInvitePasscode(passcode, salt) {
 // any name. The first answer or vote under a name gets a private token; later
 // changes under that name need it. Managers acting with their group token
 // (e.g. adding teammates' answers) are not bound by it.
-function claimParticipant(session, participantId, token, isManager) {
-  if (isManager === true) return null;
+function claimParticipant(session, participantId, token, hasManagerToken) {
   session.participantKeys ||= {};
   const existing = session.participantKeys[participantId];
+  if (hasManagerToken === true) return null;
+  // A name a manager entered, or one answered before tokens existed, has no
+  // token to prove ownership, so only a manager may change it.
+  const alreadyUsed = Boolean(session.submissions?.[participantId] || session.votes?.[participantId]);
+  if (!existing && alreadyUsed) {
+    throw Object.assign(new Error("That name is already used in this group. Pick another name, or ask the organiser to update it."), { status: 403 });
+  }
   if (!existing) {
     const issued = crypto.randomBytes(24).toString("base64url");
     session.participantKeys[participantId] = hashParticipantToken(issued);
