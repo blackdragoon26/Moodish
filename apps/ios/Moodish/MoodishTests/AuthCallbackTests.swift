@@ -39,6 +39,22 @@ final class AuthCallbackTests: XCTestCase {
         XCTAssertThrowsError(try GoogleAuthSession.callbackValue(from: URL(string: "moodish://auth-callback?token=abc")!, parameter: "code"))
     }
 
+    func testGoogleAndSwiggyFailuresShareProviderNeutralMessages() {
+        for reason in ["declined", "exchange_failed"] {
+            XCTAssertThrowsError(try GoogleAuthSession.callbackValue(from: URL(string: "moodish://auth-callback?error=\(reason)")!, parameter: "code")) { error in
+                guard case let APIError.server(_, message) = error else { return XCTFail("\(error)") }
+                XCTAssertFalse(message.contains("Swiggy"), message)
+            }
+        }
+    }
+
+    func testKeychainOverwriteKeepsTheLatestValue() {
+        XCTAssertTrue(KeychainStore.set("first", forKey: "moodish.test.overwrite"))
+        XCTAssertTrue(KeychainStore.set("second", forKey: "moodish.test.overwrite"))
+        XCTAssertEqual(KeychainStore.get("moodish.test.overwrite"), "second")
+        KeychainStore.remove("moodish.test.overwrite")
+    }
+
     func testKeychainReportsASuccessfulWrite() {
         XCTAssertTrue(KeychainStore.set("value", forKey: "moodish.test.write"))
         XCTAssertEqual(KeychainStore.get("moodish.test.write"), "value")

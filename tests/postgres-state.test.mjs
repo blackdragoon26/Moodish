@@ -239,7 +239,7 @@ test('a busy account lock answers with a retry message instead of waiting foreve
     try { await withAccountLock(${key}, async () => {}); } catch (error) { status = error.status; message = error.message; }
     console.log(JSON.stringify({ status, message }));`, { MOODISH_LOCK_WAIT_MS: '400' });
   assert.equal(waiter.status, 409);
-  assert.match(waiter.message, /still in progress/);
+  assert.match(waiter.message, /updating this right now/);
   assert.ok(Date.now() - started < 2500, 'the waiter gave up before the holder finished');
   await holder;
 });
@@ -248,7 +248,7 @@ test('slow account locks leave database connections free for other requests', { 
   // More slow locks than the default pool of 10: without the cap they would hold
   // every connection and ordinary queries would queue behind them.
   const result = await json(`
-    const locks = Array.from({ length: 12 }, (_, i) => withAccountLock('integration:slow:' + i + ':' + process.pid, () => new Promise(resolve => setTimeout(resolve, 1500))).catch(() => {}));
+    const locks = Array.from({ length: 12 }, (_, i) => withAccountLock('integration:slow:' + i + ':' + process.pid, () => new Promise(resolve => setTimeout(resolve, 1500)), { longRunning: true }).catch(() => {}));
     await new Promise(resolve => setTimeout(resolve, 150));
     const started = Date.now();
     await getSecretSession('integration:unrelated');
@@ -260,12 +260,16 @@ test('slow account locks leave database connections free for other requests', { 
 
 test('waiting for a free lock slot is bounded too', { skip }, async () => {
   const result = await json(`
-    const first = withAccountLock('integration:slot:a:' + process.pid, () => new Promise(resolve => setTimeout(resolve, 1500)));
+    const first = withAccountLock('integration:slot:a:' + process.pid, () => new Promise(resolve => setTimeout(resolve, 1500)), { longRunning: true });
     await new Promise(resolve => setTimeout(resolve, 100));
     let status = 200;
-    try { await withAccountLock('integration:slot:b:' + process.pid, async () => {}); } catch (error) { status = error.status; }
+    try { await withAccountLock('integration:slot:b:' + process.pid, async () => {}, { longRunning: true }); } catch (error) { status = error.status; }
+    // A quick lock (a participant's vote, say) is never capped behind long ones.
+    const quickStarted = Date.now();
+    const quick = await withAccountLock('integration:slot:quick:' + process.pid, async () => 'quick');
+    const quickMs = Date.now() - quickStarted;
     await first;
-    const afterwards = await withAccountLock('integration:slot:c:' + process.pid, async () => 'ok');
-    console.log(JSON.stringify({ status, afterwards }));`, { DATABASE_POOL_MAX: '3', MOODISH_LOCK_WAIT_MS: '300' });
-  assert.deepEqual(result, { status: 503, afterwards: 'ok' });
+    const afterwards = await withAccountLock('integration:slot:c:' + process.pid, async () => 'ok', { longRunning: true });
+    console.log(JSON.stringify({ status, afterwards, quick, quickFast: quickMs < 500 }));`, { DATABASE_POOL_MAX: '3', MOODISH_LOCK_WAIT_MS: '300' });
+  assert.deepEqual(result, { status: 503, afterwards: 'ok', quick: 'quick', quickFast: true });
 });

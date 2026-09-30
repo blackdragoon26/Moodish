@@ -11,6 +11,9 @@ final class SessionStore {
     private static let participantTokenPrefix = "moodish.group.participantToken."
 
     private(set) var sessionToken: String?
+    /// True when the Keychain refused the last sign-in; it then lasts only
+    /// until the app is closed. Settings tells the person.
+    private(set) var sessionNotSaved = false
 
     init() {
         sessionToken = KeychainStore.get(Self.sessionTokenKey)
@@ -19,8 +22,9 @@ final class SessionStore {
     func setSessionToken(_ token: String?) {
         sessionToken = token
         if let token {
-            KeychainStore.set(token, forKey: Self.sessionTokenKey)
+            sessionNotSaved = !KeychainStore.set(token, forKey: Self.sessionTokenKey)
         } else {
+            sessionNotSaved = false
             KeychainStore.remove(Self.sessionTokenKey)
         }
     }

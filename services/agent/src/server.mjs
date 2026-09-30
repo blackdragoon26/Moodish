@@ -313,7 +313,7 @@ export async function handleAgentRequest(req, res) {
               }
             }
             return createTools(createToolRuntime({ userId: stored?.purchaseUserId }))[toolName](body);
-          }));
+          }, { longRunning: ["rank", "prepare-cart", "confirm-cart"].includes(action) }));
         }
       }
     }

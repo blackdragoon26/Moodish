@@ -75,7 +75,7 @@ export async function confirmPreparedCart({ preparationId, ownerId, recommendati
       await saveSecretSession(key, { ...p, state: "uncertain", matchesRequested: current?.restaurantId === p.restaurantId && sameItems(current.items, p.items) });
       throw error;
     }
-  });
+  }, { longRunning: true });
 }
 // Shared with the live acceptance harness so both judge availability the same way.
 export function isOrderable(item) {

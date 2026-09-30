@@ -23,6 +23,15 @@ void main() {
     }
   });
 
+  test('Google and Swiggy failures share provider-neutral messages', () {
+    for (final reason in ['declined', 'exchange_failed']) {
+      expect(
+        () => callbackValue(Uri.parse('moodish://auth-callback?error=$reason'), 'code'),
+        throwsA(isA<GoogleAuthException>().having((e) => e.message, 'message', isNot(contains('Swiggy')))),
+      );
+    }
+  });
+
   test('rejects callbacks without the value or from another scheme', () {
     expect(() => callbackValue(Uri.parse('moodish://auth-callback'), 'code'), throwsA(isA<GoogleAuthException>()));
     expect(() => callbackValue(Uri.parse('https://evil.example/?code=abc'), 'code'), throwsA(isA<GoogleAuthException>()));

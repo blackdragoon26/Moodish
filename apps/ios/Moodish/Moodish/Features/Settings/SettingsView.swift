@@ -21,6 +21,10 @@ struct SettingsView: View {
                             LabeledContent("Email", value: email)
                         }
                         LabeledContent("Signed in via", value: user.provider.capitalized)
+                        if appState.sessionStore.sessionNotSaved {
+                            Text("This device couldn't save your sign-in, so you'll need to sign in again after closing Moodish.")
+                                .font(.footnote).foregroundStyle(.orange)
+                        }
                     }
                 }
 
