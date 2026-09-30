@@ -142,15 +142,25 @@ const SWIGGY_OAUTH_MESSAGES = {
   exchange_failed: "Swiggy did not complete the connection. Try connecting again.",
   failed: "The Swiggy connection did not complete. Try connecting again."
 };
+const GOOGLE_LOGIN_MESSAGES = {
+  declined: "Google sign-in was cancelled.",
+  expired: "That Google sign-in link expired or was already used. Try again.",
+  browser_mismatch: "Finish Google sign-in in the same browser where you started it.",
+  exchange_failed: "Google did not complete the sign-in. Try again.",
+  failed: "Google sign-in did not complete. Try again."
+};
 let pendingSwiggyNotice = null;
 
 function readSwiggyOAuthResult() {
   const params = new URLSearchParams(window.location.search);
   const reason = params.get("swiggy_error");
+  const loginError = params.get("login_error");
   const connected = params.get("login") === "swiggy";
-  if (!reason && !connected) return;
-  pendingSwiggyNotice = reason ? SWIGGY_OAUTH_MESSAGES[reason] || SWIGGY_OAUTH_MESSAGES.failed : "Swiggy connected. Choose a delivery address to continue.";
+  if (!reason && !loginError && !connected) return;
+  pendingSwiggyNotice = loginError ? GOOGLE_LOGIN_MESSAGES[loginError] || GOOGLE_LOGIN_MESSAGES.failed
+    : reason ? SWIGGY_OAUTH_MESSAGES[reason] || SWIGGY_OAUTH_MESSAGES.failed : "Swiggy connected. Choose a delivery address to continue.";
   params.delete("swiggy_error");
+  params.delete("login_error");
   params.delete("login");
   const query = params.toString();
   history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`);

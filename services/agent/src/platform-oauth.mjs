@@ -1,16 +1,18 @@
 import crypto from "node:crypto";
 import { signGroupAccessToken } from "./access-token.mjs";
-import { getGroupSession } from "./memory.mjs";
+import { getGroupSession, getSecretSession, saveSecretSession, takeSecretSession, pruneExpiredFlows } from "./memory.mjs";
 
-const flows = new Map();
+const hash = value => crypto.createHash("sha256").update(String(value)).digest("base64url");
 
-export function startPlatformOAuth(platform, { sessionId, redirectUri } = {}) {
+export async function startPlatformOAuth(platform, { sessionId, redirectUri } = {}) {
   const config = providerConfig(platform);
   const state = crypto.randomBytes(24).toString("base64url");
   const verifier = crypto.randomBytes(32).toString("base64url");
   const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
   const callback = redirectUri || `${publicBase()}/api/platforms/${platform}/oauth/callback`;
-  flows.set(state, { platform, sessionId, redirectUri: callback, verifier, expiresAt: Date.now() + 10 * 60_000 });
+  // Durable and single use, so any replica or a restarted process can finish it.
+  await saveSecretSession(`platform-flow:${hash(state)}`, { platform, sessionId, redirectUri: callback, verifier, expiresAt: Date.now() + 10 * 60_000 });
+  await pruneExpiredFlows();
   const url = new URL(config.authorizeUrl);
   url.search = new URLSearchParams({
     client_id: config.clientId,
@@ -24,9 +26,9 @@ export function startPlatformOAuth(platform, { sessionId, redirectUri } = {}) {
 }
 
 export async function completePlatformOAuth(platform, { code, state } = {}) {
-  const flow = flows.get(String(state || ""));
-  if (!flow || flow.platform !== platform || flow.expiresAt <= Date.now()) {
-    flows.delete(String(state || ""));
+  const key = `platform-flow:${hash(state || "")}`;
+  const flow = state ? await getSecretSession(key) : null;
+  if (!flow || flow.platform !== platform || !await takeSecretSession(key) || flow.expiresAt <= Date.now()) {
     throw badRequest("Invalid or expired platform OAuth state");
   }
   const config = providerConfig(platform);
@@ -51,7 +53,6 @@ export async function completePlatformOAuth(platform, { code, state } = {}) {
     error.status = 403;
     throw error;
   }
-  flows.delete(state);
   return {
     sessionId: flow.sessionId,
     actorId,

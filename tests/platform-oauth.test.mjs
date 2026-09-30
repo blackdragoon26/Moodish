@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { startPlatformOAuth } from "../services/agent/src/platform-oauth.mjs";
 
-test("platform manager OAuth starts with provider-specific identity scopes", () => {
+test("platform manager OAuth starts with provider-specific identity scopes", async () => {
   const previous = {
     SLACK_CLIENT_ID: process.env.SLACK_CLIENT_ID,
     SLACK_CLIENT_SECRET: process.env.SLACK_CLIENT_SECRET,
@@ -20,9 +20,9 @@ test("platform manager OAuth starts with provider-specific identity scopes", () 
     TEAMS_CLIENT_SECRET: "teams-secret"
   });
   try {
-    const slack = new URL(startPlatformOAuth("slack", { sessionId: "group-1" }).authorizationUrl);
-    const discord = new URL(startPlatformOAuth("discord", { sessionId: "group-1" }).authorizationUrl);
-    const teams = new URL(startPlatformOAuth("teams", { sessionId: "group-1" }).authorizationUrl);
+    const slack = new URL((await startPlatformOAuth("slack", { sessionId: "group-1" })).authorizationUrl);
+    const discord = new URL((await startPlatformOAuth("discord", { sessionId: "group-1" })).authorizationUrl);
+    const teams = new URL((await startPlatformOAuth("teams", { sessionId: "group-1" })).authorizationUrl);
     assert.equal(slack.searchParams.get("user_scope"), "identity.basic");
     assert.equal(discord.searchParams.get("scope"), "identify");
     assert.match(teams.searchParams.get("scope"), /User\.Read/);

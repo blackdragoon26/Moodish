@@ -429,6 +429,29 @@ export async function takeSecretSession(key) {
   return value;
 }
 export async function deleteSecretSession(key) { await takeSecretSession(key); }
+// Login flow and app exchange records expire within minutes. Remove leftovers
+// older than a day, at most once an hour per process. Cart reviews are never
+// pruned here: their attempt markers must survive.
+const FLOW_PREFIXES = ["swiggy-flow:", "google-flow:", "platform-flow:", "mobile:"];
+let lastPrune = 0;
+export async function pruneExpiredFlows(now = Date.now()) {
+  if (now - lastPrune < 3_600_000) return 0;
+  lastPrune = now;
+  if (pool) {
+    await ensureSchema();
+    const result = await queryDatabase(
+      `DELETE FROM moodish_secret_sessions WHERE updated_at < NOW() - INTERVAL '1 day' AND (${FLOW_PREFIXES.map((_, i) => `session_key LIKE $${i + 1}`).join(" OR ")})`,
+      FLOW_PREFIXES.map(prefix => `${prefix}%`)
+    );
+    return result.rowCount;
+  }
+  let removed = 0;
+  for (const [key, value] of secretSessions) {
+    if (FLOW_PREFIXES.some(prefix => key.startsWith(prefix)) && Number(value?.expiresAt) < now - 86_400_000) { secretSessions.delete(key); removed += 1; }
+  }
+  return removed;
+}
+
 // Compare-and-set on the record's `version`, so a stale caller cannot change a
 // record that was replaced after it read it.
 export async function patchSecretSessionIfVersion(key, version, patch) {

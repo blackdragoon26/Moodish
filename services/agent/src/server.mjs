@@ -100,20 +100,32 @@ export async function handleAgentRequest(req, res) {
       return send(res, 200, { loggedOut: true }, { "set-cookie": clearAuthCookie() });
     }
     if (req.method === "GET" && url.pathname === "/api/auth/google/start") {
-      return redirect(
-        res,
-        startGoogleOAuth(resolvePublicOrigin(req), { mobile: url.searchParams.get("client") === "mobile" })
-      );
+      const mobile = url.searchParams.get("client") === "mobile";
+      const browserBinding = mobile ? undefined : crypto.randomBytes(32).toString("base64url");
+      let location;
+      try {
+        // Native clients send a PKCE challenge; older app builds without one are
+        // told to update instead of receiving a token in the callback URL.
+        location = await startGoogleOAuth(resolvePublicOrigin(req), { mobileChallenge: mobile ? url.searchParams.get("challenge") || "" : undefined, browserBinding });
+      } catch (error) {
+        if (error.flowKind === "mobile") return redirect(res, `moodish://auth-callback?error=${error.loginError}`);
+        throw error;
+      }
+      return redirect(res, location, browserBinding ? { "set-cookie": googleFlowCookie(browserBinding, 600) } : {});
     }
     if (req.method === "GET" && url.pathname === "/api/auth/google/callback") {
-      const { mobile, user } = await completeGoogleOAuth({
-        code: url.searchParams.get("code"),
-        state: url.searchParams.get("state")
-      });
-      if (mobile) {
-        return redirect(res, `moodish://auth-callback?token=${encodeURIComponent(signSessionToken(user))}`);
+      let completed;
+      try {
+        completed = await completeGoogleOAuth({ code: url.searchParams.get("code"), state: url.searchParams.get("state"),
+          denied: url.searchParams.get("error"), browserBinding: readCookie(req, "moodish_google_flow") });
+      } catch (error) {
+        const reason = OAUTH_ERROR_CODES.has(error.loginError) ? error.loginError : "failed";
+        if (error.flowKind === "mobile") return redirect(res, `moodish://auth-callback?error=${reason}`);
+        const clear = error.loginError === "browser_mismatch" ? {} : { "set-cookie": googleFlowCookie("", 0) };
+        return redirect(res, `/?login_error=${reason}`, clear);
       }
-      return redirect(res, "/?login=google", { "set-cookie": issueAuthCookie(user) });
+      if (completed.mobile) return redirect(res, `moodish://auth-callback?code=${encodeURIComponent(completed.exchangeCode)}`);
+      return redirect(res, "/?login=google", { "set-cookie": [issueAuthCookie(completed.user), googleFlowCookie("", 0)] });
     }
     if ((req.method === "GET" && url.pathname === "/api/auth/swiggy/start") ||
         (req.method === "POST" && url.pathname === "/api/swiggy/oauth/start")) {
@@ -216,7 +228,7 @@ export async function handleAgentRequest(req, res) {
     if (req.method === "GET" && platformOauthMatch) {
       const [, platform, action] = platformOauthMatch;
       if (action === "start") {
-        const started = startPlatformOAuth(platform, {
+        const started = await startPlatformOAuth(platform, {
           sessionId: url.searchParams.get("sessionId"),
           redirectUri: `${resolvePublicOrigin(req)}/api/platforms/${platform}/oauth/callback`
         });
@@ -411,4 +423,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 }
 
 function readCookie(req, name) { return String(req.headers.cookie || "").split(";").map(s => s.trim()).find(s => s.startsWith(`${name}=`))?.slice(name.length + 1); }
+function googleFlowCookie(value, age) { return `moodish_google_flow=${value}; Path=/api/auth/google; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`; }
 function flowCookie(value, age) { return `moodish_swiggy_flow=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`; }
