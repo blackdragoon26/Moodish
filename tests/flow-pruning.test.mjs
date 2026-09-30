@@ -13,3 +13,20 @@ test("expired login and exchange records are pruned; cart reviews and connection
   for (const key of ["mobile:fresh", "cart-prepare:old", "swiggy:someone"]) assert.ok(await getSecretSession(key), key);
   assert.equal(await pruneExpiredFlows(Date.now() + 7_200_000 + 1000), 0, "at most once an hour");
 });
+
+test("a failed PostgreSQL sweep is retried instead of waiting an hour", async () => {
+  // A listener that drops every connection makes each sweep fail.
+  const net = await import("node:net");
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  let attempts = 0;
+  const server = net.createServer(socket => { attempts += 1; socket.destroy(); });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const memory = new URL("../services/agent/src/memory.mjs", import.meta.url).href;
+    await promisify(execFile)(process.execPath, ["--input-type=module", "-e", `import { pruneExpiredFlows } from ${JSON.stringify(memory)};
+      for (let i = 0; i < 3; i++) await pruneExpiredFlows(Date.now() + i).catch(() => {});`],
+      { env: { PATH: process.env.PATH, DATABASE_URL: `postgresql://u:p@127.0.0.1:${server.address().port}/db`, MOODISH_RUNTIME_ENV_FILE: "/nonexistent" }, timeout: 20000 });
+    assert.equal(attempts, 3);
+  } finally { server.close(); }
+});
