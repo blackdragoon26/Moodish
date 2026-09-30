@@ -1007,13 +1007,31 @@ $("#participantAccessForm").addEventListener("submit", async (event) => {
   }
 });
 
+// The server hands out a private token the first time a name answers or votes;
+// only this browser can change that name's answer afterwards.
+const participantTokenKey = (sessionId, participantId) => `moodish-participant-token:${sessionId}:${participantId}`;
+function readParticipantToken(sessionId, participantId) {
+  try { return window.localStorage.getItem(participantTokenKey(sessionId, participantId)) || undefined; } catch { return undefined; }
+}
+function rememberParticipantToken(sessionId, participantId, response) {
+  if (!response.participantToken) return;
+  try { window.localStorage.setItem(participantTokenKey(sessionId, participantId), response.participantToken); } catch {}
+}
+
 $("#participantPreferenceForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = formJson(event.currentTarget);
-  participantSession = await api(`/api/group-sessions/${participantSession.sessionId}/preferences`, {
-    method: "POST",
-    body: JSON.stringify({ ...payload, invitePasscode: participantInvitePasscode })
-  });
+  const sessionId = participantSession.sessionId;
+  try {
+    participantSession = await api(`/api/group-sessions/${sessionId}/preferences`, {
+      method: "POST",
+      body: JSON.stringify({ ...payload, invitePasscode: participantInvitePasscode, participantToken: readParticipantToken(sessionId, payload.participantId) })
+    });
+  } catch (error) {
+    $("#participantStage").innerHTML = `<div class="stage-message error"><strong>Your answer was not saved.</strong><span>${escapeHtml(error.message)}</span></div>`;
+    return;
+  }
+  rememberParticipantToken(sessionId, payload.participantId, participantSession);
   participantSubmitted = true;
   window.localStorage.setItem(`moodish-participant:${participantSession.sessionId}`, payload.participantId);
   renderParticipantSession();
@@ -1036,10 +1054,17 @@ $("#participantVoteButton").addEventListener("click", async () => {
     $("#participantVoterId").focus();
     return;
   }
-  participantSession = await api(`/api/group-sessions/${participantSession.sessionId}/vote`, {
-    method: "POST",
-    body: JSON.stringify({ participantId, optionId: participantSelectedOptionId, invitePasscode: participantInvitePasscode })
-  });
+  const sessionId = participantSession.sessionId;
+  try {
+    participantSession = await api(`/api/group-sessions/${sessionId}/vote`, {
+      method: "POST",
+      body: JSON.stringify({ participantId, optionId: participantSelectedOptionId, invitePasscode: participantInvitePasscode, participantToken: readParticipantToken(sessionId, participantId) })
+    });
+  } catch (error) {
+    $("#participantStage").innerHTML = `<div class="stage-message error"><strong>Your vote was not saved.</strong><span>${escapeHtml(error.message)}</span></div>`;
+    return;
+  }
+  rememberParticipantToken(sessionId, participantId, participantSession);
   participantVoted = true;
   renderParticipantSession();
 });

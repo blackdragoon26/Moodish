@@ -99,7 +99,7 @@ test("team voting supports one vote per participant and manager selection", asyn
     headcount: 2,
     approvalMode: "team_vote"
   });
-  await tools.submit_group_preferences({
+  const { participantToken } = await tools.submit_group_preferences({
     sessionId: created.sessionId,
     invitePasscode: created.invitePasscode,
     participantId: "p1",
@@ -107,18 +107,16 @@ test("team voting supports one vote per participant and manager selection", asyn
   });
   const ranked = await tools.rank_group_meal({ sessionId: created.sessionId, actorId: "creator-vote" });
   const optionId = ranked.recommendation.options[0].optionId;
-  await tools.vote_group_option({
-    sessionId: created.sessionId,
-    invitePasscode: created.invitePasscode,
-    participantId: "p1",
-    optionId
-  });
-  await tools.vote_group_option({
-    sessionId: created.sessionId,
-    invitePasscode: created.invitePasscode,
-    participantId: "p1",
-    optionId
-  });
+  // p1 votes twice from the same device (with its participant token).
+  for (let i = 0; i < 2; i++) {
+    await tools.vote_group_option({
+      sessionId: created.sessionId,
+      invitePasscode: created.invitePasscode,
+      participantId: "p1",
+      participantToken,
+      optionId
+    });
+  }
   const selected = await tools.select_group_option({ sessionId: created.sessionId, actorId: "creator-vote" });
 
   assert.equal(selected.voteCounts[optionId], 1);

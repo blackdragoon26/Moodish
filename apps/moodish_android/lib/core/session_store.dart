@@ -20,6 +20,16 @@ class SessionStore {
     await _secure.write(key: _tokenKey(sessionId), value: token);
   }
 
+  static String _participantTokenKey(String sessionId, String participantId) => 'moodish.group.participantToken.$sessionId.$participantId';
+
+  /// Private token the server issues on a participant's first answer or vote;
+  /// later changes under the same name must present it.
+  Future<String?> participantToken(String sessionId, String participantId) =>
+      _secure.read(key: _participantTokenKey(sessionId, participantId));
+
+  Future<void> setParticipantToken(String sessionId, String participantId, String token) =>
+      _secure.write(key: _participantTokenKey(sessionId, participantId), value: token);
+
   Future<String?> participantId(String sessionId) async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_participantKey(sessionId));

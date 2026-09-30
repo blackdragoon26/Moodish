@@ -186,8 +186,17 @@ final class APIClient {
             let dietaryRules: String?
             let allergies: String?
             let invitePasscode: String?
+            let participantToken: String?
         }
-        return try await send("/api/group-sessions/\(sessionId)/preferences", method: "POST", body: Body(participantId: participantId, dietMode: dietMode, mood: mood, dietaryRules: dietaryRules, allergies: allergies, invitePasscode: invitePasscode), bearerToken: bearerToken, usePersonalSession: false)
+        let session: GroupSession = try await send("/api/group-sessions/\(sessionId)/preferences", method: "POST", body: Body(participantId: participantId, dietMode: dietMode, mood: mood, dietaryRules: dietaryRules, allergies: allergies, invitePasscode: invitePasscode, participantToken: sessionStore.participantToken(sessionId: sessionId, participantId: participantId)), bearerToken: bearerToken, usePersonalSession: false)
+        rememberParticipantToken(session, sessionId: sessionId, participantId: participantId)
+        return session
+    }
+
+    /// The server issues a private token the first time a participant name
+    /// answers or votes; later changes under that name must present it.
+    private func rememberParticipantToken(_ session: GroupSession, sessionId: String, participantId: String) {
+        if let token = session.participantToken { sessionStore.setParticipantToken(token, sessionId: sessionId, participantId: participantId) }
     }
 
     func rankGroupSession(sessionId: String, bearerToken: String) async throws -> GroupSession {
@@ -195,8 +204,10 @@ final class APIClient {
     }
 
     func voteGroupSession(sessionId: String, participantId: String, optionId: String, invitePasscode: String?, bearerToken: String?) async throws -> GroupSession {
-        struct Body: Encodable { let participantId: String; let optionId: String; let invitePasscode: String? }
-        return try await send("/api/group-sessions/\(sessionId)/vote", method: "POST", body: Body(participantId: participantId, optionId: optionId, invitePasscode: invitePasscode), bearerToken: bearerToken, usePersonalSession: false)
+        struct Body: Encodable { let participantId: String; let optionId: String; let invitePasscode: String?; let participantToken: String? }
+        let session: GroupSession = try await send("/api/group-sessions/\(sessionId)/vote", method: "POST", body: Body(participantId: participantId, optionId: optionId, invitePasscode: invitePasscode, participantToken: sessionStore.participantToken(sessionId: sessionId, participantId: participantId)), bearerToken: bearerToken, usePersonalSession: false)
+        rememberParticipantToken(session, sessionId: sessionId, participantId: participantId)
+        return session
     }
 
     func selectGroupOption(sessionId: String, optionId: String, bearerToken: String) async throws -> GroupSession {

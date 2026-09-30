@@ -8,6 +8,7 @@ final class SessionStore {
     private static let sessionTokenKey = "moodish.session.token"
     private static let groupTokenPrefix = "moodish.group.token."
     private static let participantIdPrefix = "moodish.group.participant."
+    private static let participantTokenPrefix = "moodish.group.participantToken."
 
     private(set) var sessionToken: String?
 
@@ -38,6 +39,14 @@ final class SessionStore {
 
     func setParticipantId(_ id: String, sessionId: String) {
         KeychainStore.set(id, forKey: Self.participantIdPrefix + sessionId)
+    }
+
+    func participantToken(sessionId: String, participantId: String) -> String? {
+        KeychainStore.get(Self.participantTokenPrefix + sessionId + "." + participantId)
+    }
+
+    func setParticipantToken(_ token: String, sessionId: String, participantId: String) {
+        KeychainStore.set(token, forKey: Self.participantTokenPrefix + sessionId + "." + participantId)
     }
 
     func logout() {
