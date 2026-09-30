@@ -1,4 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+import 'package:moodish/core/api_client.dart';
 import 'package:moodish/core/google_auth_session.dart';
 
 void main() {
@@ -23,5 +26,25 @@ void main() {
   test('rejects callbacks without the value or from another scheme', () {
     expect(() => callbackValue(Uri.parse('moodish://auth-callback'), 'code'), throwsA(isA<GoogleAuthException>()));
     expect(() => callbackValue(Uri.parse('https://evil.example/?code=abc'), 'code'), throwsA(isA<GoogleAuthException>()));
+  });
+
+  test('PKCE challenge is the S256 of a fresh 43-character verifier', () {
+    final a = Pkce.generate();
+    final b = Pkce.generate();
+    expect(a.verifier.length, 43);
+    expect(a.verifier, isNot(b.verifier));
+    expect(a.challenge, base64UrlEncode(sha256.convert(utf8.encode(a.verifier)).bytes).replaceAll('=', ''));
+  });
+
+  test('the Google start URL carries the challenge and never asks for a token', () {
+    final url = ApiClient().googleMobileAuthorizeUrl('challenge-value');
+    expect(url.path, '/api/auth/google/start');
+    expect(url.queryParameters, {'client': 'mobile', 'challenge': 'challenge-value'});
+  });
+
+  test('an older-server style token callback is not accepted as a code', () {
+    expect(() => callbackValue(Uri.parse('moodish://auth-callback?token=abc'), 'code'), throwsA(isA<GoogleAuthException>()));
+    expect(() => callbackValue(Uri.parse('moodish://auth-callback?error=update_required'), 'code'),
+        throwsA(isA<GoogleAuthException>().having((e) => e.message, 'message', contains('Update Moodish'))));
   });
 }
