@@ -41,6 +41,15 @@ Swiggy expires only the credential that was rejected, so the account shows
 "expired". A reconnect starts fresh and the address is chosen again, because it
 may be a different Swiggy account.
 
+Native Google sign-in uses the same exchange: the app sends a PKCE challenge
+to `/api/auth/google/start?client=mobile&challenge=...` and redeems the returned
+`moodish://auth-callback?code=...` at `/api/auth/mobile/exchange`. No session
+token travels in a URL. App builds older than this change get
+`error=update_required`. Google, Swiggy and platform login flows are stored in
+PostgreSQL and redeemed once, so any replica or a restarted process can finish
+them. Web Google login is bound to the browser that started it. Expired flow
+and exchange records are pruned after a day; cart reviews never are.
+
 In the native flow, the Swiggy credential stays in the single-use exchange
 record until the app that started the flow redeems the code with its PKCE
 verifier. Approving consent in some other browser connects nothing unless that

@@ -239,22 +239,18 @@ Baseline defects D1–D9 are described in [post-merge-baseline.md](post-merge-ba
   passcode, so a participant who knows another's name can overwrite that
   response. This is unchanged.
 - Demo users share one identity (`demo:moodish`) by design; demo data is shared.
-- Auth session and group tokens are signed with the same key and told apart only
-  by their payload fields. This is safe today; a type claim would be clearer.
-- Unredeemed `swiggy-flow:` and `mobile:` records (the latter holding an
-  encrypted Swiggy credential) expire logically but are never deleted from
-  `moodish_secret_sessions`. Add periodic pruning as a follow-up.
-- Google and platform OAuth flows are held in process memory, so a callback that
-  reaches another replica, or arrives after a restart, fails and must be retried.
-  Swiggy flows are durable.
-- The iOS Keychain wrapper ignores `SecItemAdd` failures.
+- Resolved in the follow-up PR (`followup/auth-hardening`):
+  - session and group tokens now carry a type claim;
+  - expired flow and exchange records are pruned after a day (never cart reviews);
+  - Google and platform OAuth flows are durable and single use, and web Google
+    login is bound to its browser;
+  - the iOS Keychain wrapper reports and logs write failures.
 - Standalone Swiggy login cannot recover its identity after the app session is
   cleared (a follow-up; Google login is stable).
 - A required dish customization is rejected with an explanation; there is no picker.
-- Mobile Google login still returns the Moodish session token in the
-  `moodish://auth-callback?token=` URL, without the PKCE-bound exchange the Swiggy
-  flow uses. Another Android app registering the `moodish` scheme could
-  intercept it. This is pre-existing; move it to the same exchange as a follow-up.
+- Mobile Google login returned the session token in the `moodish://` URL. It is
+  resolved in the follow-up PR, which uses the PKCE-bound exchange. Older app
+  builds must update.
 - Transaction-pooler detection is heuristic (port 6543, `pgbouncer=true`,
   `-pooler.` hosts). Other transaction poolers would break the advisory locks.
 - A cart confirmation holds a pool connection and an account lock across several
