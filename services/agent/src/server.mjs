@@ -36,11 +36,11 @@ import { realpathSync } from "node:fs";
 import { resolvePublicOrigin } from "./public-origin.mjs";
 import { DEFAULT_USER_HASH } from "./contracts.mjs";
 import { assertRuntimeConfig } from "./config.mjs";
+import { LOGIN_ERRORS, loginErrorReason } from "./login-flows.mjs";
 
 // Only these tools are reachable through /mcp. Group tools take caller-supplied
 // actor and passcode arguments, so they stay behind the signed group API.
 const MCP_PERSONAL_TOOLS = new Set(["plan_personal_meal", "plan_office_lunch", "prepare_cart", "build_confirmed_cart", "update_taste_profile", "record_meal_feedback", "get_taste_memory"]);
-const OAUTH_ERROR_CODES = new Set(["expired", "browser_mismatch", "declined", "exchange_failed"]);
 
 loadLocalEnv();
 
@@ -108,7 +108,7 @@ export async function handleAgentRequest(req, res) {
         // told to update instead of receiving a token in the callback URL.
         location = await startGoogleOAuth(resolvePublicOrigin(req), { mobileChallenge: mobile ? url.searchParams.get("challenge") || "" : undefined, browserBinding });
       } catch (error) {
-        if (error.flowKind === "mobile") return redirect(res, `moodish://auth-callback?error=${error.loginError}`);
+        if (error.flowKind === "mobile") return redirect(res, `moodish://auth-callback?error=${loginErrorReason(error)}`);
         throw error;
       }
       return redirect(res, location, browserBinding ? { "set-cookie": googleFlowCookie(browserBinding, 600) } : {});
@@ -119,9 +119,9 @@ export async function handleAgentRequest(req, res) {
         completed = await completeGoogleOAuth({ code: url.searchParams.get("code"), state: url.searchParams.get("state"),
           denied: url.searchParams.get("error"), browserBinding: readCookie(req, "moodish_google_flow") });
       } catch (error) {
-        const reason = OAUTH_ERROR_CODES.has(error.loginError) ? error.loginError : "failed";
+        const reason = loginErrorReason(error);
         if (error.flowKind === "mobile") return redirect(res, `moodish://auth-callback?error=${reason}`);
-        const clear = error.loginError === "browser_mismatch" ? {} : { "set-cookie": googleFlowCookie("", 0) };
+        const clear = reason === LOGIN_ERRORS.BROWSER_MISMATCH ? {} : { "set-cookie": googleFlowCookie("", 0) };
         return redirect(res, `/?login_error=${reason}`, clear);
       }
       if (completed.mobile) return redirect(res, `moodish://auth-callback?code=${encodeURIComponent(completed.exchangeCode)}`);
@@ -146,9 +146,9 @@ export async function handleAgentRequest(req, res) {
       } catch (error) {
         // Send people back to the app that started the flow with a short reason.
         // No provider error text, code or state is reflected.
-        const reason = OAUTH_ERROR_CODES.has(error.oauthError) ? error.oauthError : "failed";
+        const reason = loginErrorReason(error);
         if (error.flowKind === "mobile") return redirect(res, `moodish://auth-callback?error=${reason}`);
-        const clear = error.oauthError === "browser_mismatch" ? {} : { "set-cookie": flowCookie("", 0) };
+        const clear = reason === LOGIN_ERRORS.BROWSER_MISMATCH ? {} : { "set-cookie": flowCookie("", 0) };
         return redirect(res, `/?swiggy_error=${reason}`, clear);
       }
       if (connected.exchangeCode) return redirect(res, `moodish://auth-callback?code=${encodeURIComponent(connected.exchangeCode)}`);
@@ -423,5 +423,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
 }
 
 function readCookie(req, name) { return String(req.headers.cookie || "").split(";").map(s => s.trim()).find(s => s.startsWith(`${name}=`))?.slice(name.length + 1); }
-function googleFlowCookie(value, age) { return `moodish_google_flow=${value}; Path=/api/auth/google; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`; }
-function flowCookie(value, age) { return `moodish_swiggy_flow=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`; }
+function loginFlowCookie(name, path, value, age) { return `${name}=${value}; Path=${path}; HttpOnly; SameSite=Lax; Max-Age=${age}${process.env.NODE_ENV === "production" ? "; Secure" : ""}`; }
+function googleFlowCookie(value, age) { return loginFlowCookie("moodish_google_flow", "/api/auth/google", value, age); }
+function flowCookie(value, age) { return loginFlowCookie("moodish_swiggy_flow", "/", value, age); }

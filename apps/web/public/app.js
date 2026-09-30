@@ -135,6 +135,7 @@ function formJson(form) {
   );
 }
 
+// Keys are the server's LOGIN_ERRORS codes (services/agent/src/login-flows.mjs).
 const SWIGGY_OAUTH_MESSAGES = {
   declined: "Swiggy connection was cancelled. Nothing was changed. You can connect again at any time.",
   expired: "That Swiggy sign-in link expired or was already used. Start the connection again.",
@@ -149,15 +150,15 @@ const GOOGLE_LOGIN_MESSAGES = {
   exchange_failed: "Google did not complete the sign-in. Try again.",
   failed: "Google sign-in did not complete. Try again."
 };
-let pendingSwiggyNotice = null;
+let pendingAuthNotice = null;
 
-function readSwiggyOAuthResult() {
+function readAuthResult() {
   const params = new URLSearchParams(window.location.search);
   const reason = params.get("swiggy_error");
   const loginError = params.get("login_error");
   const connected = params.get("login") === "swiggy";
   if (!reason && !loginError && !connected) return;
-  pendingSwiggyNotice = loginError ? GOOGLE_LOGIN_MESSAGES[loginError] || GOOGLE_LOGIN_MESSAGES.failed
+  pendingAuthNotice = loginError ? GOOGLE_LOGIN_MESSAGES[loginError] || GOOGLE_LOGIN_MESSAGES.failed
     : reason ? SWIGGY_OAUTH_MESSAGES[reason] || SWIGGY_OAUTH_MESSAGES.failed : "Swiggy connected. Choose a delivery address to continue.";
   params.delete("swiggy_error");
   params.delete("login_error");
@@ -167,7 +168,7 @@ function readSwiggyOAuthResult() {
 }
 
 async function boot() {
-  readSwiggyOAuthResult();
+  readAuthResult();
   const inviteSessionId = new URLSearchParams(window.location.search).get("group");
   const managerAccessToken = new URLSearchParams(window.location.hash.slice(1)).get("access_token");
   if (inviteSessionId && managerAccessToken) {
@@ -186,11 +187,11 @@ async function boot() {
       configureLogin(config, health);
       if (bootstrap.user) enterProduct(bootstrap.user, bootstrap.mealMemory || []);
       else $("#loginGate").classList.remove("hidden");
-      if (pendingSwiggyNotice) {
+      if (pendingAuthNotice) {
         const target = bootstrap.user ? $("#connectionError") : $("#loginNote");
         target.classList.remove("hidden");
-        target.textContent = pendingSwiggyNotice;
-        pendingSwiggyNotice = null;
+        target.textContent = pendingAuthNotice;
+        pendingAuthNotice = null;
       }
       return;
     } catch (error) {

@@ -1,10 +1,8 @@
 import crypto from "node:crypto";
 import { runtimeSigningSecret } from "./runtime-secrets.mjs";
-import { getSecretSession, saveSecretSession, takeSecretSession, pruneExpiredFlows, requireDurableLiveStorage } from "./memory.mjs";
+import { requireDurableLiveStorage } from "./memory.mjs";
 import { issueMobileExchange } from "./swiggy-auth.mjs";
-
-const hash = value => crypto.createHash("sha256").update(String(value)).digest("base64url");
-const loginFailure = (message, loginError, flowKind, status = 400) => Object.assign(new Error(message), { status, loginError, flowKind });
+import { LOGIN_ERRORS, claimFlow, hashValue as hash, loginFailure, newFlowSecrets, peekFlow, saveFlow } from "./login-flows.mjs";
 
 export function authConfiguration() {
   return {
@@ -21,16 +19,13 @@ export function authConfiguration() {
 export async function startGoogleOAuth(publicOrigin, { mobileChallenge, browserBinding } = {}) {
   if (!authConfiguration().google) throw unavailable("Google login needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
   requireDurableLiveStorage();
-  if (mobileChallenge !== undefined && !/^[A-Za-z0-9_-]{43}$/.test(mobileChallenge)) throw loginFailure("Update the Moodish app to sign in with Google", "update_required", "mobile");
-  if (!mobileChallenge && !browserBinding) throw loginFailure("A bound login flow is required", "failed");
-  const state = crypto.randomBytes(24).toString("base64url");
-  const verifier = crypto.randomBytes(32).toString("base64url");
-  const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
+  if (mobileChallenge !== undefined && !/^[A-Za-z0-9_-]{43}$/.test(mobileChallenge)) throw loginFailure("Update the Moodish app to sign in with Google", LOGIN_ERRORS.UPDATE_REQUIRED, "mobile");
+  if (!mobileChallenge && !browserBinding) throw loginFailure("A bound login flow is required", LOGIN_ERRORS.FAILED);
+  const { state, verifier, challenge } = newFlowSecrets();
   const redirectUri = `${String(publicOrigin || publicUrl()).replace(/\/$/, "")}/api/auth/google/callback`;
   const expiresAt = Date.now() + 10 * 60_000;
-  await saveSecretSession(`google-flow:${hash(state)}`, { verifier, redirectUri, mobileChallenge: mobileChallenge || null,
+  await saveFlow("google", state, { verifier, redirectUri, mobileChallenge: mobileChallenge || null,
     binding: browserBinding ? hash(browserBinding) : null, expiresAt });
-  await pruneExpiredFlows();
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.search = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
@@ -46,13 +41,12 @@ export async function startGoogleOAuth(publicOrigin, { mobileChallenge, browserB
 }
 
 export async function completeGoogleOAuth({ code, state, browserBinding, denied }) {
-  const key = `google-flow:${hash(state || "")}`;
-  const flow = state ? await getSecretSession(key) : null;
-  if (!flow) throw loginFailure("Invalid or expired Google login", "expired");
+  const flow = await peekFlow("google", state);
+  if (!flow) throw loginFailure("Invalid or expired Google login", LOGIN_ERRORS.EXPIRED);
   const flowKind = flow.mobileChallenge ? "mobile" : "browser";
-  if (flow.binding && flow.binding !== hash(browserBinding || "")) throw loginFailure("Finish Google login in the browser where you started it", "browser_mismatch", flowKind, 403);
-  if (!await takeSecretSession(key) || flow.expiresAt <= Date.now()) throw loginFailure("Invalid or expired Google login", "expired", flowKind);
-  if (denied || !code) throw loginFailure("Google login was cancelled", "declined", flowKind);
+  if (flow.binding && flow.binding !== hash(browserBinding || "")) throw loginFailure("Finish Google login in the browser where you started it", LOGIN_ERRORS.BROWSER_MISMATCH, flowKind, 403);
+  if (!await claimFlow("google", state) || flow.expiresAt <= Date.now()) throw loginFailure("Invalid or expired Google login", LOGIN_ERRORS.EXPIRED, flowKind);
+  if (denied || !code) throw loginFailure("Google login was cancelled", LOGIN_ERRORS.DECLINED, flowKind);
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -65,12 +59,12 @@ export async function completeGoogleOAuth({ code, state, browserBinding, denied 
       code_verifier: flow.verifier
     })
   });
-  if (!tokenResponse.ok) throw loginFailure(`Google token exchange failed with ${tokenResponse.status}`, "exchange_failed", flowKind, 502);
+  if (!tokenResponse.ok) throw loginFailure(`Google token exchange failed with ${tokenResponse.status}`, LOGIN_ERRORS.EXCHANGE_FAILED, flowKind, 502);
   const tokens = await tokenResponse.json();
   const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
     headers: { authorization: `Bearer ${tokens.access_token}` }
   });
-  if (!profileResponse.ok) throw loginFailure("Google profile lookup failed", "exchange_failed", flowKind, 502);
+  if (!profileResponse.ok) throw loginFailure("Google profile lookup failed", LOGIN_ERRORS.EXCHANGE_FAILED, flowKind, 502);
   const profile = await profileResponse.json();
   const user = {
     id: `google:${profile.sub}`,

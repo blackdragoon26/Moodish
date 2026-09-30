@@ -1,19 +1,13 @@
-import crypto from "node:crypto";
 import { signGroupAccessToken } from "./access-token.mjs";
-import { getGroupSession, getSecretSession, saveSecretSession, takeSecretSession, pruneExpiredFlows, requireDurableLiveStorage } from "./memory.mjs";
-
-const hash = value => crypto.createHash("sha256").update(String(value)).digest("base64url");
+import { getGroupSession, requireDurableLiveStorage } from "./memory.mjs";
+import { claimFlow, newFlowSecrets, peekFlow, saveFlow } from "./login-flows.mjs";
 
 export async function startPlatformOAuth(platform, { sessionId, redirectUri } = {}) {
   const config = providerConfig(platform);
   requireDurableLiveStorage();
-  const state = crypto.randomBytes(24).toString("base64url");
-  const verifier = crypto.randomBytes(32).toString("base64url");
-  const challenge = crypto.createHash("sha256").update(verifier).digest("base64url");
+  const { state, verifier, challenge } = newFlowSecrets();
   const callback = redirectUri || `${publicBase()}/api/platforms/${platform}/oauth/callback`;
-  // Durable and single use, so any replica or a restarted process can finish it.
-  await saveSecretSession(`platform-flow:${hash(state)}`, { platform, sessionId, redirectUri: callback, verifier, expiresAt: Date.now() + 10 * 60_000 });
-  await pruneExpiredFlows();
+  await saveFlow("platform", state, { platform, sessionId, redirectUri: callback, verifier, expiresAt: Date.now() + 10 * 60_000 });
   const url = new URL(config.authorizeUrl);
   url.search = new URLSearchParams({
     client_id: config.clientId,
@@ -27,9 +21,8 @@ export async function startPlatformOAuth(platform, { sessionId, redirectUri } = 
 }
 
 export async function completePlatformOAuth(platform, { code, state } = {}) {
-  const key = `platform-flow:${hash(state || "")}`;
-  const flow = state ? await getSecretSession(key) : null;
-  if (!flow || flow.platform !== platform || !await takeSecretSession(key) || flow.expiresAt <= Date.now()) {
+  const flow = await peekFlow("platform", state);
+  if (!flow || flow.platform !== platform || !await claimFlow("platform", state) || flow.expiresAt <= Date.now()) {
     throw badRequest("Invalid or expired platform OAuth state");
   }
   const config = providerConfig(platform);
