@@ -56,9 +56,9 @@ see [myprod-deployment.md](myprod-deployment.md#rollback). Keep
   - durable identity for standalone Swiggy login;
   - wider platform availability.
 
-## Follow-up work (separate PR)
+## Follow-up work (separate PR, `followup/auth-hardening`)
 
-Residual risks from the acceptance report that are small enough to fix now:
+Stacked on this PR; merge it after this one. It resolves:
 - The Google login on phones still returns the session token in the
   `moodish://` URL, without a verifier.
 - Google and platform OAuth flows are held in process memory.

@@ -166,6 +166,10 @@ curl --fail-with-body -X POST -H "Authorization: Bearer $MYPROD_DEPLOY_TOKEN" \
 
 Find the previous digest in the earlier run's "Build and deploy Moodish" summary.
 
+- Rolling back from the auth-hardening follow-up to the release before it is safe:
+  typed session and group tokens are still accepted by older images, and
+  durable login flows in progress simply expire. Phone users signed in with
+  Google keep their sessions; a new Google sign-in needs the matching app build.
 - There are no schema migrations. Tables are created with `IF NOT EXISTS`, and
   new fields live inside existing JSON records, so older images read them.
 - Swiggy credentials stay encrypted in `moodish_secret_sessions` under the same
