@@ -1,5 +1,5 @@
 import http from "node:http";
-import { URL } from "node:url";
+import { URL, pathToFileURL } from "node:url";
 import { loadLocalEnv } from "./env.mjs";
 import { createTools, createToolRuntime } from "./tools.mjs";
 import {
@@ -32,6 +32,7 @@ import {
 } from "./auth.mjs";
 import { continueMealConversation } from "./conversation.mjs";
 import crypto from "node:crypto";
+import { realpathSync } from "node:fs";
 import { resolvePublicOrigin } from "./public-origin.mjs";
 import { DEFAULT_USER_HASH } from "./contracts.mjs";
 import { assertRuntimeConfig } from "./config.mjs";
@@ -401,7 +402,7 @@ async function readRaw(req) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   try { assertRuntimeConfig(); } catch (error) { console.error(error.message); process.exit(1); }
   const port = Number(process.env.MOODISH_PORT || 8786);
   createServer().listen(port, "127.0.0.1", () => {

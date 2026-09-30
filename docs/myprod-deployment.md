@@ -69,8 +69,8 @@ With `NODE_ENV=production` and either `SWIGGY_MODE=live` or
 `SWIGGY_OAUTH_ENABLED=true`, the process exits before listening unless
 `DATABASE_URL`, `TOKEN_ENCRYPTION_KEY`, `GROUP_SESSION_SIGNING_KEY` and an HTTPS
 `MOODISH_PUBLIC_URL` are set, both keys have at least 32 characters and differ,
-and `DATABASE_URL` is not a transaction-mode pooler (port 6543 or
-`pgbouncer=true`). The log names the settings, never their values. Account and
+and `DATABASE_URL` is not a transaction-mode pooler (port 6543, `pgbouncer=true`, or
+a `-pooler.` hostname such as Neon's pooled endpoints). The log names the settings, never their values. Account and
 cart locks are session advisory locks, so use a direct connection or session
 pooling.
 

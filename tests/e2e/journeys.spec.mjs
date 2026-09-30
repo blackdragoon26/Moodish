@@ -196,19 +196,28 @@ test("the creator reviews and confirms the group cart once", async ({ page, requ
   expect((await control(request, "state")).writes).toBe(1);
 });
 
-test("narrow screens keep the connection and review controls usable without sideways scrolling", async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 812 });
-  await signIn(page);
-  await connectWithAddress(page);
-  await askForMeal(page);
-  await expect(page.locator("#options .option-card").first()).toBeVisible();
-  await expect(page.locator("#confirmCart")).toBeInViewport({ ratio: 0.1 }).catch(async () => {
+for (const width of [375, 320]) {
+  test(`narrow ${width}px screens keep connection and review controls usable without sideways scrolling`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 812 });
+    // Wide fallback fonts, like those on Linux, expose layouts that only fit on macOS.
+    await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => {
+      const style = document.createElement("style");
+      style.textContent = '* { font-family: Verdana, "DejaVu Sans", sans-serif !important; }';
+      document.head.append(style);
+    }));
+    await signIn(page);
+    await connectWithAddress(page);
+    await askForMeal(page);
+    await expect(page.locator("#options .option-card").first()).toBeVisible();
     await page.locator("#confirmCart").scrollIntoViewIfNeeded();
     await expect(page.locator("#confirmCart")).toBeInViewport();
+    // The account button stays fully inside the screen width.
+    const avatar = await page.locator("#userMenu").boundingBox();
+    expect(avatar.x + avatar.width).toBeLessThanOrEqual(width);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
   });
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(overflow).toBeLessThanOrEqual(0);
-});
+}
 
 test("fixture mode is labelled as demo data end to end", async ({ page }) => {
   await page.goto(FIXTURE);

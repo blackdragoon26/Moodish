@@ -7,8 +7,9 @@
 //
 //   MOODISH_LIVE_ACCEPTANCE=1 DATABASE_URL=... TOKEN_ENCRYPTION_KEY=... \
 //   MOODISH_ACCEPTANCE_USER_ID=google:... node scripts/live-acceptance.mjs [--out report.json] [--capture-shapes dir]
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import crypto from "node:crypto";
 
 const READ_ONLY_TOOLS = new Set(["get_addresses", "search_menu", "get_restaurant_menu", "get_food_cart", "search_products"]);
@@ -131,7 +132,7 @@ export function shapeOf(value, depth = 0) {
   return value === null ? "<null>" : `<${typeof value}>`;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   const args = process.argv.slice(2);
   const option = name => { const index = args.indexOf(name); return index >= 0 ? args[index + 1] : undefined; };
   const result = await runLiveAcceptance({ captureShapes: option("--capture-shapes") });

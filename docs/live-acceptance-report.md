@@ -24,11 +24,11 @@ production secret or Swiggy credential was used.
 
 | Suite | Command | Result |
 | --- | --- | --- |
-| Backend, in-memory storage plus cross-process PostgreSQL | `MOODISH_TEST_DATABASE_URL=<disposable> npm test` | 117 tests: 116 pass, 1 skipped (the CI-only "database present" guard) |
-| Backend on PostgreSQL | `npm run test:postgres` | 117 tests: 115 pass, 2 skipped (the CI-only guard; the no-database refusal test) |
+| Backend, in-memory storage plus cross-process PostgreSQL | `MOODISH_TEST_DATABASE_URL=<disposable> npm test` | 124 tests: 123 pass, 1 skipped (the CI-only "database present" guard) |
+| Backend on PostgreSQL | `npm run test:postgres` | 124 tests: 122 pass, 2 skipped (the CI-only guard; the no-database refusal test) |
 | Missing database in CI | `CI=true npm test` without the variable | Fails (8 tests), by design |
 | Smoke | `npm run smoke` | OK, `checkoutBlocked: true` |
-| Browser journeys | `npm run test:e2e` | 9 of 9 pass |
+| Browser journeys | `npm run test:e2e` | 10 of 10 pass (narrow screens at 375 and 320 px with wide fallback fonts) |
 | Flutter | `flutter analyze && flutter test` | No issues; 11 of 11 pass |
 | Android build | `flutter build apk --debug` | Built |
 | iOS unit tests | `xcodebuild test ... CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO` | 8 of 8 pass |
@@ -146,7 +146,7 @@ Test files are under `tests/` unless noted. "e2e" means `tests/e2e/journeys.spec
 | Web: duplicate submit disabled while confirming | PASS | e2e |
 | Web: stale review refused, then a fresh review succeeds | PASS | e2e |
 | Web: errors and empty results shown plainly | PASS | e2e |
-| Web: narrow (375 px) viewport without sideways scroll | PASS | e2e |
+| Web: narrow (375 and 320 px) viewports without sideways scroll | PASS | e2e, with wide fallback fonts. Linux CI caught a 7 px overflow in the top bar that macOS fonts hid; fixed. |
 | Web: fixture mode labelled as demo end to end | PASS | e2e |
 | Web: creator group review and confirmation | PASS | e2e |
 | iOS simulator: demo sign-in, chat, recommendation, cart preview | PASS | Manual run on iPhone 17 against the local fixture server; server audit logged `build_confirmed_cart: ok` |
