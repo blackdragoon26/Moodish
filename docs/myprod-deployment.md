@@ -26,7 +26,8 @@ Moodish runs on Myprod as a public container image managed by Nomad and Traefik.
 - Image: `ghcr.io/blackdragoon26/moodish:<commit-sha>`
 - Architecture: `linux/arm64` for current Myprod nodes, plus `linux/amd64` for local verification
 - Container port: `8787`
-- Health path: `/health`
+- Health path: `/health` (liveness). `/health/ready` also checks PostgreSQL and
+  returns 503 when storage is configured but unreachable.
 - Process: `npm start`
 - Listener: `0.0.0.0:8787`
 - Recommended CPU: `500` MHz
@@ -61,6 +62,22 @@ Live production requires durable PostgreSQL, a stable encryption/signing key, an
 configured HTTPS public origin. There is no shared `SWIGGY_ACCESS_TOKEN` fallback.
 Each Moodish account connects its own Swiggy account and selects a saved address.
 See [live integration and acceptance](live-swiggy.md).
+
+## Startup checks
+
+With `NODE_ENV=production` and either `SWIGGY_MODE=live` or
+`SWIGGY_OAUTH_ENABLED=true`, the process exits before listening unless
+`DATABASE_URL`, `TOKEN_ENCRYPTION_KEY`, `GROUP_SESSION_SIGNING_KEY` and an HTTPS
+`MOODISH_PUBLIC_URL` are set, both keys have at least 32 characters and differ,
+and `DATABASE_URL` is not a transaction-mode pooler (port 6543 or
+`pgbouncer=true`). The log names the settings, never their values. Account and
+cart locks are session advisory locks, so use a direct connection or session
+pooling.
+
+Production verifies the database TLS certificate. A database reachable only on a
+private network without TLS must say so explicitly with `?sslmode=disable` in
+`DATABASE_URL`; otherwise every database request fails and `/health/ready`
+returns 503.
 
 ## Runtime Secrets
 
@@ -113,3 +130,45 @@ health-check result: curl -fsS http://127.0.0.1:8787/health
 project test command and result: npm test
 known limitations: live Swiggy MCP remains gated by Swiggy approval; real checkout is intentionally not implemented
 ```
+
+## Staged live rollout
+
+1. Deploy the candidate with `SWIGGY_MODE=fixture` and `SWIGGY_OAUTH_ENABLED=false`.
+   Check `/health` and `/health/ready`.
+2. Set `SWIGGY_OAUTH_ENABLED=true` (still fixture). Connect the intended test
+   account through the production callback and select an address.
+3. Run the read-only live acceptance harness against that account
+   ([live-swiggy.md](live-swiggy.md#live-acceptance-harness)). Every stage must PASS.
+4. Set `SWIGGY_MODE=live`. Repeat personal and group reviews on web and both
+   native apps. Run the single approved real Food cart test. Record evidence in
+   [live-acceptance-report.md](live-acceptance-report.md).
+5. Watch `/health/ready` and the `[Moodish] ... failed:` log lines. To stop live
+   use quickly, set `SWIGGY_MODE=fixture` and apply; no data migration is needed.
+
+## Rollback
+
+Myprod deploys immutable digests, so roll back by redeploying the previous
+digest from the Myprod dashboard, or with the same app-scoped token CI uses:
+
+```bash
+curl --fail-with-body -X POST -H "Authorization: Bearer $MYPROD_DEPLOY_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"image":"ghcr.io/blackdragoon26/moodish@sha256:<previous digest>"}' \
+  https://api.sankalpjha.dev/__poolctl/api/apps/moodish/image
+```
+
+Find the previous digest in the earlier run's "Build and deploy Moodish" summary.
+
+- There are no schema migrations. Tables are created with `IF NOT EXISTS`, and
+  new fields live inside existing JSON records, so older images read them.
+- Swiggy credentials stay encrypted in `moodish_secret_sessions` under the same
+  `TOKEN_ENCRYPTION_KEY`. Keep that key unchanged across a rollback, or every
+  account must reconnect. Credentials expired by this release (`accessToken`
+  null, `expiresAt` 0) read as expired in older images too.
+- Cart reviews (`cart-prepare:*` records) must not be edited or deleted during a
+  rollback. `attempting` and `uncertain` records are what stop a second write
+  after an ambiguous update, and `done` records return the stored result. Reviews
+  prepared by this release fail closed in older images, which ask the person to
+  review again. Older images also require an empty-cart check that this release
+  added, so prefer switching to `SWIGGY_MODE=fixture` over rolling back while
+  live mode is on.

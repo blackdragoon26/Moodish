@@ -76,4 +76,5 @@ event and OAuth routes all return 503 (not configured).
   catalog only. The merged live integration is gated, not absent.
 - `docs/group-testing.md` still points to the legacy `/etc/poolctl` secret file.
 
-Later phases fix D1–D9 and record the results in `docs/live-acceptance-report.md`.
+Later phases fix D1–D9 and record the results in `docs/live-acceptance-report.md`,
+which also lists defects found after this baseline (including D10).

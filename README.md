@@ -45,18 +45,22 @@ The main experience is now conversational: sign in, describe the mood, and Moodi
 - Uses OpenRouter for the AI summary when configured.
 - Lets reviewers use their own OpenRouter API key for a single browser session.
 - Shows a transparent recommendation trace: mood tokens, ranking scores, AI prompt, and AI response.
-- Keeps ordering safe: cart build requires confirmation, and real checkout/order placement is not implemented.
+- Keeps ordering safe: a Swiggy Food cart update needs a fresh server review and explicit confirmation, and checkout/order placement is not implemented.
 
 ## Important Note
 
-Moodish defaults to a visibly labelled local demo catalog for Swiggy-like restaurant and Instamart data.
+Moodish defaults to a visibly labelled local demo catalog (`SWIGGY_MODE=fixture`).
 
-That means:
-
-- Recommendations, group sessions, voting, and cart previews are functional.
+- Recommendations, group sessions, voting, and cart previews work on demo data.
 - OpenRouter AI inference is real when `AI_PROVIDER=openrouter` is configured.
-- Real Swiggy MCP ordering is not live yet.
-- `SWIGGY_MODE=live` is reserved for when Swiggy grants live MCP access.
+- The live Swiggy integration is implemented behind `SWIGGY_MODE=live`: per-account
+  OAuth, saved addresses, Food discovery, a reviewed and confirmed Food cart
+  update, and Instamart suggestions as a preview only. No order is ever placed.
+- Live mode is not enabled in production yet. It needs the live acceptance
+  steps in [docs/live-swiggy.md](docs/live-swiggy.md); current evidence is in
+  [docs/live-acceptance-report.md](docs/live-acceptance-report.md).
+- In a live cart review, the item estimate is not the bill. Swiggy's cart total
+  after the update is authoritative.
 
 ## How It Works
 
@@ -121,11 +125,13 @@ Reviewers can also open Developer view in the app and paste their own OpenRouter
 
 This is a Node web service packaged as a non-root container for Myprod.
 
-1. Push `main` to GitHub.
-2. Let GitHub Actions publish `ghcr.io/blackdragoon26/moodish:<commit-sha>`.
-3. Register that public image in Myprod with container port `8787` and health path `/health`.
-4. Install runtime secrets on the target node at `/etc/poolctl/apps/moodish.env`.
-5. Keep `SWIGGY_MODE=fixture` until live Swiggy OAuth has been completed.
+Every push to `main` runs the tests, publishes an immutable image and deploys it
+to Myprod automatically, so merging is deploying.
+
+1. Save and apply runtime secrets in Myprod's **Secrets & registry**.
+2. Liveness is `/health`; readiness including PostgreSQL is `/health/ready`.
+3. Keep `SWIGGY_MODE=fixture` until the staged live rollout in the deployment
+   guide has passed.
 
 See [docs/myprod-deployment.md](docs/myprod-deployment.md) for the exact Myprod handoff manifest and environment split.
 
@@ -156,8 +162,18 @@ See [the Moodish Enterprise testing guide](docs/group-testing.md) for a one-clic
 ## Tests
 
 ```bash
-npm test
+npm test                 # backend; cross-process PostgreSQL tests need MOODISH_TEST_DATABASE_URL
+npm run test:postgres    # the whole backend suite with PostgreSQL as storage
+npm run test:e2e         # browser journeys (Playwright) against the real app
 npm run smoke
 ```
 
-The tests cover mood ranking, dietary filtering, AI failure behavior, cart safety, and the web/API server.
+Use a disposable database for `MOODISH_TEST_DATABASE_URL`, never production.
+Tests simulate only the Swiggy network boundary with a fake provider
+(`tests/helpers/fake-swiggy.mjs`); they never call Swiggy. Native checks:
+`flutter analyze && flutter test` in `apps/moodish_android`, and
+`xcodebuild test -scheme Moodish -destination 'platform=iOS Simulator,name=iPhone 17' CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO`
+in `apps/ios/Moodish`.
+
+Read-only live checks for one connected account are opt-in and never run in CI:
+see `npm run acceptance:live` in [docs/live-swiggy.md](docs/live-swiggy.md).
