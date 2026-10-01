@@ -273,3 +273,19 @@ test('waiting for a free lock slot is bounded too', { skip }, async () => {
     console.log(JSON.stringify({ status, afterwards, quick, quickFast: quickMs < 500 }));`, { DATABASE_POOL_MAX: '3', MOODISH_LOCK_WAIT_MS: '300' });
   assert.deepEqual(result, { status: 503, afterwards: 'ok', quick: 'quick', quickFast: true });
 });
+
+test('callers waiting on a busy lock do not hold connections other requests need', { skip }, async () => {
+  const result = await json(`
+    const key = 'integration:contended:' + process.pid;
+    const order = [];
+    const holder = withAccountLock(key, async () => { await new Promise(resolve => setTimeout(resolve, 1800)); order.push('holder'); }, { longRunning: true });
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const waiters = [1, 2].map(n => withAccountLock(key, async () => { order.push('waiter'); }));
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const started = Date.now();
+    await getSecretSession('integration:unrelated:' + process.pid);
+    const unrelatedMs = Date.now() - started;
+    await Promise.all([holder, ...waiters]);
+    console.log(JSON.stringify({ unrelatedFast: unrelatedMs < 500, unrelatedMs, order }));`, { DATABASE_POOL_MAX: '3', MOODISH_LOCK_WAIT_MS: '5000' });
+  assert.deepEqual([result.unrelatedFast, result.order], [true, ['holder', 'waiter', 'waiter']], `unrelated query waited ${result.unrelatedMs}ms`);
+});

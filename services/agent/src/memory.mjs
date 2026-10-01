@@ -501,6 +501,26 @@ const locks = new Map();
 // `longRunning` marks locks held across Swiggy calls (cart review and
 // confirmation, group ranking). Only those count against the lock-slot cap,
 // so quick locks such as a participant's answer or vote never queue behind them.
+const busyLock = () => Object.assign(new Error("Something else is updating this right now. Try again in a moment."), { status: 409 });
+
+// Tries the lock and, while it is busy, hands the connection back to the pool
+// between attempts, so waiters never hold connections other requests need.
+// Returns the client that now holds the lock.
+async function acquireWithoutHolding(key) {
+  const deadline = Date.now() + LOCK_WAIT_MS;
+  for (let delay = 25; ; delay = Math.min(delay * 2, 250)) {
+    const client = await pool.connect();
+    let acquired = false;
+    try {
+      acquired = (await client.query("SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS ok", [key])).rows[0].ok;
+    } catch (error) { client.release(true); throw error; }
+    if (acquired) return client;
+    client.release();
+    if (Date.now() + delay > deadline) throw busyLock();
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+}
+
 export async function withAccountLock(key, fn, { longRunning = false } = {}) {
   if (pool) {
     await ensureSchema();
@@ -511,14 +531,19 @@ export async function withAccountLock(key, fn, { longRunning = false } = {}) {
     let failedUnlock = false;
     let locked = false;
     try {
-      client = inherited || await pool.connect();
-      // Wait for a busy account only as long as LOCK_WAIT_MS, then report it.
-      await client.query("SELECT set_config('lock_timeout', $1, false)", [`${LOCK_WAIT_MS}ms`]);
-      try { await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [key]); }
-      catch (error) {
-        if (error.code === "55P03") throw Object.assign(new Error("Something else is updating this right now. Try again in a moment."), { status: 409 });
-        throw error;
-      } finally { await client.query("SELECT set_config('lock_timeout', '0', false)").catch(() => { failedUnlock = true; }); }
+      if (inherited) {
+        // A nested lock reuses its parent's connection, so waiting here costs
+        // no extra connection; wait at most LOCK_WAIT_MS.
+        client = inherited;
+        await client.query("SELECT set_config('lock_timeout', $1, false)", [`${LOCK_WAIT_MS}ms`]);
+        try { await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [key]); }
+        catch (error) {
+          if (error.code === "55P03") throw busyLock();
+          throw error;
+        } finally { await client.query("SELECT set_config('lock_timeout', '0', false)").catch(() => { failedUnlock = true; }); }
+      } else {
+        client = await acquireWithoutHolding(key);
+      }
       locked = true;
       return await connectionContext.run(client, fn);
     } finally {
