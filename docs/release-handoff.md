@@ -1,6 +1,10 @@
 # Release handoff: live Swiggy acceptance
 
-PR: https://github.com/blackdragoon26/Moodish/pull/2 (`release/live-acceptance`).
+Everything below is merged to `main` and deployed (fixture mode): the acceptance
+work (#2), auth hardening (#3, #19), participant tokens (#17), the pool and lock
+fixes (#18), and the post-merge review fixes (#23). Open follow-ups are GitHub
+issues #5–#16 and #24.
+
 Evidence: [live-acceptance-report.md](live-acceptance-report.md). Baseline:
 [post-merge-baseline.md](post-merge-baseline.md).
 
@@ -8,22 +12,21 @@ Evidence: [live-acceptance-report.md](live-acceptance-report.md). Baseline:
 
 - **Code-ready for the defined scope.** CI runs the backend suite (in memory and
   on PostgreSQL, including a brand-new database), browser journeys, Flutter and
-  iOS tests. An independent reviewer passed the auth, cart and persistence changes.
+  iOS tests on every push to `main`.
 - **Not production-ready for live mode.** Nothing has been verified against a real
-  Swiggy account, a real cart, or a physical device.
+  Swiggy account, a real cart, or a physical device (#5, #7, #8).
+- **Ship new app builds (#13).** Production now requires the PKCE code exchange
+  for phone Google sign-in; app builds from before #3 can't start one.
 
-## What merging does
+## Production settings to confirm
 
-Every push to `main` tests, builds and deploys to Myprod. Merging this PR deploys
-it with the current settings (`SWIGGY_MODE=fixture`, `SWIGGY_OAUTH_ENABLED=false`).
-That fixes two isolation defects that affect production today:
-- anonymous callers could read or delete another account's taste memory;
-- `/mcp` exposed private group preferences.
-
-Before merging, confirm in Myprod's **Secrets & registry** that:
+In Myprod's **Secrets & registry**:
 - `DATABASE_URL` is a direct or session-pooled connection. Add `?sslmode=disable`
   only for a private-network database without TLS.
-- Readiness can be checked at `/health/ready` after the deploy.
+- Optional tuning: `DATABASE_POOL_MAX`, `MOODISH_LOCK_WAIT_MS`,
+  `DATABASE_CONNECT_TIMEOUT_MS`, `GOOGLE_HTTP_TIMEOUT_MS` (see
+  [myprod-deployment.md](myprod-deployment.md)).
+- Readiness is at `/health/ready`.
 
 ## Enabling live mode (owner actions)
 
@@ -50,18 +53,6 @@ see [myprod-deployment.md](myprod-deployment.md#rollback). Keep
 ## Decisions for the owner
 
 - Slack, Teams and Discord are unconfigured and unsupported for this release.
-- Follow-up auth hardening is in a separate PR (see below).
-- Later features, not release blockers:
-  - a customization picker for dishes that need options;
-  - durable identity for standalone Swiggy login;
-  - wider platform availability.
-
-## Follow-up work (separate PR, `followup/auth-hardening`)
-
-Stacked on this PR; merge it after this one. It resolves:
-- The Google login on phones still returns the session token in the
-  `moodish://` URL, without a verifier.
-- Google and platform OAuth flows are held in process memory.
-- Unredeemed OAuth and exchange records are never pruned.
-- Auth session and group tokens share a signing key, with no type claim.
-- The iOS Keychain wrapper ignores write failures.
+- Whether co-managers should see the creator's delivery address (#14).
+- Later features, not release blockers: a customization picker (#15) and a
+  durable identity for standalone Swiggy login (#16).

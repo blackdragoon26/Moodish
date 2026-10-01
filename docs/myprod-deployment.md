@@ -80,6 +80,9 @@ requests always have a connection even while cart confirmations wait on
 Swiggy. `MOODISH_LOCK_WAIT_MS` (default 15000) bounds how long a request waits
 for a busy account or a free lock slot before it gets a "try again" answer;
 `DATABASE_CONNECT_TIMEOUT_MS` (default 15000) does the same for connections.
+A request waiting for a busy lock does not hold a database connection while it
+waits. `GOOGLE_HTTP_TIMEOUT_MS` (default 10000) bounds each call to Google
+during sign-in; a timeout returns the person to the app with a retry message.
 
 Production verifies the database TLS certificate. A database reachable only on a
 private network without TLS must say so explicitly with `?sslmode=disable` in

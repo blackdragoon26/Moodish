@@ -47,9 +47,12 @@ export async function completeGoogleOAuth({ code, state, browserBinding, denied 
   if (flow.binding && flow.binding !== hash(browserBinding || "")) throw loginFailure("Finish Google login in the browser where you started it", LOGIN_ERRORS.BROWSER_MISMATCH, flowKind, 403);
   if (!await claimFlow("google", state) || flow.expiresAt <= Date.now()) throw loginFailure("Invalid or expired Google login", LOGIN_ERRORS.EXPIRED, flowKind);
   if (denied || !code) throw loginFailure("Google login was cancelled", LOGIN_ERRORS.DECLINED, flowKind);
+  const exchangeFailed = message => loginFailure(message, LOGIN_ERRORS.EXCHANGE_FAILED, flowKind, 502);
+  const googleTimeout = () => AbortSignal.timeout(Number(process.env.GOOGLE_HTTP_TIMEOUT_MS) || 10_000);
   const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
+    signal: googleTimeout(),
     body: new URLSearchParams({
       code,
       client_id: process.env.GOOGLE_CLIENT_ID,
@@ -58,14 +61,18 @@ export async function completeGoogleOAuth({ code, state, browserBinding, denied 
       grant_type: "authorization_code",
       code_verifier: flow.verifier
     })
-  });
+  }).catch(() => { throw exchangeFailed("Google token request could not be completed"); });
   if (!tokenResponse.ok) throw loginFailure(`Google token exchange failed with ${tokenResponse.status}`, LOGIN_ERRORS.EXCHANGE_FAILED, flowKind, 502);
-  const tokens = await tokenResponse.json();
+  const tokens = await tokenResponse.json().catch(() => { throw exchangeFailed("Google returned an unreadable token response"); });
+  if (typeof tokens?.access_token !== "string" || !tokens.access_token) throw exchangeFailed("Google returned no access token");
   const profileResponse = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-    headers: { authorization: `Bearer ${tokens.access_token}` }
-  });
+    headers: { authorization: `Bearer ${tokens.access_token}` },
+    signal: googleTimeout()
+  }).catch(() => { throw exchangeFailed("Google profile request could not be completed"); });
   if (!profileResponse.ok) throw loginFailure("Google profile lookup failed", LOGIN_ERRORS.EXCHANGE_FAILED, flowKind, 502);
-  const profile = await profileResponse.json();
+  const profile = await profileResponse.json().catch(() => { throw exchangeFailed("Google returned an unreadable profile"); });
+  // Without Google's stable account id there is no identity to sign in as.
+  if (typeof profile?.sub !== "string" || !profile.sub) throw exchangeFailed("Google returned a profile without an account id");
   const user = {
     id: `google:${profile.sub}`,
     name: profile.name || profile.email?.split("@")[0] || "Google member",
