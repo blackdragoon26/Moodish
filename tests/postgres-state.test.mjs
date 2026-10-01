@@ -278,8 +278,10 @@ test('callers waiting on a busy lock do not hold connections other requests need
   const result = await json(`
     const key = 'integration:contended:' + process.pid;
     const order = [];
-    const holder = withAccountLock(key, async () => { await new Promise(resolve => setTimeout(resolve, 1800)); order.push('holder'); }, { longRunning: true });
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Start the waiters only once the holder is inside its lock, not after a guessed delay.
+    let entered; const holderIn = new Promise(resolve => { entered = resolve; });
+    const holder = withAccountLock(key, async () => { entered(); await new Promise(resolve => setTimeout(resolve, 1800)); order.push('holder'); }, { longRunning: true });
+    await holderIn;
     const waiters = [1, 2].map(n => withAccountLock(key, async () => { order.push('waiter'); }));
     await new Promise(resolve => setTimeout(resolve, 200));
     const started = Date.now();
@@ -288,4 +290,23 @@ test('callers waiting on a busy lock do not hold connections other requests need
     await Promise.all([holder, ...waiters]);
     console.log(JSON.stringify({ unrelatedFast: unrelatedMs < 500, unrelatedMs, order }));`, { DATABASE_POOL_MAX: '3', MOODISH_LOCK_WAIT_MS: '5000' });
   assert.deepEqual([result.unrelatedFast, result.order], [true, ['holder', 'waiter', 'waiter']], `unrelated query waited ${result.unrelatedMs}ms`);
+});
+
+test('a lock waiter whose connection arrives after its deadline gives up instead of running late', { skip }, async () => {
+  // Pool of 3, all busy: a long lock on the key plus two other locks. The
+  // waiter's connection only frees up after its 300 ms deadline has passed.
+  const result = await json(`
+    const key = 'integration:late:' + process.pid;
+    let entered; const holderIn = new Promise(resolve => { entered = resolve; });
+    const holder = withAccountLock(key, async () => { entered(); await new Promise(resolve => setTimeout(resolve, 700)); }, { longRunning: true });
+    await holderIn;
+    const busy = ['b', 'c'].map(k => withAccountLock('integration:late:' + k + ':' + process.pid, () => new Promise(resolve => setTimeout(resolve, 1500))));
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const started = Date.now();
+    let outcome = 'ran';
+    try { await withAccountLock(key, async () => {}); } catch (error) { outcome = error.status; }
+    const waitedMs = Date.now() - started;
+    await Promise.all([holder, ...busy]);
+    console.log(JSON.stringify({ outcome, prompt: waitedMs < 550, waitedMs }));`, { DATABASE_POOL_MAX: '3', MOODISH_LOCK_WAIT_MS: '300' });
+  assert.deepEqual([result.outcome, result.prompt], [409, true], `waited ${result.waitedMs}ms`);
 });

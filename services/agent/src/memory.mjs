@@ -509,16 +509,39 @@ const busyLock = () => Object.assign(new Error("Something else is updating this 
 async function acquireWithoutHolding(key) {
   const deadline = Date.now() + LOCK_WAIT_MS;
   for (let delay = 25; ; delay = Math.min(delay * 2, 250)) {
-    const client = await pool.connect();
+    const client = await connectBefore(deadline);
     let acquired = false;
     try {
       acquired = (await client.query("SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS ok", [key])).rows[0].ok;
     } catch (error) { client.release(true); throw error; }
+    if (acquired && Date.now() > deadline) {
+      // Won the lock too late to honour the caller's wait limit; let it go.
+      await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [key]).then(() => client.release(), () => client.release(true));
+      throw busyLock();
+    }
     if (acquired) return client;
     client.release();
     if (Date.now() + delay > deadline) throw busyLock();
     await new Promise(resolve => setTimeout(resolve, delay));
   }
+}
+
+// pool.connect() can queue for a free connection; never past `deadline`. A
+// connection delivered after giving up goes straight back to the pool.
+async function connectBefore(deadline) {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) throw busyLock();
+  const connecting = pool.connect();
+  let timer;
+  let gaveUp = false;
+  try {
+    return await Promise.race([connecting, new Promise((_, reject) => {
+      timer = setTimeout(() => { gaveUp = true; reject(busyLock()); }, remaining);
+    })]);
+  } catch (error) {
+    if (gaveUp) connecting.then(client => client.release(), () => {});
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 
 export async function withAccountLock(key, fn, { longRunning = false } = {}) {
