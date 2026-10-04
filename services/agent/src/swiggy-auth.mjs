@@ -95,10 +95,18 @@ export async function getSwiggyConnectionStatus(userId) {
     requiresReauthentication: Boolean(session && !connected), selectedAddressId: session?.selectedAddressId || null };
 }
 export async function disconnectSwiggy(userId) { await deleteSecretSession(`swiggy:${userId}`); }
-export async function selectSwiggyAddress(userId, addressId) {
-  const session = await getSecretSession(`swiggy:${userId}`);
-  if (!session) throw fail("Connect Swiggy first", 401);
-  await saveSecretSession(`swiggy:${userId}`, { ...session, selectedAddressId: addressId });
+export async function selectSwiggyAddress(userId, addressId, expectedVersion) {
+  const key = `swiggy:${userId}`;
+  if (expectedVersion === undefined) {
+    const session = await getSecretSession(key);
+    if (!session) throw fail("Connect Swiggy first", 401);
+    expectedVersion = session.version;
+  }
+  // Patch only the connection whose addresses were checked. Never recreate a
+  // disconnected record or copy old credentials over a concurrent reconnect.
+  if (!await patchSecretSessionIfVersion(key, expectedVersion, { selectedAddressId: addressId })) {
+    throw fail("Swiggy connection changed. Reload your saved addresses and try again.", 409);
+  }
 }
 async function authRequest(path, body) {
   let response;

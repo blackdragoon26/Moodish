@@ -17,7 +17,7 @@ import {
   updateTasteProfile
 } from "./memory.mjs";
 import { platformCommandToSession, verifyPlatformRequest } from "./platform-adapters.mjs";
-import { completeSwiggyOAuth, getSwiggyConnectionStatus, startSwiggyOAuth, disconnectSwiggy, selectSwiggyAddress, exchangeMobileCode } from "./swiggy-auth.mjs";
+import { completeSwiggyOAuth, getSwiggyConnectionStatus, getSwiggyCredential, startSwiggyOAuth, disconnectSwiggy, selectSwiggyAddress, exchangeMobileCode } from "./swiggy-auth.mjs";
 import { signGroupAccessToken, verifyGroupAccessToken } from "./access-token.mjs";
 import { completePlatformOAuth, startPlatformOAuth } from "./platform-oauth.mjs";
 import {
@@ -176,9 +176,11 @@ export async function handleAgentRequest(req, res) {
     if (req.method === "POST" && url.pathname === "/api/swiggy/address") {
       const user = requireUser();
       const { addressId } = await readJson(req);
+      const credential = live ? await getSwiggyCredential(user.id) : null;
+      if (live && !credential) throw Object.assign(new Error("Connect or reconnect Swiggy first"), { status: 401 });
       const addresses = await runtime.swiggy.getAddresses();
       if (!addresses.some(a => a.id === addressId)) throw Object.assign(new Error("Choose one of your saved Swiggy addresses"), { status: 422 });
-      await selectSwiggyAddress(user.id, addressId);
+      await selectSwiggyAddress(user.id, addressId, credential?.version);
       return send(res, 200, await getSwiggyConnectionStatus(user.id));
     }
     if (req.method === "POST" && url.pathname === "/api/profile") {
