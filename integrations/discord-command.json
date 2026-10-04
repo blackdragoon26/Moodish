@@ -1,0 +1,13 @@
+{
+  "name": "moodish",
+  "description": "Arrange a team meal or connect your office",
+  "type": 1,
+  "options": [
+    {
+      "name": "text",
+      "description": "lunch or connect followed by your connection code",
+      "type": 3,
+      "required": true
+    }
+  ]
+}

@@ -27,6 +27,10 @@ You tell it what you feel like eating, your maximum budget, dietary needs, and w
 
 
 
+## Office workspaces
+
+[Moodish for Teams setup and pilot guide](docs/teams-workspace.md) covers `/teams.html`, office budgets, private attendance, purchaser handoff, recurring invitations, and Slack, Discord and WhatsApp connection setup. Channel credentials and Swiggy approval are required for live provider use; order placement remains manual.
+
 ## Apps
 
 Moodish also ships as native mobile clients that talk to the same backend as the web app:

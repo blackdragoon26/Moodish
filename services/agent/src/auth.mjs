@@ -16,16 +16,17 @@ export function authConfiguration() {
 // Flows are stored durably and redeemed once, so any replica or a restarted
 // process can finish them. Web flows are bound to the starting browser; native
 // flows end in a PKCE-checked exchange code instead of a token in the URL.
-export async function startGoogleOAuth(publicOrigin, { mobileChallenge, browserBinding } = {}) {
+export async function startGoogleOAuth(publicOrigin, { mobileChallenge, browserBinding, returnTo } = {}) {
   if (!authConfiguration().google) throw unavailable("Google login needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
   requireDurableLiveStorage();
   if (mobileChallenge !== undefined && !/^[A-Za-z0-9_-]{43}$/.test(mobileChallenge)) throw loginFailure("Update the Moodish app to sign in with Google", LOGIN_ERRORS.UPDATE_REQUIRED, "mobile");
   if (!mobileChallenge && !browserBinding) throw loginFailure("A bound login flow is required", LOGIN_ERRORS.FAILED);
+  if(returnTo && !/^\/teams\.html(?:\?team=[\w-]+(?:&meal=[\w-]+)?)?$/.test(returnTo))throw Object.assign(new Error("Invalid sign-in return destination"),{status:400});
   const { state, verifier, challenge } = newFlowSecrets();
   const redirectUri = `${String(publicOrigin || publicUrl()).replace(/\/$/, "")}/api/auth/google/callback`;
   const expiresAt = Date.now() + 10 * 60_000;
   await saveFlow("google", state, { verifier, redirectUri, mobileChallenge: mobileChallenge || null,
-    binding: browserBinding ? hash(browserBinding) : null, expiresAt });
+    binding: browserBinding ? hash(browserBinding) : null, returnTo: returnTo || null, expiresAt });
   const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   url.search = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID,
@@ -81,7 +82,7 @@ export async function completeGoogleOAuth({ code, state, browserBinding, denied 
     provider: "google"
   };
   if (flow.mobileChallenge) return { mobile: true, user, exchangeCode: await issueMobileExchange({ user, challenge: flow.mobileChallenge }) };
-  return { mobile: false, user };
+  return { mobile: false, user, ...(flow.returnTo ? {returnTo:flow.returnTo} : {}) };
 }
 
 export function signSessionToken(user) {

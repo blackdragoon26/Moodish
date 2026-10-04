@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Moodish for Teams</title>
+    <link rel="stylesheet" href="/teams.css" />
+  </head>
+  <body>
+    <header>
+      <a href="/">Moodish</a><strong>For Teams</strong
+      ><a href="/teams.html">Workspaces</a>
+    </header>
+    <main>
+      <p class="eyebrow">LESS CHASING. BETTER TEAM LUNCHES.</p>
+      <h1 id="title">Arrange your next team meal.</h1>
+      <p id="status" role="status" aria-live="polite">Loading…</p>
+      <section id="login" hidden>
+        <p>
+          Organizers sign in once. Participants only need their private meal
+          link.
+        </p>
+        <a href="/">Sign in to Moodish, then return here</a
+        ><button id="demo" hidden>Preview a demo workspace</button>
+      </section>
+      <section id="home" hidden>
+        <div id="workspaces" class="cards"></div>
+        <form id="create">
+          <h2>Create an office workspace</h2>
+          <label
+            >Workspace name<input
+              name="name"
+              required
+              maxlength="160"
+              placeholder="Acme Bengaluru" /></label
+          ><label
+            >Office / delivery instructions<input
+              name="office"
+              required
+              maxlength="160"
+              placeholder="Indiranagar office, reception"
+          /></label>
+          <div class="row">
+            <label
+              >Usual people<input
+                name="headcount"
+                type="number"
+                min="2"
+                max="25"
+                value="10"
+                required /></label
+            ><label
+              >Budget per person (₹)<input
+                name="budgetPerPerson"
+                type="number"
+                min="120"
+                max="2000"
+                value="350"
+                required /></label
+            ><label
+              >Maximum meal budget (₹)<input
+                name="maxTotal"
+                type="number"
+                min="120"
+                max="50000"
+                value="8750"
+                required
+            /></label>
+          </div>
+          <button>Create workspace</button>
+        </form>
+      </section>
+      <section id="workspace" hidden>
+        <div class="toolbar">
+          <button id="report">Download spend report</button
+          ><button id="invite">Invite a colleague</button
+          ><select id="inviteRole" aria-label="Colleague role">
+            <option value="organizer">Organizer</option>
+            <option value="purchaser">Purchaser</option>
+          </select>
+        </div>
+        <p id="invitation" class="wrap"></p>
+        <details>
+          <summary>Office settings and connections</summary>
+          <form id="settings">
+            <label>Office<input name="office" required /></label>
+            <div class="row">
+              <label
+                >Per-person cap (₹)<input
+                  name="budgetPerPerson"
+                  type="number"
+                  min="120"
+                  max="2000"
+                  required /></label
+              ><label
+                >Total cap (₹)<input
+                  name="maxTotal"
+                  type="number"
+                  min="120"
+                  max="50000"
+                  required /></label
+              ><label
+                >Usual headcount<input
+                  name="headcount"
+                  type="number"
+                  min="2"
+                  max="25"
+                  required /></label
+              ><label
+                >Response window (minutes)<input
+                  name="cutoffMinutes"
+                  type="number"
+                  min="5"
+                  max="1440"
+                  required
+              /></label>
+            </div>
+            <button>Save settings</button>
+          </form>
+          <div id="connections" class="toolbar"></div>
+          <p id="connectionStatus" class="wrap"></p>
+          <p>
+            Slack and Discord use a shared private participation page. WhatsApp
+            supports private links and one opted-in reminder; it does not join
+            your existing group.
+          </p>
+        </details>
+        <form id="newMeal">
+          <h2>Start a meal</h2>
+          <label
+            >What are you arranging?<input
+              name="vibe"
+              value="Friday team lunch"
+              required
+              maxlength="160"
+          /></label>
+          <div class="row">
+            <label
+              >People (maximum 25)<input
+                name="headcount"
+                type="number"
+                min="2"
+                max="25"
+                required /></label
+            ><label
+              >Budget each (₹)<input
+                name="budgetPerPerson"
+                type="number"
+                min="120"
+                max="2000"
+                required /></label
+            ><label
+              >Response cutoff<input
+                name="deadline"
+                type="datetime-local"
+                required /></label
+            ><label
+              >Desired delivery<input name="deliveryTime" type="datetime-local"
+            /></label>
+          </div>
+          <button>Create invitation</button>
+        </form>
+        <form id="schedule">
+          <h2>Weekly meal invitations</h2>
+          <p>
+            Creates a fresh meal each week with new attendance and no purchase.
+            Schedule uses a fixed seven-day interval; review after timezone
+            changes.
+          </p>
+          <label
+            >First invitation<input
+              name="nextRun"
+              type="datetime-local"
+              required /></label
+          ><button>Enable weekly invitations</button
+          ><button type="button" id="stopSchedule">
+            Stop weekly invitations
+          </button>
+          <p id="scheduleStatus"></p>
+        </form>
+        <h2>Your meals</h2>
+        <div id="meals" class="cards"></div>
+      </section>
+      <section id="meal" hidden>
+        <a id="back">← Workspace</a>
+        <div id="mealSummary"></div>
+        <div class="toolbar">
+          <button id="publishSlack">Publish / update Slack card</button
+          ><button id="publishDiscord">Publish / update Discord card</button
+          ><button id="copy">Copy invitation</button
+          ><a id="whatsappShare" target="_blank" rel="noopener noreferrer"
+            >Share on WhatsApp</a
+          ><button id="repeat">Repeat next week</button
+          ><button id="close">Close responses</button
+          ><button id="cancel">Cancel collection</button
+          ><button id="remind">Remind WhatsApp subscribers</button>
+        </div>
+        <p id="shareResult" class="wrap"></p>
+        <h2>Responses</h2>
+        <div id="responses"></div>
+        <button type="button" id="suggest">Find live Swiggy suggestions</button>
+        <p id="suggestions"></p>
+        <form id="choices" hidden>
+          <h2>Review restaurant options</h2>
+          <p>
+            This handoff works without Swiggy API approval. Check the
+            restaurant’s current menu and all-in price, including delivery and
+            fees. No automatic purchase is made.
+          </p>
+          <p>
+            Check restrictions privately with participants. Do not assume a dish
+            is allergy-safe from its name.
+          </p>
+          <div id="choiceFields"></div>
+          <button type="button" id="addChoice">
+            Add another option (up to 3)</button
+          ><button>Save checked options</button>
+        </form>
+        <div id="options" class="cards"></div>
+        <div id="handoff"></div>
+        <form id="record" hidden>
+          <h2>After you finish checkout</h2>
+          <p>This records your report; it is not provider confirmation.</p>
+          <label
+            >Order reference<input
+              name="reference"
+              required
+              maxlength="160" /></label
+          ><label
+            >Actual all-in total (₹)<input
+              name="total"
+              type="number"
+              min="0.01"
+              step="0.01"
+              required /></label
+          ><label class="check"
+            ><input name="confirmed" type="checkbox" required />I completed
+            checkout with the provider.</label
+          ><button>Record purchase</button>
+        </form>
+      </section>
+      <section id="participate" hidden>
+        <div id="joinSummary"></div>
+        <p>
+          Your preferences stay private. The organizer sees attendance counts
+          and names, not your dietary answers. Discuss any essential
+          restrictions with them before they purchase.
+        </p>
+        <form id="response">
+          <label
+            >Your name<input
+              name="name"
+              required
+              maxlength="60"
+              autocomplete="name" /></label
+          ><label
+            >Food preference<select name="dietMode">
+              <option value="both">Veg and non-veg</option>
+              <option value="veg">Vegetarian</option>
+              <option value="non_veg">Non-vegetarian</option>
+            </select></label
+          ><label
+            >Craving<input
+              name="craving"
+              maxlength="160"
+              placeholder="Optional: light bowls, spicy noodles…" /></label
+          ><label
+            >Dietary restrictions<input
+              name="dietaryRules"
+              maxlength="300" /></label
+          ><label>Allergies<input name="allergies" maxlength="300" /></label
+          ><label class="check"
+            ><input name="muted" type="checkbox" />Mute WhatsApp reminders for
+            this meal</label
+          ><label class="check"
+            ><input id="remember" type="checkbox" />Remember my preferences on
+            this device</label
+          >
+          <div class="toolbar">
+            <button name="attendance" value="join">Join this meal</button
+            ><button name="attendance" value="skip">Skip this meal</button>
+          </div>
+        </form>
+        <button id="forget">Delete my response</button
+        ><button id="forgetDevice">Forget preferences on this device</button
+        ><a id="waSubscribe" hidden
+          >Get a private link and opt in to one reminder on WhatsApp</a
+        >
+        <p>
+          No app installation or food account needed. Keep your participation
+          link private.
+        </p>
+      </section>
+    </main>
+    <script src="/teams.js" type="module"></script>
+  </body>
+</html>
