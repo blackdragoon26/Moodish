@@ -32,7 +32,7 @@ export async function prepareCart({ ownerId, recommendation, optionId, restauran
     : null;
   const id = crypto.randomUUID();
   const preparation = { id, ownerId, groupSessionId, recommendationId: recommendation.recommendationId, optionId,
-    connectionVersion: swiggy.mode === "live" ? (await getSecretSession(`swiggy:${ownerId}`))?.version : undefined,
+    connectionVersion: swiggy.mode === "live" ? (swiggy.connectionVersion ? await swiggy.connectionVersion() : (await getSecretSession(`swiggy:${ownerId}`))?.version) : undefined,
     restaurantId, addressId, addressHash: digest(address), items: checked, addOnProductIds, existingHash: cartFingerprint(existing),
     blockedReason, expiresAt: Date.now() + 5 * 60000, state: "prepared" };
   await saveSecretSession(`cart-prepare:${id}`, preparation);
@@ -61,6 +61,7 @@ export async function confirmPreparedCart({ preparationId, ownerId, recommendati
     const checked = await checkMenu(swiggy, p.restaurantId, p.addressId, p.items);
     if (digest(checked) !== digest(p.items)) throw fail("Menu prices or selections changed. Review the cart again.");
     if (cartFingerprint(await swiggy.getFoodCart({ addressId: p.addressId })) !== p.existingHash) throw fail("Your Swiggy cart changed. Review it again before replacing it.");
+    if (swiggy.mode === "live" && p.connectionVersion !== (await getSecretSession(`swiggy:${ownerId}`))?.version) throw fail("Swiggy connection changed. Review the cart again.");
     p.state = "attempting";
     await saveSecretSession(key, p);
     try {
@@ -79,7 +80,7 @@ export async function confirmPreparedCart({ preparationId, ownerId, recommendati
 }
 // Shared with the live acceptance harness so both judge availability the same way.
 export function isOrderable(item) {
-  return item.inStock !== false && item.inStock !== 0 && item.in_stock !== false && item.isAvailable !== false && Number.isFinite(item.price);
+  return [item.inStock, item.in_stock, item.isAvailable, item.isAvail].every(flag => flag !== false && flag !== 0) && Number.isFinite(item.price) && item.price >= 0;
 }
 async function currentAddress(swiggy, addressId) {
   const address = (await swiggy.getAddresses()).find(a => a.id === addressId);

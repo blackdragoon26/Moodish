@@ -3,7 +3,6 @@ import { URL, pathToFileURL } from "node:url";
 import { loadLocalEnv } from "./env.mjs";
 import { createTools, createToolRuntime } from "./tools.mjs";
 import {
-  clearTeamHistory,
   deleteTasteMemory,
   getAuditLogs,
   getGroupSession,
@@ -328,9 +327,7 @@ export async function handleAgentRequest(req, res) {
       return send(res, 200, await deleteTasteMemory((await personal(body)).userIdHash));
     }
     if (req.method === "POST" && url.pathname === "/api/privacy/clear-team-history") {
-      const body = await readJson(req);
-      if (live) throw Object.assign(new Error("Team history deletion needs verified workspace administration"), { status: 403 });
-      return send(res, 200, await clearTeamHistory(body.teamId));
+      throw Object.assign(new Error("Team history deletion needs verified workspace administration"), { status: 403 });
     }
     if (req.method === "POST" && url.pathname === "/mcp") {
       const message = await readJson(req);

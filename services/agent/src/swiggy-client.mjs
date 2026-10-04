@@ -12,11 +12,19 @@ export const upstreamError = (message, status = 502, code = "SWIGGY_UNAVAILABLE"
 const retryableCodes = new Set(["SWIGGY_UNAVAILABLE", "SWIGGY_TIMEOUT", "SWIGGY_RATE_LIMITED"]);
 
 export function createLiveCaller(userId) {
-  return async function call(server, name, args = {}) {
+  let pinned;
+  const connectionVersion = async () => {
+    const credential = await getSwiggyCredential(userId);
+    if (!credential) throw upstreamError("Connect or reconnect your Swiggy account", 401, "SWIGGY_REAUTH_REQUIRED");
+    if (pinned && pinned.version !== credential.version) throw upstreamError("Swiggy connection changed. Review again.", 409, "SWIGGY_CONNECTION_CHANGED");
+    pinned ||= credential;
+    return pinned.version;
+  };
+  const call = async function call(server, name, args = {}) {
     if (!allowed[server]?.has(name)) throw upstreamError("This Swiggy operation is not enabled", 403);
     const run = async () => {
-      const credential = await getSwiggyCredential(userId);
-      if (!credential) throw upstreamError("Connect or reconnect your Swiggy account", 401, "SWIGGY_REAUTH_REQUIRED");
+      await connectionVersion();
+      const credential = pinned;
       const client = new Client({ name: "moodish", version: "0.2.0" });
       const transport = new StreamableHTTPClientTransport(new URL(`https://mcp.swiggy.com/${server}`), {
         requestInit: { headers: { Authorization: `Bearer ${credential.token}` }, signal: AbortSignal.timeout(30000) }
@@ -25,13 +33,17 @@ export function createLiveCaller(userId) {
         await client.connect(transport);
         let cursor;
         let tool;
+        const cursors = new Set();
         do {
+          if (cursors.size >= 32 || (cursor && cursors.has(cursor))) throw upstreamError("Swiggy capability pagination did not complete", 502, "SWIGGY_CAPABILITY_INVALID");
+          cursors.add(cursor);
           const page = await client.listTools(cursor ? { cursor } : {}, { timeout: 15000 });
           tool = page.tools.find(t => t.name === name);
           cursor = page.nextCursor;
         } while (!tool && cursor);
         if (!tool) throw upstreamError(`Swiggy ${server} does not expose ${name}`, 503, "SWIGGY_CAPABILITY_UNAVAILABLE");
         if (!ajv.validate(tool.inputSchema, args)) throw upstreamError(`Swiggy ${name} input does not match the current tool schema`, 422, "SWIGGY_SCHEMA_MISMATCH");
+        await connectionVersion();
         const result = await client.callTool({ name, arguments: args }, undefined, { timeout: 20000 });
         return unwrapMcpResult({ result });
       } catch (error) {
@@ -51,6 +63,8 @@ export function createLiveCaller(userId) {
     };
     return name === "update_food_cart" ? run() : retrySwiggyCall(run, { maxAttempts: 2, retryable: error => retryableCodes.has(error.code) });
   };
+  call.connectionVersion = connectionVersion;
+  return call;
 }
 
 function isTimeout(error) {
