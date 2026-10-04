@@ -70,3 +70,13 @@ test("a failed database connection during schema setup is retried, not cached", 
     assert.equal(attempts, 3, "each request tries to connect again");
   } finally { server.close(); }
 });
+
+ test("Supabase database TLS uses the published CA only for provider endpoints", async () => {
+  const { databaseSsl } = await import("../services/agent/src/memory.mjs");
+  for (const host of ["aws-0-ap-southeast-2.pooler.supabase.com", "db.tfcsrxahaafyablsduqe.supabase.co"]) {
+    const ssl = databaseSsl(`postgresql://u:p@${host}:5432/postgres`, { NODE_ENV: "production" });
+    assert.equal(ssl.rejectUnauthorized, true);
+    assert.match(ssl.ca, /BEGIN CERTIFICATE/);
+  }
+  assert.deepEqual(databaseSsl("postgresql://u:p@pooler.supabase.com.attacker.example/db", { NODE_ENV: "production" }), { rejectUnauthorized: true });
+});

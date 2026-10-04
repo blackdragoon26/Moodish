@@ -1,4 +1,5 @@
 import pg from "pg";
+import { readFileSync } from "node:fs";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { DEFAULT_USER_HASH, nowIso } from "./contracts.mjs";
 import { loadLocalEnv } from "./env.mjs";
@@ -38,7 +39,13 @@ export function databaseSsl(connectionString, env = process.env) {
   let sslmode = null;
   try { sslmode = new URL(connectionString).searchParams.get("sslmode"); } catch {}
   if (sslmode === "disable") return false;
-  return env.NODE_ENV === "production" ? { rejectUnauthorized: true } : undefined;
+  if (env.NODE_ENV !== "production") return undefined;
+  const host = new URL(connectionString).hostname;
+  // Trust Supabase's published CA only for its database endpoints.
+  const supabase = host.endsWith(".pooler.supabase.com") || /^db\.[a-z0-9]+\.supabase\.co$/.test(host);
+  return supabase
+    ? { rejectUnauthorized: true, ca: readFileSync(new URL("../certs/supabase-root-2021.crt", import.meta.url), "utf8") }
+    : { rejectUnauthorized: true };
 }
 
 export async function databaseReady() {
