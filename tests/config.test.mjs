@@ -84,10 +84,25 @@ test("a failed database connection during schema setup is retried, not cached", 
 test("pg URL SSL options cannot override production certificate verification", async () => {
   const { databasePoolConfig } = await import("../services/agent/src/memory.mjs");
   const { default: pg } = await import("pg");
-  for (const query of ["sslmode=require", "sslmode=no-verify", "sslmode=prefer&uselibpqcompat=true", "sslrootcert=/missing"]) {
+  for (const query of ["ssl=false", "ssl=0", "sslmode=require", "sslmode=no-verify", "sslmode=prefer&uselibpqcompat=true", "sslrootcert=/missing"]) {
     const config = databasePoolConfig(`postgresql://u:p@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres?${query}`, { NODE_ENV: "production" });
     const actual = new pg.Client(config).connectionParameters.ssl;
     assert.equal(actual.rejectUnauthorized, true);
     assert.match(actual.ca, /BEGIN CERTIFICATE/);
   }
+});
+
+test("development retains pg socket syntax and explicit TLS policy", async () => {
+ const { databasePoolConfig } = await import("../services/agent/src/memory.mjs");
+ const { default: pg } = await import("pg");
+ const socket = new pg.Client(databasePoolConfig("/var/run/postgresql moodish", {NODE_ENV:"development"})).connectionParameters;
+ assert.equal(socket.host,"/var/run/postgresql");
+ assert.equal(socket.database,"moodish");
+ for (const mode of ["require","verify-full"]) {
+  const url=`postgresql://u:p@db.example/db?sslmode=${mode}`;
+  const before=new pg.Client({connectionString:url}).connectionParameters.ssl;
+  const after=new pg.Client(databasePoolConfig(url,{NODE_ENV:"development"})).connectionParameters.ssl;
+  assert.deepEqual(after,before);
+  assert.notEqual(after,false);
+ }
 });

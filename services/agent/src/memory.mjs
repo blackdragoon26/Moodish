@@ -50,9 +50,11 @@ export function databaseSsl(connectionString, env = process.env) {
 
 // pg URL SSL options override the explicit SSL object. Keep trust policy in one place.
 export function databasePoolConfig(connectionString, env = process.env) {
+  // Preserve pg-supported socket strings and explicit TLS settings in development.
+  if (env.NODE_ENV !== "production") return { connectionString };
   const url = new URL(connectionString);
   const ssl = databaseSsl(connectionString, env);
-  for (const name of ["sslmode", "sslcert", "sslkey", "sslrootcert", "uselibpqcompat", "sslnegotiation"]) url.searchParams.delete(name);
+  for (const name of ["ssl", "sslmode", "sslcert", "sslkey", "sslrootcert", "uselibpqcompat", "sslnegotiation"]) url.searchParams.delete(name);
   return { connectionString: url.toString(), ssl };
 }
 
@@ -129,6 +131,12 @@ export async function updateTasteProfile(userIdHash = DEFAULT_USER_HASH, patch =
   }
   await logAudit("taste_profile_updated", { userIdHash });
   return updated;
+}
+
+// Public office planning has no verified workspace membership yet. Defaults
+// contain no saved workspace data; request constraints are applied separately.
+export function getOfficeDefaults() {
+  return structuredClone(defaultTeamProfile);
 }
 
 export async function getTeamProfile(teamId = "team-fixture") {

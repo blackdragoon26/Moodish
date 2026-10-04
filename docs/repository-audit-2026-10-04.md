@@ -20,3 +20,7 @@ Targeted reproductions cover account switching, real pg option parsing, repeated
 Production Swiggy callback approval is pending in Swiggy issue #132. Authenticated provider payload validation, final bill parity and one approved Food cart update cannot be verified before approval. Web browser journeys passed, but physical iOS/Android journeys remain unverified. Required dish customization is rejected safely rather than offering a picker. A stable standalone Swiggy identity needs a verified provider identity contract; Google sign-in remains the existing stable identity path. Co-manager address visibility remains an explicit product decision tracked in #14.
 
 These outstanding items are not represented as completed by mock or fixture tests. Live mode stays off pending acceptance.
+
+## PR review corrections
+
+CodeRabbit identified three regressions/gaps in the patch. Non-production database configuration now passes the original connection string to pg, preserving explicit TLS policy, CA options and supported raw Unix-socket syntax. Production continues to enforce the explicit certificate policy. Public office planning uses non-sensitive defaults plus request preferences, never a saved profile selected by caller-provided team ID. The team-history clearing endpoint rejects requests in every mode until verified workspace administration is implemented. Internal persistence remains available, but it is not exposed as an authorized workspace feature. Regression tests exercise both anonymous and signed unrelated callers.

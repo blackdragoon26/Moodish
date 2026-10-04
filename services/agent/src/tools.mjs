@@ -5,7 +5,7 @@ import {
   getMealHistory,
   getRecommendation,
   getTasteProfile,
-  getTeamProfile,
+  getOfficeDefaults,
   recordFeedback,
   recordMealHistory,
   saveRecommendation,
@@ -70,7 +70,7 @@ export function createTools(runtime = createToolRuntime()) {
       return instrumentToolCall({ tool: "plan_office_lunch", userIdHash }, async () => {
         const run = await planOfficeLunch({
           request: publicRequest(args),
-          teamProfile: await getTeamProfile(args.teamId),
+          teamProfile: getOfficeDefaults(),
           swiggy: runtime.swiggy,
           ai: aiForRequest(args, runtime.ai)
         });
