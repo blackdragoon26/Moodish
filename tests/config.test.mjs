@@ -80,3 +80,14 @@ test("a failed database connection during schema setup is retried, not cached", 
   }
   assert.deepEqual(databaseSsl("postgresql://u:p@pooler.supabase.com.attacker.example/db", { NODE_ENV: "production" }), { rejectUnauthorized: true });
 });
+
+test("pg URL SSL options cannot override production certificate verification", async () => {
+  const { databasePoolConfig } = await import("../services/agent/src/memory.mjs");
+  const { default: pg } = await import("pg");
+  for (const query of ["sslmode=require", "sslmode=no-verify", "sslmode=prefer&uselibpqcompat=true", "sslrootcert=/missing"]) {
+    const config = databasePoolConfig(`postgresql://u:p@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres?${query}`, { NODE_ENV: "production" });
+    const actual = new pg.Client(config).connectionParameters.ssl;
+    assert.equal(actual.rejectUnauthorized, true);
+    assert.match(actual.ca, /BEGIN CERTIFICATE/);
+  }
+});

@@ -8,7 +8,7 @@ const { Pool } = pg;
 loadLocalEnv();
 const POOL_MAX = Math.max(3, Number(process.env.DATABASE_POOL_MAX) || 10);
 const pool = process.env.DATABASE_URL
-  ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: databaseSsl(process.env.DATABASE_URL), max: POOL_MAX,
+  ? new Pool({ ...databasePoolConfig(process.env.DATABASE_URL), max: POOL_MAX,
       // Fail a request that cannot get a connection instead of hanging it.
       connectionTimeoutMillis: Number(process.env.DATABASE_CONNECT_TIMEOUT_MS) || 15_000 })
   : null;
@@ -46,6 +46,14 @@ export function databaseSsl(connectionString, env = process.env) {
   return supabase
     ? { rejectUnauthorized: true, ca: readFileSync(new URL("../certs/supabase-root-2021.crt", import.meta.url), "utf8") }
     : { rejectUnauthorized: true };
+}
+
+// pg URL SSL options override the explicit SSL object. Keep trust policy in one place.
+export function databasePoolConfig(connectionString, env = process.env) {
+  const url = new URL(connectionString);
+  const ssl = databaseSsl(connectionString, env);
+  for (const name of ["sslmode", "sslcert", "sslkey", "sslrootcert", "uselibpqcompat", "sslnegotiation"]) url.searchParams.delete(name);
+  return { connectionString: url.toString(), ssl };
 }
 
 export async function databaseReady() {
@@ -109,7 +117,7 @@ export async function getTasteProfile(userIdHash = DEFAULT_USER_HASH) {
 export async function updateTasteProfile(userIdHash = DEFAULT_USER_HASH, patch = {}) {
   const current = await getTasteProfile(userIdHash);
   const updated = { ...current, ...patch, userIdHash, updatedAt: nowIso() };
-  userProfiles.set(userIdHash, updated);
+  if (!pool) userProfiles.set(userIdHash, updated);
   if (pool) {
     await ensureSchema();
     await queryDatabase(
@@ -124,19 +132,29 @@ export async function updateTasteProfile(userIdHash = DEFAULT_USER_HASH, patch =
 }
 
 export async function getTeamProfile(teamId = "team-fixture") {
+  if (pool) {
+    await ensureSchema();
+    const result = await queryDatabase("SELECT data FROM moodish_team_profiles WHERE team_id = $1", [teamId]);
+    return result.rows[0]?.data ?? { ...defaultTeamProfile, teamId };
+  }
   return teamProfiles.get(teamId) ?? { ...defaultTeamProfile, teamId };
 }
 
 export async function updateTeamProfile(teamId = "team-fixture", patch = {}) {
   const current = await getTeamProfile(teamId);
   const updated = { ...current, ...patch, teamId, updatedAt: nowIso() };
-  teamProfiles.set(teamId, updated);
+  if (!pool) teamProfiles.set(teamId, updated);
+  else {
+    await ensureSchema();
+    await queryDatabase(`INSERT INTO moodish_team_profiles (team_id, data, updated_at) VALUES ($1, $2::jsonb, NOW())
+      ON CONFLICT (team_id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`, [teamId, JSON.stringify(updated)]);
+  }
   await logAudit("team_profile_updated", { teamId });
   return updated;
 }
 
 export async function saveRecommendation(run) {
-  recommendations.set(run.recommendationId, run);
+  if (!pool) recommendations.set(run.recommendationId, run);
   if (pool) {
     await ensureSchema();
     await queryDatabase(
@@ -151,7 +169,7 @@ export async function saveRecommendation(run) {
 }
 
 export async function getRecommendation(recommendationId) {
-  if (recommendations.has(recommendationId)) return recommendations.get(recommendationId);
+  if (!pool && recommendations.has(recommendationId)) return recommendations.get(recommendationId);
   if (pool) {
     await ensureSchema();
     const result = await queryDatabase("SELECT data FROM moodish_recommendations WHERE recommendation_id = $1", [
@@ -164,7 +182,7 @@ export async function getRecommendation(recommendationId) {
 
 export async function recordFeedback(event) {
   const stored = { ...event, createdAt: nowIso() };
-  feedbackEvents.push(stored);
+  if (!pool) feedbackEvents.push(stored);
   if (pool) {
     await ensureSchema();
     await queryDatabase("INSERT INTO moodish_feedback (user_id_hash, data, created_at) VALUES ($1, $2::jsonb, NOW())", [
@@ -196,7 +214,7 @@ export async function recordMealHistory(event) {
     );
     if (existing.rows[0]) return existing.rows[0].data;
   }
-  mealHistoryEvents.unshift(stored);
+  if (!pool) mealHistoryEvents.unshift(stored);
   if (pool) {
     await queryDatabase(
       "INSERT INTO moodish_meal_history (user_id_hash, data, confirmed_at) VALUES ($1, $2::jsonb, $3)",
@@ -275,13 +293,13 @@ export async function deleteTasteMemory(userIdHash = DEFAULT_USER_HASH) {
 export async function clearTeamHistory(teamId = "team-fixture") {
   const current = await getTeamProfile(teamId);
   const updated = { ...current, cuisineAvoidList: [], updatedAt: nowIso() };
-  teamProfiles.set(teamId, updated);
+  await updateTeamProfile(teamId, updated);
   await logAudit("team_history_cleared", { teamId });
   return updated;
 }
 
 export async function saveGroupSession(session) {
-  groupSessions.set(session.sessionId, session);
+  if (!pool) groupSessions.set(session.sessionId, session);
   if (pool) {
     await ensureSchema();
     await queryDatabase(
@@ -304,7 +322,7 @@ export async function getGroupSession(sessionId) {
 }
 
 export async function getPlatformEventResponse(eventKey) {
-  if (platformEvents.has(eventKey)) return platformEvents.get(eventKey);
+  if (!pool && platformEvents.has(eventKey)) return platformEvents.get(eventKey);
   if (pool) {
     await ensureSchema();
     const result = await queryDatabase("SELECT response FROM moodish_platform_events WHERE event_key = $1", [eventKey]);
@@ -314,7 +332,7 @@ export async function getPlatformEventResponse(eventKey) {
 }
 
 export async function savePlatformEventResponse(eventKey, response) {
-  platformEvents.set(eventKey, response);
+  if (!pool) platformEvents.set(eventKey, response);
   if (pool) {
     await ensureSchema();
     await queryDatabase(
@@ -354,7 +372,7 @@ export async function saveSecretSession(sessionKey, data) {
 
 export async function logAudit(event, details = {}) {
   const log = { ts: nowIso(), event, details };
-  auditLogs.push(log);
+  if (!pool) auditLogs.push(log);
   if (pool) {
     await ensureSchema();
     await queryDatabase("INSERT INTO moodish_audit_logs (event, details, created_at) VALUES ($1, $2::jsonb, NOW())", [
@@ -396,6 +414,11 @@ async function ensureSchema() {
         recommendation_id TEXT PRIMARY KEY,
         data JSONB NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS moodish_team_profiles (
+        team_id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE TABLE IF NOT EXISTS moodish_feedback (
         id BIGSERIAL PRIMARY KEY,
