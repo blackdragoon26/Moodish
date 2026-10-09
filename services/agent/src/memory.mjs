@@ -496,7 +496,7 @@ export async function deleteSecretSession(key) { await takeSecretSession(key); }
 // pruned here: their attempt markers must survive.
 // For tests: records held in process memory (always 0 with PostgreSQL).
 export function localSecretSessionCount() { return secretSessions.size; }
-const FLOW_PREFIXES = ["swiggy-flow:", "google-flow:", "platform-flow:", "mobile:"];
+const FLOW_PREFIXES = ["swiggy-flow:", "google-flow:", "platform-flow:", "teams-slack-flow:", "team-pair-flow:", "mobile:"];
 let lastPrune = 0;
 export async function pruneExpiredFlows(now = Date.now()) {
   if (now - lastPrune < 3_600_000) return 0;
