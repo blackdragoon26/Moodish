@@ -376,3 +376,35 @@ test("concurrent channel pairing assigns exactly one workspace and replacement r
     loser.team.id,
   );
 });
+
+test("WhatsApp STOP stays effective until valid explicit reminder consent is renewed", async () => {
+  const f = await setup();
+  const optoutKey = `wa-optout:${crypto.createHash("sha256").update(f.phone).digest("hex")}`;
+  const command = `MEAL ${f.team.id} ${f.s.id} ${f.s.shareToken}`;
+  const sent = [];
+  const restore = mockProvider(async (url, options) => {
+    sent.push(JSON.parse(options.body));
+    return new Response(JSON.stringify({ messages: [{ id: "wa-renewal" }] }));
+  });
+  try {
+    await whatsappEvents(wa(f, "STOP"), base);
+    await whatsappEvents(wa(f, command), base);
+    assert.equal((await getSecretSession(optoutKey)).stopped, true);
+    assert.equal((await remindMeal(f.team.id, f.s.id, f.u.id, base)).sent, 0);
+    await assert.rejects(
+      whatsappEvents(wa(f, `MEAL ${f.team.id} ${f.s.id} invalid REMIND`), base),
+    );
+    assert.equal((await getSecretSession(optoutKey)).stopped, true);
+    await whatsappEvents(wa(f, `${command} REMIND`), base);
+    assert.equal((await getSecretSession(optoutKey))?.stopped || false, false);
+    assert.equal((await remindMeal(f.team.id, f.s.id, f.u.id, base)).sent, 1);
+    assert.equal(
+      sent.filter((message) => message.type === "template").length,
+      1,
+    );
+    await whatsappEvents(wa(f, "STOP"), base);
+    assert.equal((await getSecretSession(optoutKey)).stopped, true);
+  } finally {
+    restore();
+  }
+});

@@ -341,6 +341,10 @@ export async function whatsappEvents(payload, base) {
               };
               await save(team);
             });
+            // Only a valid, persisted MEAL subscription with explicit REMIND
+            // consent can lift a previous STOP. Plain links never opt users back in.
+            if (remind)
+              await saveSecretSession(`wa-optout:${phoneKey}`, { stopped: false });
             const t = await readTeam(teamId),
               s = t.sessions.find((s) => s.id === sessionId),
               pt = decryptToken(s.whatsapp[phoneKey].participantToken);

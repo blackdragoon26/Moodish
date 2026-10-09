@@ -159,3 +159,28 @@ test("mobile participation saves device preferences only with consent and suppor
   await expect(participant.getByRole("status")).toContainText("Join or skip");
   await ctx.close();
 });
+
+for (const suffix of ["", "?team=office-id&meal=meal-id"]) {
+  test(`signed-out Google bootstrap preserves Teams return URL ${suffix}`, async ({
+    page,
+  }) => {
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.route("**/api/bootstrap", (route) =>
+      route.fulfill({
+        json: { user: null, config: { google: true, demo: false } },
+      }),
+    );
+    await page.goto(`${base}/teams.html${suffix}`);
+    await expect(page.getByRole("status")).toHaveText(
+      "Sign in to manage your team.",
+    );
+    const link = page.locator("#login a");
+    await expect(link).toHaveAttribute(
+      "href",
+      `/api/auth/google/start?returnTo=${encodeURIComponent(`/teams.html${suffix}`)}`,
+    );
+    await expect(page.locator("#demo")).toBeHidden();
+    expect(errors).toEqual([]);
+  });
+}
