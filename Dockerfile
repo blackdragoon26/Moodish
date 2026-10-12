@@ -18,6 +18,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
 COPY apps/web ./apps/web
 COPY services/agent ./services/agent
+COPY scripts/team-jobs.mjs ./scripts/team-jobs.mjs
 
 USER moodish
 EXPOSE 8787

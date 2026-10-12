@@ -1,4 +1,6 @@
 import http from "node:http";
+import { handleTeamApi } from "./team-api.mjs";
+import { teamChannelCommand } from "./team-channels.mjs";
 import { URL, pathToFileURL } from "node:url";
 import { loadLocalEnv } from "./env.mjs";
 import { createTools, createToolRuntime } from "./tools.mjs";
@@ -105,7 +107,7 @@ export async function handleAgentRequest(req, res) {
       try {
         // Native clients send a PKCE challenge; older app builds without one are
         // told to update instead of receiving a token in the callback URL.
-        location = await startGoogleOAuth(resolvePublicOrigin(req), { mobileChallenge: mobile ? url.searchParams.get("challenge") || "" : undefined, browserBinding });
+        location = await startGoogleOAuth(resolvePublicOrigin(req), { mobileChallenge: mobile ? url.searchParams.get("challenge") || "" : undefined, browserBinding, returnTo: mobile ? undefined : url.searchParams.get("returnTo") });
       } catch (error) {
         if (error.flowKind === "mobile") return redirect(res, `moodish://auth-callback?error=${loginErrorReason(error)}`);
         throw error;
@@ -124,7 +126,7 @@ export async function handleAgentRequest(req, res) {
         return redirect(res, `/?login_error=${reason}`, clear);
       }
       if (completed.mobile) return redirect(res, `moodish://auth-callback?code=${encodeURIComponent(completed.exchangeCode)}`);
-      return redirect(res, "/?login=google", { "set-cookie": [issueAuthCookie(completed.user), googleFlowCookie("", 0)] });
+      return redirect(res, completed.returnTo || "/?login=google", { "set-cookie": [issueAuthCookie(completed.user), googleFlowCookie("", 0)] });
     }
     if ((req.method === "GET" && url.pathname === "/api/auth/swiggy/start") ||
         (req.method === "POST" && url.pathname === "/api/swiggy/oauth/start")) {
@@ -210,6 +212,7 @@ export async function handleAgentRequest(req, res) {
     if (req.method === "POST" && url.pathname === "/api/feedback") {
       return send(res, 200, await tools.record_meal_feedback(await personal(await readJson(req))));
     }
+    if (await handleTeamApi({ req, res, url, user: authUser, base: resolvePublicOrigin(req), readJson, readRaw, send })) return;
     const platformMatch = url.pathname.match(/^\/api\/platforms\/(slack|teams|discord)\/events$/);
     if (req.method === "POST" && platformMatch) {
       const platform = platformMatch[1];
@@ -218,12 +221,15 @@ export async function handleAgentRequest(req, res) {
       const payload = platform === "slack" ? rawBody : JSON.parse(rawBody || "{}");
       const command = platformCommandToSession(platform, payload, resolvePublicOrigin(req));
       if (command.ping) return send(res, 200, command.response());
-      const cachedResponse = await getPlatformEventResponse(command.dedupeKey);
-      if (cachedResponse) return send(res, 200, cachedResponse);
-      const session = await tools.create_group_meal_session(command.args);
-      const response = command.response(session);
-      await savePlatformEventResponse(command.dedupeKey, response);
-      return send(res, 200, response);
+      return send(res, 200, await withAccountLock(`platform-event:${command.dedupeKey}`, async () => {
+        const cachedResponse = await getPlatformEventResponse(command.dedupeKey);
+        if (cachedResponse) return cachedResponse;
+        const teamsResponse = ["slack", "discord"].includes(platform)
+          ? await teamChannelCommand(platform, payload, resolvePublicOrigin(req)) : null;
+        const response = teamsResponse || command.response(await tools.create_group_meal_session(command.args));
+        await savePlatformEventResponse(command.dedupeKey, response);
+        return response;
+      }));
     }
     const platformOauthMatch = url.pathname.match(/^\/api\/platforms\/(slack|teams|discord)\/oauth\/(start|callback)$/);
     if (req.method === "GET" && platformOauthMatch) {

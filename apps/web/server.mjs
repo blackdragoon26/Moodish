@@ -1,4 +1,5 @@
 import http from "node:http";
+import { startTeamWorker } from "../../services/agent/src/team-jobs.mjs";
 import { readFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import { extname, join } from "node:path";
@@ -47,5 +48,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.ar
   createWebServer().listen(port, host, () => {
     const displayHost = host === "0.0.0.0" ? "127.0.0.1" : host;
     console.log(`Moodish web + API listening on http://${displayHost}:${port}`);
+    startTeamWorker(process.env.MOODISH_PUBLIC_URL || `http://127.0.0.1:${port}`);
   });
 }

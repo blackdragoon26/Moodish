@@ -1,0 +1,30 @@
+{
+  "display_information": {
+    "name": "Moodish for Teams",
+    "description": "Arrange team meals with private preferences and clear budgets",
+    "background_color": "#215c43"
+  },
+  "features": {
+    "bot_user": { "display_name": "Moodish", "always_online": false },
+    "slash_commands": [
+      {
+        "command": "/moodish",
+        "url": "https://moodish.sankalpjha.dev/api/platforms/slack/events",
+        "description": "Start lunch or connect your office",
+        "usage_hint": "lunch | connect <code>",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "redirect_urls": [
+      "https://moodish.sankalpjha.dev/api/teams/slack/callback"
+    ],
+    "scopes": { "bot": ["commands", "chat:write"] }
+  },
+  "settings": {
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
