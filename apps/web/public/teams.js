@@ -230,6 +230,9 @@ async function refreshMeal() {
   session = await api(path(`meals/${mealId}`));
   $("#mealSummary").innerHTML =
     `<h2>${esc(session.vibe)}</h2><p>${session.attending} joining · ${session.skipped} skipping · ₹${session.budgetPerPerson} each</p><p>${esc(session.state.replaceAll("_", " "))} · Responses close ${esc(date(session.deadline))}</p><p>${esc(session.office)}</p>`;
+  const brief = session.decision;
+  $("#decisionBrief").innerHTML =
+    `<h3>Your group decision brief</h3><p>${esc(brief.nextAction)}</p><p>Current all-in cap: ₹${esc(brief.currentSpendCap)} for ${brief.attending} attending · ${brief.pending} subscribed responses pending</p>${brief.options.map((option) => `<p>${esc(option.restaurant)}: ₹${esc(option.total)} total · ₹${esc(option.perPerson)} per person · ${option.withinBudget ? `₹${esc(option.remainingBudget)} below cap` : "Over current cap"} · ${option.fresh ? "Quote checked recently" : "Recheck quote"}${brief.lowestCheckedChoiceId === option.id ? " · Lowest cost checked option" : ""}</p>`).join("")}<small>${esc(brief.caveat)}</small>`;
   $("#responses").textContent =
     session.responses
       .map((p) => `${p.name || "WhatsApp subscriber"}: ${p.attendance}`)

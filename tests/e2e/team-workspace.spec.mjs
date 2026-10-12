@@ -63,6 +63,8 @@ test("office meal journey: private attendance, checked budget, purchaser handoff
   );
   await page.reload();
   await expect(page.locator("#responses")).toContainText("Alex: join");
+  await expect(page.locator("#decisionBrief")).toContainText("Current all-in cap: ₹350 for 1 attending");
+  await expect(page.locator("#decisionBrief")).not.toContainText("Private peanuts");
   await expect(page.locator("body")).not.toContainText("Private peanuts");
   await page
     .getByRole("button", { name: "Close responses", exact: true })

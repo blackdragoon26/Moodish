@@ -12,6 +12,10 @@ Slack, Discord and WhatsApp require their own registered applications and creden
 
 This feature never places an order or charges a payment. A purchaser checks availability, dietary coverage and a fresh all-in quote before handoff, then completes the external checkout themselves. The recorded order and spend are purchaser-reported, not verified with Swiggy. Billing, reimbursements, invoice reconciliation and enterprise SSO are not implemented.
 
+## Group decision brief
+
+The meal view includes actual attendance, the current all-in spend cap, per-person option costs and quote freshness. It highlights the lowest-cost currently eligible checked option without selecting or purchasing it. Dietary answers stay private. See [product positioning and provider next steps](group-decision-positioning.md).
+
 ## Office workflow
 
 1. Sign in and create an office with its address, budget per person, total cap and usual attendance. The default attendance budget must fit within the total cap.

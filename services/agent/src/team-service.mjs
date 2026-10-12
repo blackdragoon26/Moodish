@@ -1,3 +1,4 @@
+import { teamDecisionBrief } from "./team-decision.mjs";
 import crypto from "node:crypto";
 import {
   getSecretSession,
@@ -238,6 +239,7 @@ export async function mealView(teamId, sessionId, userId) {
   return {
     ...sessionSummary(s),
     shareToken: s.shareToken,
+    decision: teamDecisionBrief(team, s),
     events: s.events,
     responses: Object.values(s.participants).map((p) => ({
       name: p.name,
