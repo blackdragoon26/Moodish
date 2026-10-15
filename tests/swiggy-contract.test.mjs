@@ -148,3 +148,17 @@ test("addresses are read across pages up to a bound", async t => {
   assert.equal(addresses.length, 5);
   assert.equal(fake.calls("get_addresses").length, 5);
 });
+
+
+test("live empty-cart success envelope is recognized only for cart reads", () => {
+  const envelope = { successful: true, statusCode: 0, data: null };
+  const wrap = payload => ({ result: { structuredContent: payload }, toolName: "get_food_cart" });
+  const cart = normalizeFoodCart(unwrapMcpResult(wrap(envelope)));
+  assert.deepEqual(cart.items, []);
+  assert.equal(cart.total, 0);
+  assert.equal(unwrapMcpResult({ result: { structuredContent: envelope }, toolName: "search_menu" }), null);
+  assert.throws(() => normalizeFoodCart(unwrapMcpResult(wrap({ data: null }))), /unrecognized cart/);
+  assert.throws(() => normalizeFoodCart(unwrapMcpResult(wrap({ ...envelope, statusCode: 1 }))), /unrecognized cart/);
+  assert.throws(() => unwrapMcpResult(wrap({ ...envelope, successful: false })), /could not complete/);
+  assert.throws(() => unwrapMcpResult(wrap({ ...envelope, success: false })), /could not complete/);
+});

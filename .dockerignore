@@ -9,5 +9,6 @@ apps/ios
 apps/moodish_android
 docs
 tests
-scripts
+scripts/*
+!scripts/live-acceptance.mjs
 services/profile-go
