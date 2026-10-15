@@ -33,7 +33,7 @@ export function createLiveCaller(userId) {
         if (!tool) throw upstreamError(`Swiggy ${server} does not expose ${name}`, 503, "SWIGGY_CAPABILITY_UNAVAILABLE");
         if (!ajv.validate(tool.inputSchema, args)) throw upstreamError(`Swiggy ${name} input does not match the current tool schema`, 422, "SWIGGY_SCHEMA_MISMATCH");
         const result = await client.callTool({ name, arguments: args }, undefined, { timeout: 20000 });
-        return unwrapMcpResult({ result });
+        return unwrapMcpResult({ result, toolName: name });
       } catch (error) {
         const status = error.status || error.code;
         if (status === 401 || status === 419) {
@@ -69,7 +69,14 @@ export function unwrapMcpResult(body) {
     try { result = JSON.parse(text); } catch { throw upstreamError("Swiggy returned an unreadable tool result", 502, "SWIGGY_MALFORMED_RESPONSE"); }
   }
   for (let depth = 0; depth < 4; depth++) {
-    if (result?.success === false || result?.isError || result?.error || (Number(result?.statusCode) >= 400)) throw upstreamError("Swiggy could not complete the requested operation", 502, "SWIGGY_TOOL_ERROR");
+    if (result?.success === false || result?.successful === false || result?.isError || result?.error || (Number(result?.statusCode) >= 400)) throw upstreamError("Swiggy could not complete the requested operation", 502, "SWIGGY_TOOL_ERROR");
+    // Live Food returns a successful status envelope with null data for an
+    // empty cart. Only accept that exact provider acknowledgement for this
+    // read; a bare null or another tool's null payload stays invalid.
+    if (body.toolName === "get_food_cart" && result?.successful === true &&
+        result.statusCode === 0 && result.data === null) {
+      return { cart_id: null, items: [], total: 0 };
+    }
     if (result?.data === undefined) break;
     result = result.data;
   }
