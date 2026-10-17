@@ -501,6 +501,7 @@ function liveGateway(userId, { readOnly = false, observe } = {}) {
   };
   return {
     mode: "live", userId, warnings,
+    connectionVersion: () => liveCall.connectionVersion(),
     getAddresses: async () => {
       // get_addresses pages at most 10 records; read a bounded number of pages.
       const addresses = [];
